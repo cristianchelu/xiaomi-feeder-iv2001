@@ -104,10 +104,20 @@ static void wifi_adapter_wipe_sta_caches(void)
                          zeros,
                          sizeof(zeros));
 
-    /* Keep STA/Ssid + STA/WpaPsk in NVDM so wifi_init() pre-loads
-     * credentials into the N9 for PMK pre-computation.  Only the
-     * PMK_INFO cache (stale PMK) and StaFastLink (fast reconnect
-     * bypass) need wiping to avoid MIC failures. */
+    /* Blank the STA profile so wifi_init() does not pre-load stale
+     * credentials into the N9.  We re-set them in wifi_port_connect(). */
+    nvdm_write_data_item("STA", "SsidLen",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)zero, 1);
+    nvdm_write_data_item("STA", "Ssid",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)"", 0);
+    nvdm_write_data_item("STA", "WpaPskLen",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)zero, 1);
+    nvdm_write_data_item("STA", "WpaPsk",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)"", 0);
 
     APP_LOG_I("wifi", "wiped STA profile + PMK caches");
 }

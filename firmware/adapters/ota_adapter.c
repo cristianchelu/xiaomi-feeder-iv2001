@@ -85,7 +85,9 @@ static void ota_adapter_reboot(void)
     #define N9_AON_TOP_RSV      (*(volatile uint32_t *)0xC00C1138)
     #define N9_HIF_RDY_BIT      (1u << 15)
 
-    /* ---- 1. Disconnect from AP ---- */
+    /* ---- 1. Skip disconnect — test if AP deauth holdoff causes 30s gap ---- */
+    APP_LOG_I("ota", "pre-reboot: skipping disconnect (test)");
+#if 0
     APP_LOG_I("ota", "pre-reboot: disconnect AP");
     (void)wifi_connection_disconnect_ap();
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -95,6 +97,7 @@ static void ota_adapter_reboot(void)
         wifi_connection_get_link_status(&link);
         APP_LOG_I("ota", "link_status after disconnect=%u", (unsigned)link);
     }
+#endif
 
     /* ---- 2. Reset N9 while CONN bus is still accessible ---- */
     {
