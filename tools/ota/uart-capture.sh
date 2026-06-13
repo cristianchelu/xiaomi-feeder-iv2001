@@ -159,6 +159,11 @@ uart_capture_stop() {
         wait "$UART_CAPTURE_PID" 2>/dev/null || true
     fi
     UART_CAPTURE_PID=""
+
+    # Kill any cat child that survived (SIGTERM to subshell doesn't reach children).
+    if [ -n "${UART_CAPTURE_DEV:-}" ] && command -v fuser >/dev/null 2>&1; then
+        fuser -k "${UART_CAPTURE_DEV}" 2>/dev/null || true
+    fi
 }
 
 uart_capture_release() {

@@ -171,19 +171,6 @@ static port_err_t wifi_port_connect(const char *ssid, const char *pass)
     APP_LOG_I("wifi", "connect: ssid=\"%s\" tick=%lu",
               ssid, (unsigned long)xTaskGetTickCount());
 
-    /*
-     * Reset the N9 supplicant and firmware state before connecting.
-     *
-     * After a warm reboot (OTA) the N9 may retain stale PMKSA / association
-     * context in RAM that survives wifi_init().  set_opmode() "resets the
-     * Wi-Fi driver configuration to default values … including supplicant
-     * and firmware" (SDK docs), putting the N9 in idle state with no prior
-     * association.  Must run from a FreeRTOS task (in-band command).
-     */
-    wifi_config_set_opmode(WIFI_MODE_STA_ONLY);
-    APP_LOG_I("wifi", "set_opmode(STA) scrub done tick=%lu",
-              (unsigned long)xTaskGetTickCount());
-
     if (wifi_config_set_ssid(WIFI_PORT_STA, (uint8_t *)ssid, ssid_len) < 0) {
         return PORT_ERR_IO;
     }
