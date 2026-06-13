@@ -62,76 +62,17 @@ static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *err
 static void ota_adapter_reboot(void)
 {
     /*
-     * Reset the N9 coprocessor before WDT reboot.
+     * Disconnect then WDT reboot into the new bank.
      *
-     * hal_sys_reboot() triggers WDT reset, which only resets the CM4.
-     * The N9 survives with stale PMKSA / association state.  On the
-     * next boot the patch semaphore says "already done", FW download
-     * is skipped, and the old supplicant persists — 38s gap + MIC
-     * failures.
-     *
-     * Fix: disconnect, then while the CONN bus is still accessible
-     * (before radio-off), assert N9 SW reset and clear the AON flags
-     * that connsys_init checks on the next boot.
-     *
-     * Register addresses (from connsys_driver.h):
-     *   CONNSYS_SW_RST    0xA2090024  — CM4 peripheral, always safe
-     *   N9ROM_INIT_DONE   0xC00C1254  — CONN bus, needs bus active
-     *   AON_TOP_AON_RSV   0xC00C1138  — CONN bus, needs bus active
+     * The N9 coprocessor is force-reset at boot by
+     * connsys_force_n9_reset.patch, so we only need a clean WiFi
+     * disconnect here.  A ~30s reconnect delay on bank-B boots is a
+     * known limitation of the prebuilt N9 firmware's __seek_and_connect
+     * timeout and cannot be fixed from the CM4 side.
      */
-
-    #define N9_CONNSYS_SW_RST   (*(volatile uint32_t *)0xA2090024)
-    #define N9_ROM_INIT_DONE    (*(volatile uint32_t *)0xC00C1254)
-    #define N9_AON_TOP_RSV      (*(volatile uint32_t *)0xC00C1138)
-    #define N9_HIF_RDY_BIT      (1u << 15)
-
-    /* ---- 1. Skip disconnect — test if AP deauth holdoff causes 30s gap ---- */
-    APP_LOG_I("ota", "pre-reboot: skipping disconnect (test)");
-#if 0
     APP_LOG_I("ota", "pre-reboot: disconnect AP");
     (void)wifi_connection_disconnect_ap();
     vTaskDelay(pdMS_TO_TICKS(500));
-
-    {
-        uint8_t link = 0xff;
-        wifi_connection_get_link_status(&link);
-        APP_LOG_I("ota", "link_status after disconnect=%u", (unsigned)link);
-    }
-#endif
-
-    /* ---- 2. Reset N9 while CONN bus is still accessible ---- */
-    {
-        uint32_t sw_rst_before = N9_CONNSYS_SW_RST;
-        uint32_t init_before   = N9_ROM_INIT_DONE;
-        uint32_t aon_before    = N9_AON_TOP_RSV;
-        APP_LOG_I("ota", "N9 pre-reset: SW_RST=0x%08lx INIT_DONE=0x%08lx AON=0x%08lx",
-                  (unsigned long)sw_rst_before,
-                  (unsigned long)init_before,
-                  (unsigned long)aon_before);
-
-        /* Clear HIF ready flag — connsys_init checks this */
-        N9_AON_TOP_RSV &= ~N9_HIF_RDY_BIT;
-
-        /* Clear init-done so boot code waits for fresh N9 ROM init */
-        N9_ROM_INIT_DONE = 0x00;
-
-        /* Assert SW reset — POR value is 0x00 (held in reset).
-         * _connsys_init_activate_mcu() writes 0x18 to release. */
-        N9_CONNSYS_SW_RST = 0x00;
-
-        uint32_t sw_rst_after = N9_CONNSYS_SW_RST;
-        uint32_t init_after   = N9_ROM_INIT_DONE;
-        uint32_t aon_after    = N9_AON_TOP_RSV;
-        APP_LOG_I("ota", "N9 post-reset: SW_RST=0x%08lx INIT_DONE=0x%08lx AON=0x%08lx",
-                  (unsigned long)sw_rst_after,
-                  (unsigned long)init_after,
-                  (unsigned long)aon_after);
-    }
-
-    #undef N9_CONNSYS_SW_RST
-    #undef N9_ROM_INIT_DONE
-    #undef N9_AON_TOP_RSV
-    #undef N9_HIF_RDY_BIT
 
     hal_cache_disable();
     hal_cache_deinit();
