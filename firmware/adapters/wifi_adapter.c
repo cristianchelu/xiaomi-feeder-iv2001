@@ -15,6 +15,7 @@
 #include "lwip/netif.h"
 #include "ethernetif.h"
 
+#include "app_log.h"
 #include "wifi_adapter.h"
 #include "wifi_port.h"
 #include "wifi_private_api.h"
@@ -67,10 +68,43 @@ static void wifi_adapter_set_ap_network_profile(void)
                          (uint32_t)strlen("192.168.4.1"));
 }
 
+/*
+ * Wipe SDK-internal STA caches that poison association after reboot.
+ *
+ * PMK_INFO: cached SSID+PSK+PMK tuple.  After a warm reboot the AP has
+ *           invalidated its PMKSA; the SDK tries the stale PMK, gets MIC
+ *           failure on msg 3, and falls back after ~30 s.
+ * StaFastLink: tells N9 ROM to use PMK_INFO for fast 4-way.  Disable it
+ *              so the full PBKDF2 derivation runs on every boot.
+ *
+ * Must run BEFORE wifi_init() which reads these keys.
+ */
+static void wifi_adapter_wipe_sta_caches(void)
+{
+    uint8_t zeros[32 + 64 + 32];
+
+    memset(zeros, 0, sizeof(zeros));
+
+    nvdm_write_data_item("common",
+                         "StaFastLink",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)"0",
+                         1);
+
+    nvdm_write_data_item("STA",
+                         "PMK_INFO",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         zeros,
+                         sizeof(zeros));
+
+    APP_LOG_I("wifi", "wiped StaFastLink + PMK_INFO");
+}
+
 void wifi_adapter_stack_init(void)
 {
     wifi_config_t config;
     wifi_config_ext_t ext;
+    TickType_t t0;
 
     memset(&config, 0, sizeof(config));
     memset(&ext, 0, sizeof(ext));
@@ -79,9 +113,17 @@ void wifi_adapter_stack_init(void)
     ext.sta_auto_connect_present = 1;
     ext.sta_auto_connect = 0;
 
+    wifi_adapter_wipe_sta_caches();
+
+    t0 = xTaskGetTickCount();
     wifi_init(&config, &ext);
+    APP_LOG_I("wifi", "wifi_init done +%lu ms",
+              (unsigned long)(xTaskGetTickCount() - t0) * portTICK_PERIOD_MS);
+
     lwip_network_init(config.opmode);
     lwip_net_start(config.opmode);
+    APP_LOG_I("wifi", "stack_init complete +%lu ms",
+              (unsigned long)(xTaskGetTickCount() - t0) * portTICK_PERIOD_MS);
 }
 
 static port_err_t wifi_port_connect(const char *ssid, const char *pass)
@@ -104,6 +146,9 @@ static port_err_t wifi_port_connect(const char *ssid, const char *pass)
         return PORT_ERR_INVALID_ARG;
     }
 
+    APP_LOG_I("wifi", "connect: ssid=\"%s\" tick=%lu",
+              ssid, (unsigned long)xTaskGetTickCount());
+
     if (wifi_config_set_ssid(WIFI_PORT_STA, (uint8_t *)ssid, ssid_len) < 0) {
         return PORT_ERR_IO;
     }
@@ -117,6 +162,9 @@ static port_err_t wifi_port_connect(const char *ssid, const char *pass)
                                                WIFI_ENCRYPT_TYPE_WEP_DISABLED) < 0) {
         return PORT_ERR_IO;
     }
+
+    APP_LOG_I("wifi", "reload_setting tick=%lu",
+              (unsigned long)xTaskGetTickCount());
 
     if (wifi_config_reload_setting() < 0) {
         return PORT_ERR_IO;
