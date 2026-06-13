@@ -142,6 +142,20 @@ void wifi_adapter_stack_init(void)
     APP_LOG_I("wifi", "wifi_init done +%lu ms",
               (unsigned long)(xTaskGetTickCount() - t0) * portTICK_PERIOD_MS);
 
+    /*
+     * Force-reset the N9 supplicant and firmware state.
+     *
+     * wifi_init() re-downloads firmware to the N9, but after a warm
+     * reboot (hal_sys_reboot) the N9 may retain association context in
+     * RAM that survives the firmware reload.  set_opmode() "resets the
+     * Wi-Fi driver configuration to default values of the target's
+     * operation mode (including supplicant and firmware)" per SDK docs,
+     * putting the device in idle state with no prior association.
+     */
+    wifi_config_set_opmode(WIFI_MODE_STA_ONLY);
+    APP_LOG_I("wifi", "set_opmode(STA) done +%lu ms",
+              (unsigned long)(xTaskGetTickCount() - t0) * portTICK_PERIOD_MS);
+
     lwip_network_init(config.opmode);
     lwip_net_start(config.opmode);
     APP_LOG_I("wifi", "stack_init complete +%lu ms",
