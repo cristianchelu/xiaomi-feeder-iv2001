@@ -17,5 +17,6 @@ app_log_uart_boot.patch
 mqtt_quiet_debug.patch
 mqtt_read_peek_before_select.patch
 wifi_scan_time_t.patch
+connsys_force_n9_reset.patch
 task_def_httpd.patch
 httpd_provision.patch
