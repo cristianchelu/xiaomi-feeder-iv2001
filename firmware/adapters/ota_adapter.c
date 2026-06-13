@@ -21,6 +21,7 @@
 #include "flash_bank_logic.h"
 #include "flash_bank_port.h"
 #include "hal_cache.h"
+#include "hal_spm.h"
 #include "hal_sys.h"
 #include "ota_image.h"
 #include "ota_port.h"
@@ -62,22 +63,26 @@ static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *err
 static void ota_adapter_reboot(void)
 {
     /*
-     * Tear down the WiFi association before rebooting.
+     * Power-cycle the N9 MTCMOS before rebooting.
      *
-     * The N9 coprocessor retains RAM state across hal_sys_reboot().  If we
-     * reboot while associated, the N9 still holds the old PMKSA in RAM.
-     * On the next boot wifi_init() feeds stale credentials into a running
-     * N9 that already has session state, causing a 30s gap between
-     * scan-match and connect-start plus MIC failures on msg 3.
+     * hal_sys_reboot() uses WDT reset, which only resets the CM4 core.
+     * The N9 coprocessor sits in a separate MTCMOS power domain that
+     * survives WDT reset — its RAM retains the old PMKSA / association
+     * context.  On the next boot wifi_init() feeds fresh NVDM data into
+     * an N9 that already has stale session state, causing a 30s gap
+     * between scan-match and connect-start plus MIC failures.
      *
-     * disconnect_ap() tells the N9 to send a deauth frame and drop its
-     * internal association context.  set_radio(0) powers down the radio.
-     * The delay lets the N9 process both commands before the CM4 resets.
+     * Power-cycling the N9 MTCMOS domain clears its RAM, matching what
+     * happens on a cold boot (power cycle) where post-OTA connects in 5s.
+     * connsys_init() on the next boot will re-enable MTCMOS and reload
+     * N9 firmware from scratch.
      */
-    APP_LOG_I("ota", "pre-reboot wifi teardown");
+    APP_LOG_I("ota", "pre-reboot: power off N9 MTCMOS");
     (void)wifi_connection_disconnect_ap();
     (void)wifi_config_set_radio(0);
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(100));
+    spm_control_mtcmos(SPM_MTCMOS_CONN, SPM_MTCMOS_PWR_DISABLE);
+    vTaskDelay(pdMS_TO_TICKS(50));
 
     hal_cache_disable();
     hal_cache_deinit();
