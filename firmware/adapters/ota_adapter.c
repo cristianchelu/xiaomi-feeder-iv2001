@@ -62,28 +62,30 @@ static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *err
 static void ota_adapter_reboot(void)
 {
     /*
-     * Assert N9 software reset before WDT reboot.
+     * Reset the N9 coprocessor before WDT reboot.
      *
      * hal_sys_reboot() triggers WDT reset, which only resets the CM4.
-     * The N9 coprocessor survives — its RAM keeps the old PMKSA /
-     * association context.  On the next boot the N9 is already running,
-     * N9ROM_INIT_DONE is already 1, the FW download sees "already
-     * patched" and skips — stale WPA supplicant persists, causing a
-     * 38s scan-to-connect gap and MIC failures.
+     * The N9 survives with stale PMKSA / association state.  On the
+     * next boot the patch semaphore says "already done", FW download
+     * is skipped, and the old supplicant persists — 38s gap + MIC
+     * failures.
      *
-     * Fix: write 0x00 to CONNSYS_SW_RST (0xA2090024, CM4 peripheral
-     * space) to hold the N9 in reset before WDT fires.  On the next
-     * boot _connsys_init_activate_mcu() writes 0x18 to release → N9
-     * ROM runs fresh → INIT_DONE set by ROM → FW re-downloaded →
-     * clean WiFi state.
+     * Fix: disconnect, then while the CONN bus is still accessible
+     * (before radio-off), assert N9 SW reset and clear the AON flags
+     * that connsys_init checks on the next boot.
      *
-     * IMPORTANT: only 0xA2xxxxxx addresses (CM4 peripherals) are safe
-     * here.  The 0xC00xxxxx CONN-bus registers (N9ROM_INIT_DONE,
-     * AON_TOP_AON_RSV) are NOT accessible after radio-off — accessing
-     * them causes a bus fault.
+     * Register addresses (from connsys_driver.h):
+     *   CONNSYS_SW_RST    0xA2090024  — CM4 peripheral, always safe
+     *   N9ROM_INIT_DONE   0xC00C1254  — CONN bus, needs bus active
+     *   AON_TOP_AON_RSV   0xC00C1138  — CONN bus, needs bus active
      */
 
-    /* ---- 1. Disconnect and quiesce the radio ---- */
+    #define N9_CONNSYS_SW_RST   (*(volatile uint32_t *)0xA2090024)
+    #define N9_ROM_INIT_DONE    (*(volatile uint32_t *)0xC00C1254)
+    #define N9_AON_TOP_RSV      (*(volatile uint32_t *)0xC00C1138)
+    #define N9_HIF_RDY_BIT      (1u << 15)
+
+    /* ---- 1. Disconnect from AP ---- */
     APP_LOG_I("ota", "pre-reboot: disconnect AP");
     (void)wifi_connection_disconnect_ap();
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -94,25 +96,39 @@ static void ota_adapter_reboot(void)
         APP_LOG_I("ota", "link_status after disconnect=%u", (unsigned)link);
     }
 
-    APP_LOG_I("ota", "pre-reboot: radio off");
-    (void)wifi_config_set_radio(0);
-    vTaskDelay(pdMS_TO_TICKS(200));
-
-    /* ---- 2. Assert N9 software reset ---- */
+    /* ---- 2. Reset N9 while CONN bus is still accessible ---- */
     {
-        #define N9_CONNSYS_SW_RST   (*(volatile uint32_t *)0xA2090024)
-
         uint32_t sw_rst_before = N9_CONNSYS_SW_RST;
-        APP_LOG_I("ota", "N9 SW_RST before=0x%08lx, writing 0x00",
-                  (unsigned long)sw_rst_before);
+        uint32_t init_before   = N9_ROM_INIT_DONE;
+        uint32_t aon_before    = N9_AON_TOP_RSV;
+        APP_LOG_I("ota", "N9 pre-reset: SW_RST=0x%08lx INIT_DONE=0x%08lx AON=0x%08lx",
+                  (unsigned long)sw_rst_before,
+                  (unsigned long)init_before,
+                  (unsigned long)aon_before);
 
+        /* Clear HIF ready flag — connsys_init checks this */
+        N9_AON_TOP_RSV &= ~N9_HIF_RDY_BIT;
+
+        /* Clear init-done so boot code waits for fresh N9 ROM init */
+        N9_ROM_INIT_DONE = 0x00;
+
+        /* Assert SW reset — POR value is 0x00 (held in reset).
+         * _connsys_init_activate_mcu() writes 0x18 to release. */
         N9_CONNSYS_SW_RST = 0x00;
 
         uint32_t sw_rst_after = N9_CONNSYS_SW_RST;
-        APP_LOG_I("ota", "N9 SW_RST after=0x%08lx", (unsigned long)sw_rst_after);
-
-        #undef N9_CONNSYS_SW_RST
+        uint32_t init_after   = N9_ROM_INIT_DONE;
+        uint32_t aon_after    = N9_AON_TOP_RSV;
+        APP_LOG_I("ota", "N9 post-reset: SW_RST=0x%08lx INIT_DONE=0x%08lx AON=0x%08lx",
+                  (unsigned long)sw_rst_after,
+                  (unsigned long)init_after,
+                  (unsigned long)aon_after);
     }
+
+    #undef N9_CONNSYS_SW_RST
+    #undef N9_ROM_INIT_DONE
+    #undef N9_AON_TOP_RSV
+    #undef N9_HIF_RDY_BIT
 
     hal_cache_disable();
     hal_cache_deinit();
