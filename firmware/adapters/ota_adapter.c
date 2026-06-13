@@ -26,6 +26,7 @@
 #include "ota_port.h"
 #include "ota_preflight.h"
 #include "ota_rollback.h"
+#include "wifi_api.h"
 
 #define OTA_DL_TASK_STACK   (12288)
 #define OTA_DL_TASK_PRIO    (TASK_PRIORITY_ABOVE_NORMAL - 1)
@@ -60,7 +61,24 @@ static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *err
 
 static void ota_adapter_reboot(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(200));
+    /*
+     * Tear down the WiFi association before rebooting.
+     *
+     * The N9 coprocessor retains RAM state across hal_sys_reboot().  If we
+     * reboot while associated, the N9 still holds the old PMKSA in RAM.
+     * On the next boot wifi_init() feeds stale credentials into a running
+     * N9 that already has session state, causing a 30s gap between
+     * scan-match and connect-start plus MIC failures on msg 3.
+     *
+     * disconnect_ap() tells the N9 to send a deauth frame and drop its
+     * internal association context.  set_radio(0) powers down the radio.
+     * The delay lets the N9 process both commands before the CM4 resets.
+     */
+    APP_LOG_I("ota", "pre-reboot wifi teardown");
+    (void)wifi_connection_disconnect_ap();
+    (void)wifi_config_set_radio(0);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     hal_cache_disable();
     hal_cache_deinit();
     hal_sys_reboot(HAL_SYS_REBOOT_MAGIC, WHOLE_SYSTEM_REBOOT_COMMAND);
