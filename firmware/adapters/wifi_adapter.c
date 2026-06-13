@@ -163,6 +163,10 @@ static port_err_t wifi_port_connect(const char *ssid, const char *pass)
         return PORT_ERR_IO;
     }
 
+    if (wifi_config_set_radio(1) < 0) {
+        APP_LOG_W("wifi", "set_radio(1) failed");
+    }
+
     APP_LOG_I("wifi", "reload_setting tick=%lu",
               (unsigned long)xTaskGetTickCount());
 
