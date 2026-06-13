@@ -28,7 +28,7 @@
 
 #define MQTT_OFFLINE_PAYLOAD       "{\"online\": false}"
 #define MQTT_CMD_WILDCARD          "cmd/#"
-#define MQTT_CONNECT_WORKER_STACK  3072u
+#define MQTT_CONNECT_WORKER_STACK  4096u
 #define MQTT_CONNECT_POLL_MS       50u
 
 #ifndef APP_TASK_PRIO
@@ -271,25 +271,10 @@ static port_err_t mqtt_client_do_connect(void)
 
     APP_LOG_I("mqtt", "connected");
 
-    /* Brief yield after CONNACK — lets LwIP finish processing the TCP
-       receive path before we issue the next select()/recv() for SUBACK. */
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    {
-        int sub_tries;
-
-        for (sub_tries = 0; sub_tries < 3; sub_tries++) {
-            if (mqtt_client_subscribe_commands(mqtt) == PORT_OK) {
-                break;
-            }
-            APP_LOG_W("mqtt", "subscribe failed (attempt %d/3)", sub_tries + 1);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-        if (sub_tries == 3) {
-            APP_LOG_E("mqtt", "subscribe failed after 3 attempts");
-            mqtt->disconnect();
-            return PORT_ERR_IO;
-        }
+    if (mqtt_client_subscribe_commands(mqtt) != PORT_OK) {
+        APP_LOG_E("mqtt", "subscribe failed");
+        mqtt->disconnect();
+        return PORT_ERR_IO;
     }
 
     if (mqtt_client_publish_online(mqtt) != PORT_OK) {
