@@ -71,33 +71,55 @@ static void wifi_adapter_set_ap_network_profile(void)
 /*
  * Wipe SDK-internal STA caches that poison association after reboot.
  *
- * PMK_INFO: cached SSID+PSK+PMK tuple.  After a warm reboot the AP has
- *           invalidated its PMKSA; the SDK tries the stale PMK, gets MIC
- *           failure on msg 3, and falls back after ~30 s.
- * StaFastLink: tells N9 ROM to use PMK_INFO for fast 4-way.  Disable it
- *              so the full PBKDF2 derivation runs on every boot.
+ * wifi_init() reads ALL STA/* NVDM keys and loads them into the N9
+ * coprocessor.  After a warm reboot (OTA) the N9 RAM may still hold a
+ * stale PMKSA from the previous session.  The AP has already evicted its
+ * side, so the cached PMK causes MIC failure on msg 3 and a ~38 s gap
+ * between scan-match and connect-start in the N9 ROM.
+ *
+ * Wiping the STA/* profile forces wifi_init() to hand the N9 a blank
+ * slate.  Credentials are re-set via set_ssid/set_psk before
+ * reload_setting() in wifi_port_connect().
  *
  * Must run BEFORE wifi_init() which reads these keys.
  */
 static void wifi_adapter_wipe_sta_caches(void)
 {
+    const char zero[] = "0";
     uint8_t zeros[32 + 64 + 32];
 
     memset(zeros, 0, sizeof(zeros));
 
+    /* Disable fast-PMK lookup in N9 ROM. */
     nvdm_write_data_item("common",
                          "StaFastLink",
                          NVDM_DATA_ITEM_TYPE_STRING,
-                         (const uint8_t *)"0",
+                         (const uint8_t *)zero,
                          1);
 
+    /* Zero the cached SSID+PSK+PMK tuple. */
     nvdm_write_data_item("STA",
                          "PMK_INFO",
                          NVDM_DATA_ITEM_TYPE_STRING,
                          zeros,
                          sizeof(zeros));
 
-    APP_LOG_I("wifi", "wiped StaFastLink + PMK_INFO");
+    /* Blank the STA profile so wifi_init() does not pre-load stale
+     * credentials into the N9.  We re-set them in wifi_port_connect(). */
+    nvdm_write_data_item("STA", "SsidLen",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)zero, 1);
+    nvdm_write_data_item("STA", "Ssid",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)"", 0);
+    nvdm_write_data_item("STA", "WpaPskLen",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)zero, 1);
+    nvdm_write_data_item("STA", "WpaPsk",
+                         NVDM_DATA_ITEM_TYPE_STRING,
+                         (const uint8_t *)"", 0);
+
+    APP_LOG_I("wifi", "wiped STA profile + PMK caches");
 }
 
 void wifi_adapter_stack_init(void)
