@@ -316,7 +316,16 @@ def main():
 
     doc.recompute()
     doc.saveAs(os.path.join(BASE, name + ".FCStd"))
-    Part.export([doc.getObject(k) for k in parts], os.path.join(BASE, name + ".step"))
+    step = os.path.join(BASE, name + ".step")
+    Part.export([doc.getObject(k) for k in parts], step)
+    # make the export deterministic: drop the timestamp and OCC's per-session counter
+    import re
+    with open(step) as f:
+        txt = f.read()
+    txt = re.sub(r"FILE_NAME\('Open CASCADE Shape Model','[^']*'", "FILE_NAME('XiaomiFeeder2',''", txt)
+    txt = re.sub(r"'Open CASCADE STEP translator [\d.]+ \d+'", "'XiaomiFeeder2'", txt)
+    with open(step, "w") as f:
+        f.write(txt)
     print("saved", name)
     return doc
 
