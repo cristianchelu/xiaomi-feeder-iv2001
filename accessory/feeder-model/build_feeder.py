@@ -1,8 +1,10 @@
 """Xiaomi Smart Pet Food Feeder 2 (XMWSQ02) reference model.
 
-Run inside FreeCAD (exec(open(__file__).read()) from the console, or via the
-FreeCAD MCP). Rebuilds XiaomiFeeder2.FCStd and XiaomiFeeder2.step next to this
-file from the parameters below.
+Run inside FreeCAD: as a macro, or from the Python console with
+    import runpy; runpy.run_path("/path/to/build_feeder.py")
+(runpy sets __file__; a bare exec() does not -- then set FEEDER_MODEL_DIR to this
+folder or cd into it first). Rebuilds XiaomiFeeder2.FCStd and XiaomiFeeder2.step
+next to this file from the parameters below.
 
 Coordinate system:  X = width (right is +X),  Y = depth (FRONT is -Y, back is +Y),
                     Z = up, Z=0 at the floor (feet included).
@@ -16,7 +18,10 @@ alpha channel and scaled to the spec'd 220 x 324 footprint.
 import math, os
 import FreeCAD, Part, importSVG
 
-BASE = "/home/cristian/Source/oddware/xiaomi.feeder.iv2001/accessory/feeder-model"
+try:
+    BASE = os.path.dirname(os.path.abspath(__file__))
+except NameError:                                   # exec()'d without __file__
+    BASE = os.environ.get("FEEDER_MODEL_DIR", os.getcwd())
 V = FreeCAD.Vector
 
 P = dict(
