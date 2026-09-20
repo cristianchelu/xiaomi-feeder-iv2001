@@ -940,10 +940,17 @@ Topic `.../schedule/next` (retained): `{"hour":H,"min":M,"g":G,"in_min":N}`.
 
 ## OTA status
 
-Topic `.../ota/status` (retained, QoS 1). Published on OTA progress and after
-MQTT connect (`state` reset to `idle`). Post-connect status updates are
-enqueued on `app` and drained by `mqtt_io` — not published directly from
-the OTA handler.
+Topic `.../ota/status` (retained, QoS 1). The device keeps the last OTA
+status and publishes it whenever it changes while the broker session is up,
+and again on every MQTT connect. A fresh boot publishes `idle` with the
+active bank; after a failed OTA the `error` status (with its reason) is
+what every reconnect re-publishes, until the next `cmd/ota` replaces it.
+During the download window the broker session is closed
+([ota-flow.md](ota-flow.md) § Pre-download memory reclaim), so no progress
+is published then: the topic shows `downloading` / `pct` 0 at accept, then
+either `idle` from the new bank after the reboot or `error` once MQTT
+resumes. Status updates are enqueued on `app` and drained by `mqtt_io` —
+not published directly from the OTA handler.
 
 | Field | Values |
 |-------|--------|

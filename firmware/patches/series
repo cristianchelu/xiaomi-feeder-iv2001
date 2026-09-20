@@ -23,4 +23,5 @@ lwip_net_ready_timed.patch
 lwipopts_tcp_wnd.patch
 task_def_httpd.patch
 httpd_provision.patch
+httpd_select_1s.patch
 mqtt_sys_init_cache_dual_bank.patch

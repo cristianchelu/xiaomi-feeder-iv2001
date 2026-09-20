@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""Minimal HTTP server that supports Range requests for OTA delivery."""
+"""Minimal HTTP server that supports Range requests for OTA delivery.
+
+--fail-once-at N: the first plain GET is cut after N body bytes (headers
+promise the full length) so the device must resume with a Range request.
+"""
 
 import argparse
 import os
+import socket
 import sys
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
+    fail_once_at = None
+    fail_once_done = False
+
     def do_GET(self):
         path = self.translate_path(self.path)
         if not os.path.isfile(path):
@@ -18,6 +26,22 @@ class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
         range_header = self.headers.get("Range")
 
         if range_header is None:
+            cut = RangeHTTPRequestHandler.fail_once_at
+            if cut is not None and not RangeHTTPRequestHandler.fail_once_done:
+                RangeHTTPRequestHandler.fail_once_done = True
+                self.send_response(200)
+                self.send_header("Content-Type", self.guess_type(path))
+                self.send_header("Content-Length", str(file_size))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                with open(path, "rb") as f:
+                    self.wfile.write(f.read(cut))
+                self.wfile.flush()
+                sys.stderr.write("fault: closed after %d bytes\n" % cut)
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.close_connection = True
+                return
             super().do_GET()
             return
 
@@ -60,8 +84,11 @@ def main():
     parser.add_argument("port", type=int, nargs="?", default=8080)
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--directory", default=".")
+    parser.add_argument("--fail-once-at", type=int, default=None,
+                        help="cut the first plain GET after N body bytes (resume test)")
     args = parser.parse_args()
 
+    RangeHTTPRequestHandler.fail_once_at = args.fail_once_at
     os.chdir(args.directory)
     server = HTTPServer((args.bind, args.port), RangeHTTPRequestHandler)
     try:

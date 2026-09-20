@@ -171,3 +171,76 @@ void test_ota_progress_callback_publishes_status(void)
     TEST_ASSERT_EQUAL_STRING("{\"state\":\"downloading\",\"pct\":50,\"error\":\"\",\"bank\":\"A\"}",
                              mqtt->last_publish_payload);
 }
+
+/* spec/30-processes/mqtt-protocol.md § OTA status — remembered status */
+
+void test_ota_progress_not_enqueued_while_broker_session_closed(void)
+{
+    ota_progress_t progress = { .status = OTA_STATUS_DOWNLOADING, .pct = 40, .error = NULL };
+
+    setup_ota_client_connected();
+    mqtt_outbox_set_accepting(false);
+
+    fake_ota_port_emit_progress(&progress);
+
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(0, fake_mqtt_port_state()->publish_calls);
+    mqtt_outbox_set_accepting(true);
+}
+
+void test_ota_error_status_survives_reconnect(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    ota_progress_t progress = { .status = OTA_STATUS_ERROR, .pct = 0, .error = "verify_failed" };
+
+    setup_ota_client_connected();
+
+    fake_ota_port_emit_progress(&progress);
+    drain_ota_outbox();
+    ota_client_on_mqtt_connected();
+    drain_ota_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_UINT(2, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"verify_failed\",\"bank\":\"A\"}",
+                             mqtt->last_publish_payload);
+}
+
+void test_ota_error_reported_while_closed_is_published_on_connect(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    ota_progress_t progress = { .status = OTA_STATUS_ERROR, .pct = 0, .error = "download_failed" };
+
+    setup_ota_client_connected();
+    mqtt_outbox_set_accepting(false);
+    fake_ota_port_emit_progress(&progress);
+    mqtt_outbox_set_accepting(true);
+
+    ota_client_on_mqtt_connected();
+    drain_ota_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_UINT(1, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"download_failed\",\"bank\":\"A\"}",
+                             mqtt->last_publish_payload);
+}
+
+void test_ota_new_cmd_after_error_publishes_downloading(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    ota_progress_t progress = { .status = OTA_STATUS_ERROR, .pct = 0, .error = "verify_failed" };
+    const char *payload = "{\"url\":\"http://10.0.0.5/fw.bin\"}";
+
+    setup_ota_client_connected();
+    fake_ota_port_emit_progress(&progress);
+    drain_ota_outbox();
+
+    ota_client_on_mqtt_message("petfeeder/ddeeff/cmd/ota", payload, strlen(payload));
+    drain_ota_outbox();
+    ota_client_on_mqtt_connected();
+    drain_ota_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_STRING("{\"state\":\"downloading\",\"pct\":0,\"error\":\"\",\"bank\":\"A\"}",
+                             mqtt->last_publish_payload);
+}

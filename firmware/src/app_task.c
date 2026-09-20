@@ -12,6 +12,7 @@
 #include "app_event.h"
 #include "app_event_port.h"
 #include "aw9523_irq_adapter.h"
+#include "wdt_adapter.h"
 #include "button_input.h"
 #include "button_port.h"
 #include "hopper_input.h"
@@ -117,6 +118,9 @@ static void app_task_fn(void *param)
     (void)param;
 
     for (;;) {
+        /* power-state-machine.md § Watchdog: one feed per loop iteration. */
+        wdt_adapter_feed();
+
         if (!app_event_receive(&ev, APP_DISPLAY_TICK_MS)) {
             app_dispatch_display_tick(
                 (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
@@ -130,6 +134,7 @@ static void app_task_fn(void *param)
 void app_start(void)
 {
     app_event_port_init();
+    wdt_adapter_log_reset_reason();
     time_sync_init();
     tz_rule_init();
     schedule_init();

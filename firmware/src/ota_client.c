@@ -21,6 +21,11 @@
 static char s_device_id[32];
 static char s_status_topic[96];
 
+/* Last status; re-published on every MQTT connect (mqtt-protocol.md § OTA status). */
+static char s_last_state[16] = "idle";
+static uint8_t s_last_pct;
+static char s_last_error[32];
+
 static char ota_client_active_bank_letter(void)
 {
     boot_bank_t active = boot_bank_query_active();
@@ -28,10 +33,27 @@ static char ota_client_active_bank_letter(void)
     return (active == BOOT_BANK_B) ? 'B' : 'A';
 }
 
+static void ota_client_remember(const char *state, uint8_t pct, const char *error)
+{
+    strncpy(s_last_state, state, sizeof(s_last_state) - 1);
+    s_last_state[sizeof(s_last_state) - 1] = '\0';
+    s_last_pct = pct;
+    strncpy(s_last_error, error != NULL ? error : "", sizeof(s_last_error) - 1);
+    s_last_error[sizeof(s_last_error) - 1] = '\0';
+}
+
 static void ota_client_publish_status(const char *state, uint8_t pct, const char *error)
 {
     char payload[128];
     int written;
+
+    ota_client_remember(state, pct, error);
+
+    if (!mqtt_outbox_is_accepting()) {
+        /* Broker session closed for the OTA window; the remembered status
+         * goes out on the next connect. */
+        return;
+    }
 
     if (s_status_topic[0] == '\0') {
         app_log_error("ota", "status publish skipped topic unset");
@@ -99,6 +121,7 @@ static void ota_client_on_progress(const ota_progress_t *progress, void *ctx)
 
 void ota_client_start(void)
 {
+    ota_client_remember("idle", 0, "");
     ota_port_get()->set_progress_cb(ota_client_on_progress, NULL);
 }
 
@@ -180,7 +203,7 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
 
 void ota_client_on_mqtt_connected(void)
 {
-    ota_client_publish_status("idle", 0, "");
+    ota_client_publish_status(s_last_state, s_last_pct, s_last_error);
 }
 
 uint32_t ota_client_poll_ms(void)

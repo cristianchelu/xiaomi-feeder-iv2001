@@ -36,7 +36,7 @@ The SDK creates these internally. Their priorities are fixed:
 
 | Task | Priority | Stack | Lifetime | Role |
 |------|----------|-------|----------|------|
-| `app` | NORMAL | 4096 B | Persistent | Event loop: dequeues `app_event_t`, dispatches to handler, calls ports; local `[tune]` 50 ms display heartbeat when queue idle — kept at 50 ms during OTA so each 10 % bar step of a ~3 s download gets its own redraw |
+| `app` | NORMAL | 4096 B | Persistent | Event loop: dequeues `app_event_t`, dispatches to handler, calls ports; local `[tune]` 50 ms display heartbeat when queue idle — kept at 50 ms during OTA so each 10 % bar step of a ~3 s download gets its own redraw; feeds the 30 s hardware watchdog every iteration ([power-state-machine.md](../30-processes/power-state-machine.md) § Watchdog) |
 | `mqtt_io` | ABOVE_NORMAL | 4096 B | Persistent | MQTT orchestration: drain `mqtt_outbox` (sole post-connect publisher) then `MQTTYield()` when connected; starts `mqtt_cn` connect worker and polls every `[tune]` 50 ms while handshake runs; disconnected during OTA preflight |
 | `mqtt_cn` | NORMAL − 1 | 4096 B | Ephemeral | Blocking `ConnectNetwork` + `MQTTConnect` + post-connect subscribe/publish; self-deletes on completion |
 | `ota_dl` | ABOVE_NORMAL | `[tune]` 12 KB | Ephemeral | Spawned during OTA download only; above `app` so receive and flash programming preempt the heartbeat, below `lwIP`/`net`; posts progress via the OTA progress callback, self-deletes on completion |

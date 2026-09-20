@@ -234,6 +234,7 @@ APP_FILES      += $(APP_PATH_ADAPT)/http_server_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/provision_cgi.c
 APP_FILES      += $(APP_PATH_ADAPT)/mqtt_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/flash_bank_adapter.c
+APP_FILES      += $(APP_PATH_ADAPT)/wdt_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/ota_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/i2c_bus_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/wfci_bus_adapter.c

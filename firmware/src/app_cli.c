@@ -123,6 +123,26 @@ static cmd_t app_cli_config_subcmds[] = {
     { NULL, NULL, NULL, NULL },
 };
 
+/* uart-console.md § `sys hang` — bench hook for the watchdog reset path. */
+static uint8_t app_cli_sys_hang(uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    app_log_info("cli", "hanging (watchdog test)");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    taskDISABLE_INTERRUPTS();
+    for (;;) {
+    }
+    /* unreachable: the watchdog resets the device */
+    return 0;
+}
+
+static cmd_t app_cli_sys_subcmds[] = {
+    { "hang", "spin with interrupts off (watchdog test)", app_cli_sys_hang, NULL },
+    { NULL, NULL, NULL, NULL },
+};
+
 static cmd_t app_cli_bank_subcmds[] = {
     { "show",   "show active bank",        app_cli_bank_show,   NULL },
     { "switch", "toggle A/B and reboot",   app_cli_bank_switch, NULL },
@@ -131,6 +151,7 @@ static cmd_t app_cli_bank_subcmds[] = {
 
 static cmd_t app_cli_cmds[] = {
     { "bank",   "bank show|switch",           NULL, app_cli_bank_subcmds },
+    { "sys",    "sys hang",                   NULL, app_cli_sys_subcmds },
     { "wifi",   "wifi show|set|connect",      NULL, wifi_cli_subcmds },
     { "mqtt",   "mqtt show|set|connect",      NULL, mqtt_cli_subcmds },
     { "time",   "time show|sync|set",         NULL, time_cli_subcmds },

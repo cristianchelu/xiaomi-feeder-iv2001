@@ -38,7 +38,7 @@ download worker needs `[tune]` 12 KB stack. `[design]`
 
 | Task | Action during OTA window |
 |------|--------------------------|
-| Admin HTTP (`httpd`) | Stop LAN web UI when `WEB_UI_ENABLE=y`; restart after failed OTA when STA ready — see [web-ui.md](web-ui.md) |
+| Admin HTTP (`httpd`) | Stop LAN web UI when `WEB_UI_ENABLE=y` (completes within ~1 s, [build-integration.md](../40-architecture/build-integration.md) § Admin HTTP stop latency); restart after failed OTA when STA ready — see [web-ui.md](web-ui.md) |
 | `remote_cli` | End active telnet session, close port 2323 listener, delete task to free stack (when `REMOTE_CLI_ENABLE`; recreated after failed OTA) |
 | `app_cli` | Suspend UART0 console task and delete to free stack; recreated after failed OTA |
 | `wifi_sta` | Suspend connect worker and delete to free stack; recreated after failed OTA |
@@ -62,7 +62,10 @@ console and [web-ui.md](web-ui.md).
    that is aligned and lies inside the inactive bank
    ([partition-layout.md](../40-architecture/partition-layout.md) § Bank A /
    Bank B).
-6. Publish progress every `[tune]` 5 % (e.g. at 5, 10, 15 … 100 %).
+6. Report progress every `[tune]` 5 % to the panel indicator
+   ([display-presentation.md](display-presentation.md) § OTA indicator). The
+   broker session is closed during the download, so MQTT sees no progress
+   until the outcome ([mqtt-protocol.md](mqtt-protocol.md) § OTA status).
 7. Enforce maximum image size (partition size minus header). Abort if exceeded.
 
 HTTPS: supported if `mqtt/tls` is enabled and mbedTLS RAM budget permits.
@@ -223,9 +226,10 @@ When `unverified == 1`:
 Poll via the app timer tick (`ota_slot_health_poll_ms()`). MQTT connect is
 not part of slot confirmation.
 
-When a software watchdog is present (`power-state-machine.md`), a hang
-during the confirm window feeds the bootloader strike path via WDT reset;
-the confirm timer and WDT are independent mechanisms.
+The hardware watchdog ([power-state-machine.md](power-state-machine.md)
+§ Watchdog) turns a hang or crash during the confirm window into a reset
+within 30 s, which feeds the bootloader strike path; the confirm timer and
+the watchdog are independent mechanisms.
 
 ### Recovery layers
 
@@ -257,7 +261,7 @@ Guardrails:
 |---------|--------|
 | HTTP connection failed | Abort, publish `"download_failed"` |
 | Download interrupted | Abort, publish `"download_failed"`, inactive bank discarded |
-| Verification failed | Abort, publish `"verify_failed"`, do not apply — manifest mismatch, unreadable bank, or no vector table for the target bank (UART `vector table not found in bank`, e.g. an image linked for the other bank) |
+| Verification failed | Abort, publish `"verify_failed"` once MQTT resumes (retained; re-published on every reconnect until the next `cmd/ota`), do not apply — manifest mismatch, unreadable bank, or no vector table for the target bank (UART `vector table not found in bank`, e.g. an image linked for the other bank) |
 | Image too large | Abort mid-download or at the post-download size check, publish `"image_too_large"` |
 | Post-apply crash loop | Bootloader bank toggle after 3 strikes; UART recovery if both slots fail |
 

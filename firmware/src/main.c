@@ -19,11 +19,15 @@
 #include "wifi_sta.h"
 #include "motor_ctrl.h"
 #include "mqtt_client.h"
+#include "wdt_adapter.h"
 
 log_create_module(petfeeder, PRINT_LEVEL_INFO);
 
 int main(void)
 {
+    /* power-state-machine.md § Watchdog: armed before any bring-up. */
+    wdt_adapter_arm_early();
+
     system_init();
 
     LOG_I(petfeeder, "FreeRTOS Running (bank %c)",

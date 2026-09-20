@@ -29,6 +29,7 @@ Top-level commands registered by application firmware:
 ```
 bank show
 bank switch
+sys hang
 wifi show
 wifi set ssid <name>
 wifi set pass <password>
@@ -153,6 +154,16 @@ missing or empty, the device treats the network as open (no PSK).
 | Key missing | Open network (no password required) |
 | Empty string | Open network (explicit) |
 | Non-empty string | WPA2-PSK passphrase (8–63 bytes) |
+
+## `sys` commands
+
+### `sys hang`
+
+Bench hook for the watchdog path: prints `hanging (watchdog test)`, disables
+interrupts and spins. The hardware watchdog resets the device within
+`[tune]` 30 s ([power-state-machine.md](power-state-machine.md) § Watchdog);
+the next boot logs `reset reason: watchdog`. Never issue it while an OTA slot
+is unverified unless a strike is intended.
 
 ## `bank` commands
 

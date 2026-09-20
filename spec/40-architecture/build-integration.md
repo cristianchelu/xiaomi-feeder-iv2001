@@ -269,6 +269,13 @@ See [app-logging.md](../30-processes/app-logging.md).
 `firmware/src/*.c` fails the build (`app_log.c` is exempt). Use `snprintf` for
 string assembly; route UART diagnostics through `app_log_*`.
 
+### Admin HTTP stop latency (`httpd_select_1s.patch`)
+
+The SDK `httpd_main()` loop wakes from `select()` every 10 s and only then
+notices `HTTPD_STATUS_STOPPING`, so stopping the LAN web UI at OTA preflight
+took up to 10 s. The patch shortens the `select()` timeout to `[tune]` 1 s;
+the stop completes within a second and the OTA window opens sooner. `[design]`
+
 ### Remote telnet CLI (`REMOTE_CLI_ENABLE`)
 
 | Setting | Location | Default |

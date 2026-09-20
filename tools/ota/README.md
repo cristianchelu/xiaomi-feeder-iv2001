@@ -28,7 +28,7 @@ before running. Existing env values are not overwritten.
 | `MQTT_HOST` | `127.0.0.1` | Broker address |
 | `MQTT_PORT` | `1883` | Broker port |
 | `MQTT_USER` / `MQTT_PASS` | see file | Broker credentials |
-| `HTTP_PORT` | `8080` | Range HTTP server |
+| `HTTP_PORT` | `8080` | Range HTTP server (`range-http-server.py --fail-once-at N` cuts the first GET after N bytes to exercise the device's Range resume) |
 | `UART_DEV` | `/dev/ttyUSB0` | Serial port for capture |
 | `HOP_TIMEOUT` | `300` | Max seconds per hop |
 | `PROGRESS_TIMEOUT` | `90` | Stall limit with no download progress |

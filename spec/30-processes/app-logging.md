@@ -99,6 +99,12 @@ setup installed earlier in `prvSetupHardware()`).
 
 On host unit tests (`HOST_TEST`), the default sink is `stdout` (no HAL).
 
+## Boot (tag `app`)
+
+| Event | Line |
+|-------|------|
+| Reset reason | `reset reason: watchdog` / `reset reason: software` / `reset reason: power` — read from the watchdog HAL before it is re-armed ([power-state-machine.md](power-state-machine.md) § Watchdog) |
+
 ## Wi-Fi milestones (tag `wifi`)
 
 Canonical UART lines (message body only; full line includes timestamp prefix):
