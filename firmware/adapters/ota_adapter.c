@@ -60,10 +60,7 @@ static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *err
 
 static void ota_adapter_reboot(void)
 {
-    /*
-     * Disconnect before WDT reboot into the inactive bank. N9 is force-reset on
-     * next boot (connsys_force_n9_reset.patch).
-     */
+    /* Deauth from the AP, then WDT reboot into the inactive bank. */
     APP_LOG_I("ota", "pre-reboot: disconnect AP");
     (void)wifi_connection_disconnect_ap();
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -359,16 +356,6 @@ static port_err_t ota_adapter_http_download(const char *url,
         return PORT_ERR_INVALID_ARG;
     }
 
-    {
-        boot_bank_t inactive = flash_bank_inactive(flash_bank_port_get()->get_active_bank());
-        uint32_t bank_base = flash_bank_rom_offset(inactive);
-
-        if (ota_image_check_vector_table_in_bank(bank_base) != PORT_OK) {
-            app_log_error("ota", "vector table not found in bank");
-            return PORT_ERR_INVALID_ARG;
-        }
-    }
-
     *downloaded_out = downloaded;
     app_log_info("ota", "download complete bytes=%lu", (unsigned long)downloaded);
     return PORT_OK;
@@ -412,6 +399,16 @@ static void ota_adapter_task(void *param)
     }
 
     ota_adapter_report(OTA_STATUS_VERIFYING, 100, "");
+
+    {
+        boot_bank_t inactive = flash_bank_inactive(flash->get_active_bank());
+
+        if (ota_image_check_vector_table_in_bank(flash_bank_rom_offset(inactive)) != PORT_OK) {
+            app_log_error("ota", "vector table not found in bank");
+            ota_adapter_task_fail("verify_failed");
+            return;
+        }
+    }
 
     err = ota_verify_bank(flash, downloaded,
                           job.has_expected_sha512 ? job.expected_sha512 : NULL,

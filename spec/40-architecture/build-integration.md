@@ -158,15 +158,6 @@ and association is armed after `wifi_port_radio_up()` via `wifi_port_arm_connect
 (`set_credentials` → `radio_up` → `arm_connect`); see
 [wifi-lifecycle.md](../30-processes/wifi-lifecycle.md).
 
-### N9 force reset at boot (`connsys_force_n9_reset.patch`)
-
-WDT reboot (triggered by `hal_sys_reboot`) resets only the CM4 core. The N9
-coprocessor survives with stale supplicant state (PMKSA, association
-context). `connsys_force_n9_reset.patch` asserts `CONNSYS_SW_RST = 0x00`
-(held in reset) for 5 ms in `_connsys_init_activate_mcu()` before the
-existing release (`= 0x18`). This forces a full N9 RAM clear and ROM
-re-init on every boot. `[design]`
-
 ### FreeRTOS heap (`freertos_heap_192k.patch`)
 
 Petfeeder links `minicli/inc/FreeRTOSConfig.h`, not the mqtt_client copy.

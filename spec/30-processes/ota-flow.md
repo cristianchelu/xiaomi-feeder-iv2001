@@ -135,10 +135,10 @@ Before WDT reboot into the new bank:
 2. Wait `[tune]` 500 ms for the disconnect to propagate.
 3. Disable I-cache; trigger `hal_sys_reboot()`.
 
-The N9 coprocessor is force-reset at the next boot by
-`connsys_force_n9_reset.patch` (assert `CONNSYS_SW_RST = 0x00` + 5 ms
-before the existing MCU release in `_connsys_init_activate_mcu`). This
-ensures N9 RAM is cleared regardless of WDT warm reboot state.
+The next boot brings the N9 up through the stock SDK `connsys_init()`
+sequence; no extra coprocessor reset is applied. Warm reboots (OTA apply,
+`bank switch`) associate as fast as cold boots
+([wifi-lifecycle.md](wifi-lifecycle.md) § Boot timing across banks).
 
 ### Boot after apply
 
@@ -234,8 +234,8 @@ Guardrails:
 |---------|--------|
 | HTTP connection failed | Abort, publish `"download_failed"` |
 | Download interrupted | Abort, publish `"download_failed"`, inactive bank discarded |
-| Verification failed | Abort, publish `"verify_failed"`, do not apply |
-| Image too large | Abort mid-download, publish `"image_too_large"` |
+| Verification failed | Abort, publish `"verify_failed"`, do not apply — manifest mismatch, unreadable bank, or no vector table for the target bank (UART `vector table not found in bank`, e.g. an image linked for the other bank) |
+| Image too large | Abort mid-download or at the post-download size check, publish `"image_too_large"` |
 | Post-apply crash loop | Bootloader bank toggle after 3 strikes; UART recovery if both slots fail |
 
 ## UART0 recovery (last resort)

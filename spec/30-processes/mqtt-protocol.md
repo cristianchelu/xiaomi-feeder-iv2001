@@ -957,7 +957,7 @@ the OTA handler.
 | `invalid_url` | Malformed or oversized `cmd/ota` payload, bad URL scheme, invalid `sha512` hex, or `start` rejected |
 | `already_in_progress` | OTA already running (`PORT_ERR_BUSY`) |
 | `download_failed` | HTTP download or flash write failure |
-| `verify_failed` | SHA-512 mismatch or inactive-bank verify failure |
+| `verify_failed` | Bank hash differs from the manifest `sha512`, bank unreadable, or the written image has no vector table for the target bank (image linked for the other bank) |
 | `image_too_large` | Image exceeds inactive bank capacity |
 
 ### `cmd/ota` payload
