@@ -158,6 +158,17 @@ and association is armed after `wifi_port_radio_up()` via `wifi_port_arm_connect
 (`set_credentials` → `radio_up` → `arm_connect`); see
 [wifi-lifecycle.md](../30-processes/wifi-lifecycle.md).
 
+### lwIP receive window (`lwipopts_tcp_wnd.patch`)
+
+The image links `mqtt_client/inc/lwipopts.h`, where pbufs are carved from
+the lwIP heap (`MEMP_MEM_MALLOC=1`, `MEM_SIZE` 29 KB) and connsys allocates
+one pbuf per received frame. The stock `TCP_WND` of 24 KB lets a fast HTTP
+server keep almost the whole lwIP heap in flight, so the connsys RX path
+logs `can't allocate buffer` in bursts, frames drop, and TCP retransmits
+stretch an OTA hop. The patch sets `TCP_WND` to `[tune]` 8 KB (five
+segments of `TCP_MSS` 1476 plus slack) so in-flight data stays well inside
+the heap. `[design]`
+
 ### FreeRTOS heap (`freertos_heap_192k.patch`)
 
 Petfeeder links `minicli/inc/FreeRTOSConfig.h`, not the mqtt_client copy.

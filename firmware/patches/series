@@ -20,6 +20,7 @@ mqtt_read_peek_before_select.patch
 wifi_scan_time_t.patch
 freertos_heap_192k.patch
 lwip_net_ready_timed.patch
+lwipopts_tcp_wnd.patch
 task_def_httpd.patch
 httpd_provision.patch
 mqtt_sys_init_cache_dual_bank.patch

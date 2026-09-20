@@ -65,8 +65,11 @@ HTTPS: supported if `mqtt/tls` is enabled and mbedTLS RAM budget permits.
 ### Range download and retry
 
 The image is fetched with HTTP Range requests of `[tune]` 32 KB
-(`OTA_RANGE_SIZE`), one TCP connection per range, so a server burst cannot
-exhaust the connsys RX buffer pool. Each range gets up to `[tune]` 3 attempts
+(`OTA_RANGE_SIZE`), one TCP connection per range, and the lwIP receive
+window is capped at `[tune]` 8 KB
+([build-integration.md](../40-architecture/build-integration.md) § lwIP
+receive window) so a server burst cannot exhaust the connsys RX buffers.
+Each range gets up to `[tune]` 3 attempts
 with a `[tune]` 1 s pause between them. A retry logs `retry N at <offset>`
 and re-requests the whole range from its start, re-programming the same
 flash offsets with the same bytes. The device keeps no running hash over the

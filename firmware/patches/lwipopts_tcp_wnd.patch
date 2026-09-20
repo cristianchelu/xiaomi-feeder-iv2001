@@ -1,0 +1,13 @@
+--- a/project/mt7682_hdk/apps/mqtt_client/inc/lwipopts.h
++++ b/project/mt7682_hdk/apps/mqtt_client/inc/lwipopts.h
+@@ -179,7 +179,9 @@
+ #define TCP_SND_QUEUELEN        ((4 * (TCP_SND_BUF) + (TCP_MSS - 1))/(TCP_MSS))
+ 
+ /* TCP receive window. */
+-#define TCP_WND                 (24 * 1024)
++/* Kept well inside MEM_SIZE (pbufs come from the lwIP heap) so a fast HTTP
++ * server cannot starve the connsys RX allocator during OTA. */
++#define TCP_WND                 (8 * 1024)
+ 
+ /* Maximum number of retransmissions of data segments. */
+ #define TCP_MAXRTX              12
