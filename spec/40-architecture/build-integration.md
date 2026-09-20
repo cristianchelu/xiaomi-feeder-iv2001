@@ -56,7 +56,7 @@ From `xiaomi.feeder.iv2001/`:
 ```
 
 Prerequisites: `git`, `make`, `gcc`, `patch` (for SDK patches),
-`node` (for web UI client tests; `npx` fetches `html-minifier-terser` at firmware
+`node` (for web UI client tests; `npx` fetches `html-minifier-next` at firmware
 build when `WEB_UI_ENABLE=y`), `arm-none-eabi-gcc` (for target builds).
 
 ### Build
@@ -320,7 +320,7 @@ Node.js (`node --test`) runs `tools/web/test_logic.mjs` against
 with [web-ui-client.md](../30-processes/web-ui-client.md). HTTP route handlers
 stay in `make test-host` (`test_web_api.c`, `test_schedule_cmd.c`). No npm or
 browser automation in the default test loop. Firmware builds invoke
-`html-minifier-terser` via `npx` in `tools/web/build.sh` (pinned version;
+`html-minifier-next` via `npx` in `tools/web/build.sh` (pinned version;
 first run may fetch the package). Local layout preview:
 `make preview-web` (`tools/web/dev_server.mjs` + `mock_api.mjs`, unminified).
 

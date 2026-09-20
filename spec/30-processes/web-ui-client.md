@@ -163,8 +163,10 @@ mirror [scheduler-engine.md](scheduler-engine.md); the device UI renders whateve
 
 `logic.mjs` is not served separately. `build.sh` substitutes the
 `<!-- INJECT_LOGIC -->` marker in `index.html` with stripped `logic.mjs`, runs
-`html-minifier-terser` on the full page (JS identifier mangling, CSS/HTML
-whitespace), then `gzip -9`. Sources in git stay readable; minification applies
+`html-minifier-next` on the full page (JS identifier mangling via terser, CSS
+via nesting-aware `lightningcss`, HTML whitespace), then `gzip -9`. Not
+`html-minifier-terser`: dormant since 2023, its clean-css pass breaks native
+CSS nesting. Sources in git stay readable; minification applies
 only to the ephemeral firmware bundle. Set `WEB_UI_SKIP_MINIFY=1` to skip the
 minifier step. Output: gitignored `firmware/src/web_ui_gz.c`.
 

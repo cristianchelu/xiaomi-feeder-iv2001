@@ -144,7 +144,7 @@ make preview-web                         # local admin UI with mock API
 | `arm-none-eabi-gcc` + newlib | Board firmware | `dnf install arm-none-eabi-gcc-cs arm-none-eabi-gcc-cs-c++ arm-none-eabi-newlib` | `apt install gcc-arm-none-eabi` |
 | `wine`, `unzip` | Linux UART flash | `dnf install wine unzip` | `apt install wine unzip` |
 
-First firmware build with the admin UI enabled may download `html-minifier-terser`
+First firmware build with the admin UI enabled may download `html-minifier-next`
 via `npx` (network once; cached afterward). See `tools/web/README.md`.
 
 ### Firmware build

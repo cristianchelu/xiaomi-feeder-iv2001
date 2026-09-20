@@ -226,8 +226,10 @@ Read `spec/40-architecture/build-integration.md` and
 ### LAN web UI (`tools/web/`)
 
 The admin panel is a single gzipped HTML file in flash. **`index.html` CSS uses
-native nesting** (`&` compounds/pseudos) on purpose: `html-minifier-terser` keeps
-nested rules in the shipped bundle, which reduces gzipped size. Use native CSS
+native nesting** (`&` compounds/pseudos) on purpose: `html-minifier-next`
+(lightningcss CSS pass) keeps nested rules in the shipped bundle, which reduces
+gzipped size. Never swap in `html-minifier-terser`: its clean-css pass flattens
+`&` rules into broken top-level selectors. Use native CSS
 Nesting Module syntax only — not Sass/PostCSS/Less. Do not flatten styles back
 to repeated flat selectors without re-running `tools/web/build.sh` and comparing
 byte counts. Details: `tools/web/README.md` § CSS: native nesting.

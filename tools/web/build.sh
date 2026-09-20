@@ -7,7 +7,10 @@ GZ="${ROOT}/.web_ui_bundle.gz"
 BUNDLE_RAW="${ROOT}/.web_ui_bundle.raw.html"
 BUNDLE="${ROOT}/.web_ui_bundle.html"
 LOGIC_INLINE="${ROOT}/.logic.inline.js"
-HTML_MINIFIER_VERSION="${HTML_MINIFIER_VERSION:-7.2.0}"
+# html-minifier-next, not html-minifier-terser: same CLI, but its CSS pass is
+# lightningcss (nesting-aware). html-minifier-terser is dormant since 2023 and
+# its clean-css pass hoists nested `&` rules to the top level.
+HTML_MINIFIER_VERSION="${HTML_MINIFIER_VERSION:-8.5.2}"
 trap 'rm -f "$GZ" "$BUNDLE" "$BUNDLE_RAW" "$LOGIC_INLINE"' EXIT
 
 sed 's/^export //' "${ROOT}/logic.mjs" > "$LOGIC_INLINE"
@@ -29,7 +32,7 @@ gz_raw_bytes=$(gzip -9 -c "$BUNDLE_RAW" | wc -c)
 if [ "${WEB_UI_SKIP_MINIFY:-}" = "1" ]; then
   cp "$BUNDLE_RAW" "$BUNDLE"
 else
-  npx --yes "html-minifier-terser@${HTML_MINIFIER_VERSION}" \
+  npx --yes "html-minifier-next@${HTML_MINIFIER_VERSION}" \
     --collapse-whitespace \
     --remove-comments \
     --minify-css true \

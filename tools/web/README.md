@@ -22,7 +22,11 @@ Writes `firmware/src/web_ui_gz.c` (gitignored). Invoked automatically by
 `./tools/build-firmware.sh` and `make -C firmware/test test-host`.
 
 Pipeline: inline `logic.mjs` into `index.html`, minify the full page with
-`html-minifier-terser` (via `npx`, default version `7.2.0`), then `gzip -9`.
+`html-minifier-next` (via `npx`, default version `8.5.2`), then `gzip -9`.
+`html-minifier-next` is the maintained fork of `html-minifier-terser` with the
+same CLI; its CSS pass is `lightningcss`, which understands native nesting.
+Do not switch back to `html-minifier-terser`: its clean-css pass hoists `&`
+rules to the top level and the device renders unstyled.
 Sources stay readable; only the firmware bundle is minified. The script prints
 raw and gzipped byte counts (minified and unminified) after each run.
 
@@ -30,7 +34,7 @@ raw and gzipped byte counts (minified and unminified) after each run.
 
 `index.html` styles use **native CSS nesting** (`&` for compounds and
 pseudos, implicit descendants where the spec allows). This is intentional:
-`html-minifier-terser` keeps nested rules in the shipped bundle, so `&` costs
+`html-minifier-next` keeps nested rules in the shipped bundle, so `&` costs
 less than repeating selector prefixes — a real gzipped-size win.
 
 - Write **native** nesting only (CSS Nesting Module). No PostCSS, Sass, or
@@ -51,7 +55,7 @@ flash bytes.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `HTML_MINIFIER_VERSION` | `7.2.0` | Pin for `npx html-minifier-terser@…` |
+| `HTML_MINIFIER_VERSION` | `8.5.2` | Pin for `npx html-minifier-next@…` |
 | `WEB_UI_SKIP_MINIFY` | unset | Set to `1` to gzip the unminified inline bundle |
 
 ## Preview (host)
