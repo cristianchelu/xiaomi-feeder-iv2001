@@ -124,9 +124,17 @@ ota_common_stop_http() {
     fuser -k "${HTTP_PORT}/tcp" 2>/dev/null || true
 }
 
+# Clear a stale state/error from a previous run, keeping the bank the device
+# last reported. The retained status is the only bank source when no UART is
+# attached, so a hardcoded bank here would be read back as the device's own.
 ota_common_reset_ota_status() {
     local device_id="$1"
+    local bank
+    bank="$(ota_common_read_bank "$device_id")"
+    if [ "$bank" = "?" ]; then
+        return 0    # nothing retained, nothing to clear
+    fi
     mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" \
         -t "petfeeder/${device_id}/ota/status" \
-        -m '{"state":"idle","pct":0,"error":"","bank":"A"}' -r -q 1 2>/dev/null || true
+        -m "{\"state\":\"idle\",\"pct\":0,\"error\":\"\",\"bank\":\"${bank}\"}" -r -q 1 2>/dev/null || true
 }
