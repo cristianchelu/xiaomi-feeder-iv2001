@@ -57,7 +57,11 @@ console and [web-ui.md](web-ui.md).
 2. Suspend idle tasks (above).
 3. One HTTP(S) GET to the provided URL, streamed to flash as it arrives.
 4. Receive in `[tune]` 4 KB chunks (`OTA_CHUNK_SIZE`).
-5. Write each chunk to the inactive application bank at its stream offset.
+5. Write each chunk to the inactive application bank at its stream offset,
+   erasing ahead of the write frontier with the largest 4 / 32 / 64 KB unit
+   that is aligned and lies inside the inactive bank
+   ([partition-layout.md](../40-architecture/partition-layout.md) § Bank A /
+   Bank B).
 6. Publish progress every `[tune]` 5 % (e.g. at 5, 10, 15 … 100 %).
 7. Enforce maximum image size (partition size minus header). Abort if exceeded.
 
@@ -103,8 +107,8 @@ phases: [display-presentation.md](display-presentation.md) § OTA indicator.
 
 | Internal status | When reported |
 |-----------------|---------------|
-| `PREPARING` | Download worker task starts (MQTT suspend already done in `start`) |
-| `CONNECTING` | After pre-download settle, immediately before the HTTP GET |
+| `PREPARING` | Download worker task starts (MQTT suspend already done in `start`); `[tune]` 500 ms settle so the broker disconnect and freed task stacks are quiescent |
+| `CONNECTING` | After the settle, immediately before the HTTP GET |
 | `DOWNLOADING` | First HTTP body bytes; `pct` 0–100 during transfer |
 | `VERIFYING` | Download complete; SHA-512 / flash verify |
 | `APPLYING` | Bank swap pending; reboot follows |

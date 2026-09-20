@@ -99,6 +99,15 @@ download writes to the inactive bank while the active bank continues
 running. On successful verification, the control block's active flag is
 flipped and the device reboots.
 
+Erase units during OTA are chosen per bank edge, never crossing one: a
+64 KB block only where the address is 64 KB-aligned and the block ends at
+or before the bank end, else a 32 KB block under the same rule, else a
+4 KB sector. Bank A (`0x08012000`, not block-aligned; the control block
+sits below it at `0x0800F000`) therefore starts with six sectors and one
+32 KB block before 64 KB blocks; bank B ends `0xE000` short of a 64 KB
+boundary at the NVDM base (`0x081EE000`) and finishes with one 32 KB block
+and six sectors. `[design]`
+
 ### NVDM
 
 Non-Volatile Data Management region. Stores WiFi credentials, MQTT broker

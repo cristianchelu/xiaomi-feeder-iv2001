@@ -35,8 +35,13 @@ Verified against Winbond W25Q16DW datasheet (Rev J, Sep 2014)
 - Sending **>256 bytes** in one Page Program wraps within the page and
   overwrites earlier bytes in that command (instruction-set notes, §7.2).
 
-Our OTA path: 4 KB sector erase ahead, then programs up to **256 bytes**
-per `hal_flash_write` (one Winbond page). The MediaTek SFC driver issues
+Our OTA path: erase ahead of the write frontier using the largest erase
+unit (4 KB sector, 32 KB or 64 KB block) whose start is aligned to its size
+and whose end stays inside the inactive bank
+([partition-layout.md](../40-architecture/partition-layout.md) § Bank A /
+Bank B), then programs up to **256 bytes** per `hal_flash_write` (one
+Winbond page). Block erases cut the erase share of a 526 KB image from
+~4 s (129 sector erases) to well under 2 s. `[design]` The MediaTek SFC driver issues
 **up to two 128-byte partial programs** per page internally (GPRAM limit);
 that is datasheet-compliant partial page programming, not an arbitrary
 chunk size.

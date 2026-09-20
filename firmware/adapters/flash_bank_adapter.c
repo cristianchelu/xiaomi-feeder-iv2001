@@ -139,20 +139,25 @@ static port_err_t flash_bank_adapter_erase_ahead(uint32_t base,
                                                   size_t len)
 {
     uint32_t need_up_to = (offset + len + 0xFFFu) & ~0xFFFu;
-    uint32_t sector;
 
     if (need_up_to <= s_erase_frontier) {
         return PORT_OK;
     }
 
-    sector = s_erase_frontier;
-    for (; sector < need_up_to; sector += 0x1000u) {
-        if (hal_flash_erase(base + sector, HAL_FLASH_BLOCK_4K) != HAL_FLASH_STATUS_OK) {
+    /* Largest aligned unit that stays inside the bank (never the control
+     * block below bank A nor the NVDM above bank B). */
+    while (s_erase_frontier < need_up_to) {
+        uint32_t unit = flash_bank_erase_unit(base, s_erase_frontier);
+        hal_flash_block_t block = (unit == 0x10000u) ? HAL_FLASH_BLOCK_64K
+                                : (unit == 0x8000u)  ? HAL_FLASH_BLOCK_32K
+                                                     : HAL_FLASH_BLOCK_4K;
+
+        if (hal_flash_erase(base + s_erase_frontier, block) != HAL_FLASH_STATUS_OK) {
             return PORT_ERR_IO;
         }
+        s_erase_frontier += unit;
     }
 
-    s_erase_frontier = need_up_to;
     return PORT_OK;
 }
 

@@ -29,6 +29,7 @@
 #define OTA_DL_TASK_STACK   (12288)
 #define OTA_DL_TASK_PRIO    (TASK_PRIORITY_ABOVE_NORMAL)  /* above app, below lwIP/net */
 #define OTA_HDR_BUF         512
+#define OTA_SETTLE_MS       500   /* ota-flow.md § Internal progress phases */
 
 typedef struct {
     char url[OTA_URL_MAX_LEN + 1];
@@ -431,7 +432,7 @@ static void ota_adapter_task(void *param)
     app_log_info("ota", "task start url=%s sha512=%s", job.url, job.has_expected_sha512 ? "yes" : "no");
     ota_adapter_report(OTA_STATUS_PREPARING, 0, "");
 
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    vTaskDelay(pdMS_TO_TICKS(OTA_SETTLE_MS));
     app_log_info("ota", "mqtt down, http start");
     ota_adapter_report(OTA_STATUS_CONNECTING, 0, "");
 
