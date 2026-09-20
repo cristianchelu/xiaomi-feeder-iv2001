@@ -58,16 +58,6 @@ static void boot_idle(void)
     post_event(EVT_TIMER_TICK);
 }
 
-void test_app_display_heartbeat_stretches_while_ota_active(void)
-{
-    feeder_runtime_test_reset();
-    TEST_ASSERT_EQUAL_UINT32(50u, app_display_tick_period_ms());
-    feeder_runtime_set_ota_active(true);
-    TEST_ASSERT_EQUAL_UINT32(250u, app_display_tick_period_ms());
-    feeder_runtime_set_ota_active(false);
-    TEST_ASSERT_EQUAL_UINT32(50u, app_display_tick_period_ms());
-}
-
 void test_app_idle_weight_sampling_pauses_while_ota_active(void)
 {
     size_t before;

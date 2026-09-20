@@ -644,10 +644,6 @@ void app_dispatch(const app_event_t *ev)
 
 #define APP_EVENT_DRAIN_MAX  16u
 
-uint32_t app_display_tick_period_ms(void)
-{
-    return feeder_runtime_ota_active() ? APP_DISPLAY_TICK_OTA_MS : APP_DISPLAY_TICK_MS;
-}
 
 static bool app_event_defer_display_tick(app_event_type_t type)
 {

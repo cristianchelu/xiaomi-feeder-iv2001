@@ -44,20 +44,11 @@ static void app_post_simple(app_event_type_t type)
     (void)app_event_post(&ev);
 }
 
-static TickType_t s_display_period_ticks;
-
 static void app_display_timer_cb(TimerHandle_t timer)
 {
     app_event_t ev;
-    TickType_t want = pdMS_TO_TICKS(app_display_tick_period_ms());
 
-    /* Stretch the heartbeat while the OTA download owns the CPU and Wi-Fi. */
-    if (s_display_period_ticks != want) {
-        if (xTimerChangePeriod(timer, want, 0) == pdPASS) {
-            s_display_period_ticks = want;
-        }
-    }
-
+    (void)timer;
     memset(&ev, 0, sizeof(ev));
     ev.type = EVT_DISPLAY_TICK;
     ev.u.display_tick.now_ms =
@@ -87,9 +78,8 @@ static void app_timers_start(void)
     display_presentation_reset();
 
     if (s_display_timer == NULL) {
-        s_display_period_ticks = pdMS_TO_TICKS(APP_DISPLAY_TICK_MS);
         s_display_timer = xTimerCreate("disp",
-                                       s_display_period_ticks,
+                                       pdMS_TO_TICKS(APP_DISPLAY_TICK_MS),
                                        pdTRUE,
                                        NULL,
                                        app_display_timer_cb);
@@ -127,7 +117,7 @@ static void app_task_fn(void *param)
     (void)param;
 
     for (;;) {
-        if (!app_event_receive(&ev, app_display_tick_period_ms())) {
+        if (!app_event_receive(&ev, APP_DISPLAY_TICK_MS)) {
             app_dispatch_display_tick(
                 (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
             continue;
