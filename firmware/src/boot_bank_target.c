@@ -102,6 +102,20 @@ int boot_bank_switch_with_hash(const uint8_t image_hash[64])
     return boot_bank_write_ctrl(&ctrl);
 }
 
+bool boot_bank_take_rollback_mark(void)
+{
+    boot_control_block_t ctrl;
+
+    if (boot_bank_read_ctrl(&ctrl) != 0 || ctrl.magic != BOOT_CTRL_MAGIC ||
+        ctrl.rolled_back != BOOT_ROLLED_BACK_MARK) {
+        return false;
+    }
+
+    ctrl.rolled_back = 0;
+    (void)boot_bank_write_ctrl(&ctrl);
+    return true;
+}
+
 int boot_bank_confirm_boot(void)
 {
     boot_control_block_t ctrl;

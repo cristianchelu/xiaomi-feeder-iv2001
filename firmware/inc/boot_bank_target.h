@@ -14,4 +14,7 @@ int boot_bank_switch_active(void);
 int boot_bank_switch_with_hash(const uint8_t image_hash[64]);
 int boot_bank_confirm_boot(void);
 
+/* True once per bootloader rollback: clears the mark it reports. */
+bool boot_bank_take_rollback_mark(void);
+
 #endif /* __BOOT_BANK_TARGET_H__ */

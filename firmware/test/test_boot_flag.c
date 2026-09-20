@@ -239,3 +239,34 @@ void test_vector_scan_rejects_truncated_image(void)
         0,
         CM4_BASE));
 }
+
+/* spec/40-architecture/partition-layout.md — rolled_back mark */
+
+void test_strike_limit_toggle_sets_rolled_back_mark(void)
+{
+    boot_control_block_t ctrl = {
+        .magic = BOOT_CTRL_MAGIC,
+        .active_flag = BOOT_FLAG_B,
+        .unverified = BOOT_UNVERIFIED_SET,
+        .boot_attempts = BOOT_MAX_ATTEMPTS - 1u,
+        .rolled_back = 0,
+    };
+
+    TEST_ASSERT_EQUAL(BOOT_ATTEMPT_TOGGLED, boot_bank_record_boot_attempt(&ctrl));
+    TEST_ASSERT_EQUAL_HEX8(BOOT_ROLLED_BACK_MARK, ctrl.rolled_back);
+    TEST_ASSERT_EQUAL_HEX32(BOOT_FLAG_A, ctrl.active_flag);
+}
+
+void test_strike_below_limit_leaves_rolled_back_clear(void)
+{
+    boot_control_block_t ctrl = {
+        .magic = BOOT_CTRL_MAGIC,
+        .active_flag = BOOT_FLAG_B,
+        .unverified = BOOT_UNVERIFIED_SET,
+        .boot_attempts = 0,
+        .rolled_back = 0,
+    };
+
+    TEST_ASSERT_EQUAL(BOOT_ATTEMPT_CONTINUE, boot_bank_record_boot_attempt(&ctrl));
+    TEST_ASSERT_EQUAL_HEX8(0, ctrl.rolled_back);
+}

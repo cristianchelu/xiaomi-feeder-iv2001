@@ -122,6 +122,11 @@ static void ota_client_on_progress(const ota_progress_t *progress, void *ctx)
 void ota_client_start(void)
 {
     ota_client_remember("idle", 0, "");
+    if (boot_bank_take_rollback_mark()) {
+        /* ota-flow.md § Slot health — Application: rollback report */
+        app_log_warn("ota", "rolled back by boot-attempt limit");
+        ota_client_remember("error", 0, "rolled_back");
+    }
     ota_port_get()->set_progress_cb(ota_client_on_progress, NULL);
 }
 

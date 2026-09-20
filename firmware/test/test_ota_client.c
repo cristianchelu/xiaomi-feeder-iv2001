@@ -244,3 +244,29 @@ void test_ota_new_cmd_after_error_publishes_downloading(void)
     TEST_ASSERT_EQUAL_STRING("{\"state\":\"downloading\",\"pct\":0,\"error\":\"\",\"bank\":\"A\"}",
                              mqtt->last_publish_payload);
 }
+
+/* spec/30-processes/ota-flow.md § Slot health — Application: rollback report */
+
+void test_ota_rollback_mark_reports_error_on_connect_and_clears(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+
+    fake_mqtt_port_reset();
+    fake_ota_port_reset();
+    mqtt_outbox_reset();
+    fake_boot_bank_reset();
+    fake_boot_bank_set_rolled_back(true);
+    fake_mqtt_port_get()->connect(NULL);
+    ota_client_set_device_id(TEST_DEVICE_ID);
+    ota_client_start();
+
+    TEST_ASSERT_FALSE(fake_boot_bank_rolled_back());
+
+    ota_client_on_mqtt_connected();
+    drain_ota_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"rolled_back\",\"bank\":\"A\"}",
+                             mqtt->last_publish_payload);
+    fake_boot_bank_reset();
+}

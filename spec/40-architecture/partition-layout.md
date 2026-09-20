@@ -56,7 +56,8 @@ Format matches LinkIt SDK dual-image FOTA (see
 | SHA-512 hash | 0x08 | 64 B | Image integrity hash of active bank |
 | Unverified | 0x48 | 4 B | `1` while the active slot awaits crash-free confirm; `0` when confirmed |
 | Boot attempts | 0x4C | 1 B | Bootloader strike counter while `unverified` is set; cleared on confirm |
-| (reserved) | 0x4D | — | Pad to sector boundary |
+| Rolled back | 0x4D | 1 B | `0xA5` written by the bootloader when the strike limit toggles banks; any other value means no pending rollback report. The application clears it once it has taken the report ([ota-flow.md](../30-processes/ota-flow.md) § Slot health) |
+| (reserved) | 0x4E | — | Pad to sector boundary |
 
 The bootloader reads the control block before jumping. Logic:
 

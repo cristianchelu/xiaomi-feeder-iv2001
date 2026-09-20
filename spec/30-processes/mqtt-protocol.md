@@ -966,6 +966,7 @@ not published directly from the OTA handler.
 | `download_failed` | HTTP download or flash write failure |
 | `verify_failed` | Bank hash differs from the manifest `sha512`, bank unreadable, or the written image has no vector table for the target bank (image linked for the other bank) |
 | `image_too_large` | Image exceeds inactive bank capacity |
+| `rolled_back` | The bootloader hit the boot-attempt limit on the new slot and switched back to the previous bank; reported by the surviving firmware on its next connect ([ota-flow.md](ota-flow.md) § Slot health) |
 
 ### `cmd/ota` payload
 

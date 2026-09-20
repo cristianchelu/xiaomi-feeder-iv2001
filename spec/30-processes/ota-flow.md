@@ -201,7 +201,9 @@ Before bank selection on each boot, while `unverified` is set:
 2. If `boot_attempts >=` `[tune]` `BOOT_MAX_ATTEMPTS` (3):
    - Log `boot attempt limit — switching bank`.
    - Toggle `active_flag` to the other bank.
-   - Set `boot_attempts = 0`; keep `unverified = 1`.
+   - Set `boot_attempts = 0`; keep `unverified = 1`; set the `rolled_back`
+     mark ([partition-layout.md](../40-architecture/partition-layout.md)
+     § A/B control block).
    - Persist.
 
 Then run existing header validation and cross-bank fallback. Bank validity
@@ -211,6 +213,15 @@ probe alone.
 
 There is no application-side timeout revert. Resets before confirm are
 handled by the bootloader strike counter.
+
+### Application: rollback report
+
+At boot the application reads and clears the `rolled_back` mark. When it was
+set it logs `rolled back by boot-attempt limit` and makes the OTA status
+`error` / `rolled_back` (retained; re-published on every MQTT connect until
+the next `cmd/ota` — [mqtt-protocol.md](mqtt-protocol.md) § OTA status). The
+mark is written only by the bootloader, so a bootloader without this field
+leaves the byte as-is and no report is produced.
 
 ### Application: crash-free confirm
 

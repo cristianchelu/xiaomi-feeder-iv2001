@@ -169,6 +169,7 @@ Bench OTA scripts under `tools/ota/` grep UART captures for tagged `ota` lines
 | Download armed | `download started` |
 | Per-chunk progress | `NN% (downloaded/total) heap=… min=…` |
 | Resume | `retry N at <offset>` — reconnect with `Range: bytes=<offset>-` |
+| Rollback report | `rolled back by boot-attempt limit` (warn) at boot when the control block carries the bootloader's mark |
 | Download complete | `download complete bytes=<n> in <ms> ms flash=<ms> ms recv=<ms> ms/<calls>` — `recv` is time blocked in the HTTP receive path and how many receive calls returned data |
 | Download finished | `download complete bytes=…` |
 | HTTP phase start | `mqtt down, http start` |

@@ -69,6 +69,7 @@ boot_attempt_result_t boot_bank_record_boot_attempt(boot_control_block_t *ctrl)
         ctrl->active_flag = BOOT_FLAG_B;
     }
 
+    ctrl->rolled_back = BOOT_ROLLED_BACK_MARK;
     return BOOT_ATTEMPT_TOGGLED;
 }
 

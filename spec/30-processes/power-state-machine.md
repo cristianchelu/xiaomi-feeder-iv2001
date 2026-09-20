@@ -120,7 +120,10 @@ UART2 (CS1270) and ADC init stay deferred to later features.
   the HAL maximum. Armed as the first statement of `main()`, before
   `system_init()`, so an image that faults or hangs during bring-up still
   resets; the reset reason is read before arming and logged once logging is
-  up. The bootloader does not arm it (it is not OTA-updatable). `[design]`
+  up. The bootloader (`bl_hardware_init`) arms the same 30 s watchdog before
+  jumping, so the window between the jump and `main()` is covered as well —
+  once that bootloader build is flashed; the bootloader is not
+  OTA-updatable. `[design]`
 - The `app` task feeds it once per event-loop iteration; the idle heartbeat
   is `[tune]` 50 ms, so a healthy loop feeds it hundreds of times per period.
   Blocking bus loans (≤ 5 s) and the OTA window (the `app` task keeps

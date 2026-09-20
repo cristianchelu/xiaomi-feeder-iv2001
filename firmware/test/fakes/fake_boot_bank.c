@@ -66,6 +66,25 @@ int boot_bank_switch_active(void)
     return 0;
 }
 
+void fake_boot_bank_set_rolled_back(bool rolled_back)
+{
+    s_ctrl.rolled_back = rolled_back ? BOOT_ROLLED_BACK_MARK : 0;
+}
+
+bool fake_boot_bank_rolled_back(void)
+{
+    return s_ctrl.rolled_back == BOOT_ROLLED_BACK_MARK;
+}
+
+bool boot_bank_take_rollback_mark(void)
+{
+    if (s_ctrl.rolled_back != BOOT_ROLLED_BACK_MARK) {
+        return false;
+    }
+    s_ctrl.rolled_back = 0;
+    return true;
+}
+
 int boot_bank_confirm_boot(void)
 {
     boot_bank_confirm_slot(&s_ctrl);

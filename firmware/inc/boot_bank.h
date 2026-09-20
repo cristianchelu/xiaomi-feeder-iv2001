@@ -15,6 +15,7 @@
 #define BOOT_FLAG_ERASED  0xFFFFFFFFu
 
 #define BOOT_MAX_ATTEMPTS      3u
+#define BOOT_ROLLED_BACK_MARK  0xA5u
 #define BOOT_UNVERIFIED_SET    1u
 #define BOOT_UNVERIFIED_CLEAR  0u
 #define BOOT_VECTOR_SCAN_LIMIT 0x10000u
@@ -31,7 +32,8 @@ typedef struct {
     uint8_t sha512[64];
     uint32_t unverified;
     uint8_t boot_attempts;
-    uint8_t reserved[3];
+    uint8_t rolled_back;   /* BOOT_ROLLED_BACK_MARK when the bootloader toggled by strikes */
+    uint8_t reserved[2];
 } boot_control_block_t;
 
 typedef enum {
