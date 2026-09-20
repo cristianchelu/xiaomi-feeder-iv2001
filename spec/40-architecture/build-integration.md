@@ -161,13 +161,22 @@ and association is armed after `wifi_port_radio_up()` via `wifi_port_arm_connect
 ### lwIP receive window (`lwipopts_tcp_wnd.patch`)
 
 The image links `mqtt_client/inc/lwipopts.h`, where pbufs are carved from
-the lwIP heap (`MEMP_MEM_MALLOC=1`, `MEM_SIZE` 29 KB) and connsys allocates
-one pbuf per received frame. The stock `TCP_WND` of 24 KB lets a fast HTTP
-server keep almost the whole lwIP heap in flight, so the connsys RX path
-logs `can't allocate buffer` in bursts, frames drop, and TCP retransmits
-stretch an OTA hop. The patch sets `TCP_WND` to `[tune]` 8 KB (five
-segments of `TCP_MSS` 1476 plus slack) so in-flight data stays well inside
-the heap. `[design]`
+the lwIP heap (`MEMP_MEM_MALLOC=1`, `MEM_SIZE` 29 KB in TCM) and connsys
+allocates one pbuf per received frame. The stock `TCP_WND` of 24 KB lets a
+fast HTTP server keep almost the whole heap in flight, so the connsys RX
+path logs `can't allocate buffer` in bursts, frames drop, and TCP
+retransmits stretch an OTA hop. The patch sets `TCP_WND` to `[tune]` 8 KB
+so in-flight data stays well inside the heap; every hop since logs zero
+allocation failures. `[probe]` 2026-09-20
+
+The window is not the throughput limit. A 16 KB window with a 44 KB heap
+and `TCP_WND_UPDATE_THRESHOLD` 1024 measured the same 31 s per 526 KB as
+8 KB; the limiter was the SDK HTTP client's body read (a blocking 1-byte
+`recv()` followed by non-blocking ≤1 KB drains, each a round trip to the
+lwIP thread). Reading the body with direct `OTA_CHUNK_SIZE` `recv()` calls
+after the headers brings the same image to ~5.7 s, of which ~5.2 s is flash
+programming ([ota-flow.md](../30-processes/ota-flow.md) § Streaming download
+and resume). `[probe]` 2026-09-20
 
 ### FreeRTOS heap (`freertos_heap_192k.patch`)
 

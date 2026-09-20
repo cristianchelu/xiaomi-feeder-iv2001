@@ -68,7 +68,11 @@ HTTPS: supported if `mqtt/tls` is enabled and mbedTLS RAM budget permits.
 The image is one HTTP GET whose body is programmed into the inactive bank
 as it arrives; the lwIP receive window is capped at `[tune]` 8 KB
 ([build-integration.md](../40-architecture/build-integration.md) § lwIP
-receive window) so the server cannot exhaust the connsys RX buffers. The
+receive window) so the server cannot exhaust the connsys RX buffers. After
+the status line and headers, the body is read straight from the socket in
+`OTA_CHUNK_SIZE` pieces rather than through the SDK HTTP client's byte-wise
+receive loop; a 526 KB image streams in ~6 s, ~5 s of it flash programming.
+`[probe]` 2026-09-20 The
 image length comes from `Content-Length` of the first response (status
 200). `[design]`
 

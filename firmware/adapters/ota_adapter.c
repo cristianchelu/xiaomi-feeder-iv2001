@@ -187,6 +187,12 @@ static port_err_t ota_adapter_stream(const char *url,
         return PORT_ERR_IO;
     }
 
+    /*
+     * First call parses the status line and headers and returns the first
+     * body bytes; the remainder is read with plain recv() in OTA_CHUNK_SIZE
+     * pieces (one socket call and one window credit per chunk instead of the
+     * HTTP client's 1-byte-then-1 KB pattern).
+     */
     do {
         uint32_t data_len;
 
@@ -194,6 +200,37 @@ static port_err_t ota_adapter_stream(const char *url,
             httpclient_close(&client);
             *received_out = received;
             return PORT_ERR_BUSY;
+        }
+
+        if (headers_checked) {
+            uint32_t want = total - offset - received;
+            int n;
+            TickType_t t_recv;
+
+            if (want > OTA_CHUNK_SIZE) {
+                want = OTA_CHUNK_SIZE;
+            }
+
+            t_recv = xTaskGetTickCount();
+            n = recv(client.socket, chunk_buf, (size_t)want, 0);
+            s_recv_ticks += xTaskGetTickCount() - t_recv;
+            s_recv_calls++;
+
+            if (n <= 0) {
+                app_log_error("ota",
+                              "recv fail at %lu+%lu ret=%d",
+                              (unsigned long)offset,
+                              (unsigned long)received,
+                              n);
+                httpclient_close(&client);
+                *received_out = received;
+                return PORT_ERR_IO;
+            }
+
+            data_len = (uint32_t)n;
+            ret = (offset + received + data_len < total) ? HTTPCLIENT_RETRIEVE_MORE_DATA
+                                                         : HTTPCLIENT_OK;
+            goto program;
         }
 
         {
@@ -264,6 +301,7 @@ static port_err_t ota_adapter_stream(const char *url,
                    ? (uint32_t)(recv_temp - client_data.retrieve_len) : 0;
         recv_temp = client_data.retrieve_len;
 
+program:
         if (data_len > 0) {
             uint32_t write_offset = offset + received;
             TickType_t t0;
