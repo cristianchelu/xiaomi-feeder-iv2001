@@ -1,0 +1,14 @@
+--- a/project/mt7682_hdk/apps/mqtt_client/src/sys_init.c
++++ b/project/mt7682_hdk/apps/mqtt_client/src/sys_init.c
+@@ -117,7 +117,10 @@
+         /* cacheable address, cacheable size(both MUST be 4k bytes aligned) */
+         /* UBIN length */
+ #if ((PRODUCT_VERSION == 7686) || (PRODUCT_VERSION == 7682))
+-#ifdef CM4_UBIN_LENGTH
++#if defined(XIP_CACHE_LENGTH)
++        /* Dual-bank XIP: bank A and bank B are both cacheable (memory_map.h). */
++        {XIP_CACHE_BASE, XIP_CACHE_LENGTH},
++#elif defined(CM4_UBIN_LENGTH)
+         {CM4_BASE, CM4_LENGTH + CM4_UBIN_LENGTH},
+ #else
+         {CM4_BASE, CM4_LENGTH},

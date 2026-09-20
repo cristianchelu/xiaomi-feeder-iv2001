@@ -33,9 +33,9 @@ Wi-Fi Developer's Guide §2.1, configuration APIs before `reload_setting`).
 `wifi_session_connect` uses the four-step order above; provisioning may call
 `connect` (`set_credentials` + `arm_connect`) when the radio is already up.
 
-`wait_ready` must not poll `wifi_connection_get_link_status()` alone — during
-bank-B boot the link stays down for ~30 s while the N9 is idle, then events
-arrive in quick succession. `[probe]`
+`wait_ready` blocks on the SDK `PORT_SECURE` and DHCP semaphores rather than
+polling `wifi_connection_get_link_status()`; link-up and DHCP arrive in quick
+succession and a poll loop only adds latency during the handshake. `[design]`
 
 `PORT_SECURE` means the 4-way handshake is complete; DHCP follows (Dev Guide
 Table 5). On success the connect task posts `EVT_WIFI_STA_READY` with the
@@ -75,7 +75,8 @@ provisioning abort, factory reset, and AP entry. App NVDM `wifi/*` is untouched.
 
 Does **not** clear `STA/PMK_INFO` or `common/StaFastLink` — those belong to
 stack-init STA cache wipe in `wifi_adapter_stack_init()` (see
-[wifi-lifecycle.md](wifi-lifecycle.md) § Bank-B boot delay).
+[build-integration.md](../40-architecture/build-integration.md) § Wi-Fi NVDM
+namespaces).
 
 Provisioning flows that reference this sequence: [provisioning-flow.md](provisioning-flow.md#sdk-sta-profile-invalidate).
 
@@ -84,39 +85,23 @@ Provisioning flows that reference this sequence: [provisioning-flow.md](provisio
 `wifi disconnect` tears down the STA session via `wifi_sta_request_disconnect()`
 on the connect task. See [uart-console.md](uart-console.md#wifi-disconnect).
 
-## Bank-B boot delay
+## Boot timing across banks
 
-Booting while flash bank B is active (OTA apply, `bank switch`, or cold start
-with the control block pointing at B) shows a ~30 s N9 idle gap before
-`PORT_SECURE` and DHCP — **not** tied to OTA download or A/B slot health.
-Bank-A boots reach `STA ready` in ~1–2 s on the same bench. `[probe]`
+Firmware has no bank-specific Wi-Fi source branches; A and B images differ
+only by link base (`0x08012000` vs `0x08100000`), and both banks execute from
+the cached XIP region
+([partition-layout.md](../40-architecture/partition-layout.md) § CM4 cache
+regions). Boot-to-`STA ready` is therefore the same on either bank: ~5 s
+after `FreeRTOS Running`, on a warm reboot (OTA apply, `bank switch`) and on
+a cold power-cycle alike. `[probe]` 2026-09-20
 
-Firmware has no bank-specific Wi-Fi source branches; A and B images differ only
-by link base (`0x08012000` vs `0x08100000`). Mitigations already in tree that
-do **not** remove the gap:
-
-- `connsys_force_n9_reset.patch` (N9 SW reset at every boot)
-- `wifi_adapter_wipe_sta_caches()` before `wifi_init()`
-- `lwip_net_ready_timed` instead of link-status polling
-- Credential-before-radio connect order (`set_credentials` → `radio_up` →
-  `arm_connect`) `[probe]` 2026-06-16
-
-Typical bank-B UART timeline after `bank switch`: `connecting` and
-`reload_setting` within ~70 ms of scheduler start; `[fw_event] start connect`
-from `__seek_and_connect` ~39 s later; `STA ready` ~42 s. WPA msg 3 may log
-MIC/sanity errors before the handshake completes. `[probe]` 2026-06-16
-
-`wifi_boot_connect_timeout_ms()` returns `[tune]` 60 s when bank B is active
-(headroom for the N9 ROM `seek_and_connect` window); bank A uses the same
-default until bench proves a shorter budget is safe.
-
-See [ota-flow.md](ota-flow.md) § Known limitation for UART symptoms and
-slot-health confirm timing.
+The connect timeout is `[tune]` 60 s (`WIFI_SESSION_CONNECT_TIMEOUT_MS`)
+regardless of the active bank — headroom for slow APs and DHCP servers.
 
 ## Acceptance
 
 `[tune]` Bench: `wifi show` → `wifi connect` → `wifi disconnect` →
 `wifi connect` round-trip over UART succeeds without reboot.
 
-`[tune]` Bank B: power-cycle or `bank switch` to B → `STA ready` within 60 s
-(Wi-Fi icon may stay off for ~30 s while `wait_ready` blocks).
+`[tune]` Either bank: power-cycle or `bank switch` → `STA ready` within 10 s
+of `FreeRTOS Running`.

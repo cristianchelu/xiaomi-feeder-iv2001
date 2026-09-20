@@ -121,6 +121,26 @@ combo headers. Without it, `hal_flash_init()` fails on IV2001 hardware.
 
 Maintained as `firmware/patches/flash_combo_w25q16dw.patch`.
 
+### Dual-bank cache region (`mqtt_sys_init_cache_dual_bank.patch`)
+
+SDK `cache_init()` in `mqtt_client/src/sys_init.c` makes only
+`{CM4_BASE, CM4_LENGTH}` cacheable — bank A alone. The patch replaces that
+entry with `{XIP_CACHE_BASE, XIP_CACHE_LENGTH}` from `memory_map.h`, which
+spans bank A and bank B (`0x08012000`–`0x081EE000`;
+[partition-layout.md](partition-layout.md) § CM4 cache regions).
+
+Without it an image running from bank B fetches every instruction uncached
+through the serial flash controller: `FreeRTOS Running` lands ~300 ticks
+later than on bank A, the Wi-Fi driver's scan stalls ~34 s between channel 1
+and the AP channel (`STA ready` ~36 s after `FreeRTOS Running` instead of
+~5 s), and SHA-512 over a 525 KB bank takes ~12 s instead of ~0.6 s.
+`[probe]` 2026-09-20
+
+`hal_flash_read()` is a `memcpy` from the XIP window; the SDK program path
+only re-checks one cache line when its post-program compare fails. The flash
+bank adapter therefore invalidates the inactive bank's cache lines
+(`hal_cache_invalidate_multiple_cache_lines`) before hashing it. `[design]`
+
 ### Wi-Fi NVDM namespaces
 
 The SDK `wifi_nvdm_config` module seeds its own NVDM groups (`STA`, `AP`,
@@ -132,8 +152,8 @@ association; the connect task reads only the `wifi` group.
 
 `wifi_adapter_wipe_sta_caches()` runs before `wifi_init()` on every boot to
 blank the STA profile (`StaFastLink`, `PMK_INFO`, `STA/Ssid`, `STA/WpaPsk`).
-This prevents the N9 from loading stale PMKSA / credentials that can confuse
-association after WDT reboot. Credentials are staged in `wifi_port_set_credentials()`
+This keeps `wifi_init()` from handing the N9 a stale SDK profile or PMKSA
+before the application stages its own credentials. Credentials are staged in `wifi_port_set_credentials()`
 and association is armed after `wifi_port_radio_up()` via `wifi_port_arm_connect()`
 (`set_credentials` → `radio_up` → `arm_connect`); see
 [wifi-lifecycle.md](../30-processes/wifi-lifecycle.md).
@@ -157,9 +177,9 @@ reclaim idle task stacks and still spawn the `[tune]` 12 KB `ota_dl` worker.
 ### STA ready wait (`lwip_net_ready_timed.patch`)
 
 Adds `lwip_net_ready_timed(timeout_ms)` beside SDK `lwip_net_ready()`.
-`wifi_port.wait_ready` blocks on the same binary semaphores as the SDK helper
-instead of polling link status — required for bank-B boots where the N9 is
-silent for ~30 s before `PORT_SECURE`. `[design]`
+`wifi_port.wait_ready` blocks on the same binary semaphores (`PORT_SECURE`,
+DHCP) as the SDK helper instead of polling link status, so the connect task
+wakes on the event rather than on a poll tick. `[design]`
 
 ### MQTT read short-poll (`mqtt_read_peek_before_select.patch`)
 

@@ -965,4 +965,4 @@ the OTA handler.
 | Field | Required | Description |
 |-------|----------|-------------|
 | `url` | yes | HTTP or HTTPS firmware URL (max 255 chars) |
-| `sha512` | no | Expected image SHA-512 as 128 lowercase/uppercase hex digits; when omitted, verify uses the hash computed from the downloaded image |
+| `sha512` | no | Expected image SHA-512 as 128 lowercase/uppercase hex digits; when omitted, the bank hash is stored without comparison ([ota-flow.md](ota-flow.md) § Verification) |

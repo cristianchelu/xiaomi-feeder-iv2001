@@ -11,7 +11,7 @@ User publishes to `.../cmd/ota`:
 ```
 
 The `sha512` field is optional; when present it must match the SHA-512 of the
-downloaded image bytes.
+image as written to the inactive bank (see [Verification](#verification)).
 
 Device validates URL (non-empty, http:// or https:// scheme).
 
@@ -62,6 +62,19 @@ console and [web-ui.md](web-ui.md).
 
 HTTPS: supported if `mqtt/tls` is enabled and mbedTLS RAM budget permits.
 
+### Range download and retry
+
+The image is fetched with HTTP Range requests of `[tune]` 32 KB
+(`OTA_RANGE_SIZE`), one TCP connection per range, so a server burst cannot
+exhaust the connsys RX buffer pool. Each range gets up to `[tune]` 3 attempts
+with a `[tune]` 1 s pause between them. A retry logs `retry N at <offset>`
+and re-requests the whole range from its start, re-programming the same
+flash offsets with the same bytes. The device keeps no running hash over the
+received stream — the only hash it computes is over the bank contents after
+the download ([Verification](#verification)) — so a retried range cannot
+skew verification. When every attempt fails: `range fail at <offset> after
+retries`, abort with `"download_failed"`. `[design]`
+
 ### Internal progress phases
 
 The OTA port reports finer-grained `ota_status_t` values than MQTT exposes.
@@ -80,16 +93,25 @@ phases: [display-presentation.md](display-presentation.md) § OTA indicator.
 
 ## Verification
 
-After full download:
+After the download loop completes (`download complete bytes=N`):
 
-1. Read the A/B control block's expected hash (see
-   [partition-layout.md](../40-architecture/partition-layout.md#ab-control-block)).
-2. Compute SHA-512 over the written bank contents (LinkIt dual-image FOTA
-   format). `[design]`
-3. Compare against the expected hash from the OTA manifest.
-4. On mismatch: abort, publish error `"verify_failed"`, do not swap banks.
+1. Check the image size against the bank size and probe the vector table in
+   the first 64 KB of the inactive bank (the same scan the bootloader uses).
+2. Invalidate the CM4 cache lines covering the inactive bank, then compute
+   SHA-512 over the `N` bytes written to it. Flash reads are `memcpy` from
+   the XIP window and both banks are cacheable
+   ([partition-layout.md](../40-architecture/partition-layout.md) § CM4 cache
+   regions), so stale lines from before the erase must not feed the hash.
+   `[design]`
+3. When the manifest carried `sha512`, compare the bank hash to it. On
+   mismatch: log `sha512 mismatch`, publish error `"verify_failed"`, do not
+   swap banks. Without a manifest hash the bank hash is accepted as-is.
+4. Store the bank hash in the A/B control block when the active flag flips
+   ([partition-layout.md](../40-architecture/partition-layout.md#ab-control-block)).
 
-No signature verification in v1 (no PKI infrastructure). `[design]`
+Bytes received over HTTP are never hashed directly; the verified object is
+the flash contents that will boot. No signature verification in v1 (no PKI
+infrastructure). `[design]`
 
 ## Flash layout
 
@@ -118,34 +140,12 @@ The N9 coprocessor is force-reset at the next boot by
 before the existing MCU release in `_connsys_init_activate_mcu`). This
 ensures N9 RAM is cleared regardless of WDT warm reboot state.
 
-### Known limitation: bank-B boot delay
+### Boot after apply
 
-Canonical description: [wifi-lifecycle.md](wifi-lifecycle.md) § Bank-B boot delay.
-
-Booting from flash bank B (OTA apply, manual `bank switch`, or cold start
-when bank B is active) exhibits a ~30 s gap with no UART progress while the
-N9 coprocessor is idle, then Wi-Fi association and DHCP complete in a few
-more seconds (~42 s total to `EVT_WIFI_STA_READY` on bench). `[probe]`
-
-During the gap the display shows no Wi-Fi icon (connect task is blocked in
-`wait_ready`; `EVT_WIFI_STA_CONNECTING` was already posted). This is **not**
-OTA-download-specific — any bank-B boot shows the same freeze.
-
-Subsequent WPA 4-way handshake may log MIC Different on msg 3, resolved
-internally by M3 reinstall attack skip. This is a fixed internal timeout
-in the prebuilt N9 ROM (`libwifi_mt7682_ram.a`). Tested mitigations that did
-**not** resolve it:
-
-- Force N9 SW reset at boot (clears RAM / PMKSA — still ~30 s)
-- Preserve STA NVDM credentials through reboot (still ~30 s)
-- Skip pre-reboot `disconnect_ap` (still ~30 s)
-- Credential-before-radio connect order (`set_credentials` → `radio_up` →
-  `arm_connect`) `[probe]` 2026-06-16 — still ~42 s to `STA ready` on
-  `bank switch` to B
-
-Bank-A boots after B→A hop reach `STA ready` in ~1 s. Cold boots when bank A
-is active connect in ~2 s. Any bank-B boot is the slow path (~42 s on bench);
-acceptable for monthly OTA events. `[probe]`
+The first boot into the new bank follows the normal boot path. Both banks
+execute cached, so `STA ready` arrives ~5 s after `FreeRTOS Running` on
+either bank ([wifi-lifecycle.md](wifi-lifecycle.md) § Boot timing across
+banks); slot health confirm follows 60 s later ([Slot health](#slot-health)).
 
 ### Active bank on MQTT
 

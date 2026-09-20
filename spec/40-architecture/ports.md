@@ -92,7 +92,7 @@ Adapter: wraps SDK `middleware/third_party/mqtt/MQTTClient-C`. The
 | `get_active_bank` | `() -> boot_bank_t` | Returns `BOOT_BANK_A` or `BOOT_BANK_B` based on control block |
 | `erase_inactive` | `() -> err` | Erase the inactive bank |
 | `write_inactive` | `(offset, data, len) -> err` | Write to inactive bank at offset |
-| `verify_inactive` | `(expected_hash[64], image_len) -> err` | Compute SHA-512 over inactive bank image, compare |
+| `hash_inactive` | `(image_len, hash_out[64]) -> err` | Invalidate cache lines over the inactive bank, then SHA-512 its first `image_len` bytes into `hash_out`; `INVALID_ARG` when `image_len` is not an allowed image size |
 | `swap_banks` | `(image_hash[64]) -> err` | Flip active flag in control block; next boot targets other bank |
 
 Adapter: wraps the adapted `fota_dual_image` APIs and `hal_flash_*` calls.
@@ -103,7 +103,7 @@ adaptation.
 
 | Function | Signature | Behavior |
 |----------|-----------|----------|
-| `start` | `(url, expected_sha512, has_expected_sha512) -> err` | Begin OTA download to inactive bank; spawns `ota_dl` task. `expected_sha512` is 64 bytes; when `has_expected_sha512` is false, verify uses the hash computed from the downloaded image |
+| `start` | `(url, expected_sha512, has_expected_sha512) -> err` | Begin OTA download to inactive bank; spawns `ota_dl` task. `expected_sha512` is 64 bytes; when `has_expected_sha512` is false, the bank hash is stored without comparison (`ota-flow.md` § Verification) |
 | `get_status` | `() -> ota_status_t` | Current OTA state: `idle`, `preparing`, `connecting`, `downloading`, `verifying`, `applying`, `error` |
 | `abort` | `() -> err` | Cancel in-progress download |
 | `set_progress_cb` | `(cb, ctx) -> void` | Register callback invoked on status/progress updates (`ota_progress_t`: `status`, `pct`, `error`) |

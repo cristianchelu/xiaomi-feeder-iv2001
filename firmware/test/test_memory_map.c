@@ -26,6 +26,16 @@ void test_bank_sizes_match(void)
     TEST_ASSERT_EQUAL_HEX32(0x000EE000, CM4_LENGTH); /* 952 KB */
 }
 
+/* spec/40-architecture/partition-layout.md § CM4 cache regions */
+void test_xip_cache_region_spans_both_banks(void)
+{
+    TEST_ASSERT_EQUAL_HEX32(CM4_BASE, XIP_CACHE_BASE);
+    TEST_ASSERT_EQUAL_HEX32(ROM_NVDM_BASE, XIP_CACHE_BASE + XIP_CACHE_LENGTH);
+    TEST_ASSERT_EQUAL_HEX32(0x001DC000, XIP_CACHE_LENGTH); /* 1904 KB */
+    TEST_ASSERT_EQUAL_HEX32(0, XIP_CACHE_BASE & 0xFFFu);   /* 4 KB aligned */
+    TEST_ASSERT_EQUAL_HEX32(0, XIP_CACHE_LENGTH & 0xFFFu);
+}
+
 void test_dual_image_ctrl_inside_bootloader(void)
 {
     TEST_ASSERT_TRUE(DUAL_IMAGE_CTRL_BASE >= BL_BASE);

@@ -10,6 +10,7 @@
 #include "boot_bank_target.h"
 #include "flash_bank_logic.h"
 #include "flash_bank_port.h"
+#include "hal_cache.h"
 #include "hal_flash.h"
 #include "hal_flash_disk_internal.h"
 #include "hal_flash_mtd_sf_dal.h"
@@ -112,10 +113,24 @@ static void flash_bank_adapter_selftest(uint32_t base)
 }
 #endif
 
+/*
+ * hal_flash_read() is a memcpy from the XIP window and both banks are
+ * cacheable, so drop any lines that were filled before this bank was erased.
+ */
+static void flash_bank_adapter_invalidate_cache(uint32_t rom_offset, uint32_t len)
+{
+    uint32_t aligned = (len + HAL_CACHE_LINE_SIZE - 1u) & ~(uint32_t)(HAL_CACHE_LINE_SIZE - 1u);
+
+    (void)hal_cache_invalidate_multiple_cache_lines(ROM_BASE + rom_offset, aligned);
+}
+
 static port_err_t flash_bank_adapter_erase_inactive(void)
 {
+    boot_bank_t inactive = flash_bank_inactive(flash_bank_adapter_get_active());
+
     flash_bank_adapter_unprotect();
     s_erase_frontier = 0;
+    flash_bank_adapter_invalidate_cache(flash_bank_rom_offset(inactive), CM4_LENGTH);
     return PORT_OK;
 }
 
@@ -192,8 +207,8 @@ static port_err_t flash_bank_adapter_write_inactive(uint32_t offset,
     return PORT_OK;
 }
 
-static port_err_t flash_bank_adapter_verify_inactive(const uint8_t expected_hash[FLASH_BANK_SHA512_LEN],
-                                                     uint32_t image_len)
+static port_err_t flash_bank_adapter_hash_inactive(uint32_t image_len,
+                                                   uint8_t hash_out[FLASH_BANK_SHA512_LEN])
 {
     boot_bank_t inactive;
     uint32_t offset;
@@ -201,16 +216,17 @@ static port_err_t flash_bank_adapter_verify_inactive(const uint8_t expected_hash
     uint8_t chunk[OTA_CHUNK_SIZE];
     uint32_t remaining;
     mbedtls_sha512_context ctx;
-    uint8_t computed[FLASH_BANK_SHA512_LEN];
     hal_flash_status_t status;
 
-    if (expected_hash == NULL || !ota_image_size_allowed(image_len)) {
+    if (hash_out == NULL || !ota_image_size_allowed(image_len)) {
         return PORT_ERR_INVALID_ARG;
     }
 
     inactive = flash_bank_inactive(flash_bank_adapter_get_active());
     base = flash_bank_rom_offset(inactive);
     remaining = image_len;
+
+    flash_bank_adapter_invalidate_cache(base, image_len);
 
     mbedtls_sha512_init(&ctx);
     mbedtls_sha512_starts(&ctx, 0);
@@ -234,12 +250,8 @@ static port_err_t flash_bank_adapter_verify_inactive(const uint8_t expected_hash
         remaining -= (uint32_t)chunk_len;
     }
 
-    mbedtls_sha512_finish(&ctx, computed);
+    mbedtls_sha512_finish(&ctx, hash_out);
     mbedtls_sha512_free(&ctx);
-
-    if (memcmp(computed, expected_hash, FLASH_BANK_SHA512_LEN) != 0) {
-        return PORT_ERR_INVALID_ARG;
-    }
 
     return PORT_OK;
 }
@@ -257,7 +269,7 @@ static const flash_bank_port_t s_flash_bank_port = {
     .get_active_bank = flash_bank_adapter_get_active,
     .erase_inactive = flash_bank_adapter_erase_inactive,
     .write_inactive = flash_bank_adapter_write_inactive,
-    .verify_inactive = flash_bank_adapter_verify_inactive,
+    .hash_inactive = flash_bank_adapter_hash_inactive,
     .swap_banks = flash_bank_adapter_swap_banks,
 };
 

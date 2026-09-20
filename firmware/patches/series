@@ -23,3 +23,4 @@ freertos_heap_192k.patch
 lwip_net_ready_timed.patch
 task_def_httpd.patch
 httpd_provision.patch
+mqtt_sys_init_cache_dual_bank.patch

@@ -64,7 +64,7 @@ static void wifi_adapter_wipe_sta_caches(void)
 
     memset(zeros, 0, sizeof(zeros));
 
-    /* Disable fast-PMK lookup in N9 ROM. */
+    /* Disable the SDK fast-PMK lookup so no cached PMK precedes our credentials. */
     nvdm_write_data_item("common",
                          "StaFastLink",
                          NVDM_DATA_ITEM_TYPE_STRING,
@@ -253,10 +253,7 @@ static port_err_t wifi_port_wait_ready(uint32_t timeout_ms)
         return PORT_ERR_IO;
     }
 
-    /*
-     * Bank-B boots: link_status stays down while N9 is idle (~30 s) before
-     * PORT_SECURE. Block on the same semaphores as lwip_net_ready().
-     */
+    /* Block on the same PORT_SECURE + DHCP semaphores as lwip_net_ready(). */
     APP_LOG_I("wifi", "waiting PORT_SECURE+DHCP tick=%lu",
               (unsigned long)xTaskGetTickCount());
 

@@ -109,6 +109,27 @@ config, schedule data, calibration values, and tunable parameters.
 WiFi TX power calibration data. Written once during manufacturing or
 initial setup. Referenced by the WiFi driver at boot.
 
+## CM4 cache regions
+
+The CM4 executes the application in place (XIP) from SPI flash through a
+32 KB cache split into address-range regions (`hal_cache_region_config`;
+start and size 4 KB-aligned, any length). `[design]`
+
+| Region | Range | Size | Contents |
+|--------|-------|------|----------|
+| 0 | `0x08012000`–`0x081EE000` | 1904 KB | Bank A + Bank B (`XIP_CACHE_BASE`, `XIP_CACHE_LENGTH` in `memory_map.h`) |
+| 1 | `0x14200000`–`0x14260000` | 384 KB | Virtual SYSRAM |
+
+Both application banks lie inside region 0, so the running image executes
+cached whichever bank is active. NVDM, TX power, and the pad sector stay
+uncached. Region 0 is installed by `mqtt_sys_init_cache_dual_bank.patch`
+(see [build-integration.md](build-integration.md) § Dual-bank cache region).
+
+`hal_flash_read()` is a `memcpy` from the XIP window, so a read of a bank
+after programming it goes through the cache. Code that hashes a freshly
+written bank invalidates that address range first — see
+[ota-flow.md](../30-processes/ota-flow.md) § Verification.
+
 ## Flash combo table
 
 The stock flash combo table omits W25Q16DW (JEDEC `0xEF, 0x60, 0x15`). Add it

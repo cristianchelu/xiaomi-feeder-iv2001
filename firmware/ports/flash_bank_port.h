@@ -17,8 +17,8 @@ typedef struct flash_bank_port {
     boot_bank_t (*get_active_bank)(void);
     port_err_t (*erase_inactive)(void);
     port_err_t (*write_inactive)(uint32_t offset, const uint8_t *data, size_t len);
-    port_err_t (*verify_inactive)(const uint8_t expected_hash[FLASH_BANK_SHA512_LEN],
-                                  uint32_t image_len);
+    port_err_t (*hash_inactive)(uint32_t image_len,
+                                uint8_t hash_out[FLASH_BANK_SHA512_LEN]);
     port_err_t (*swap_banks)(const uint8_t image_hash[FLASH_BANK_SHA512_LEN]);
 } flash_bank_port_t;
 

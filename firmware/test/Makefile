@@ -17,7 +17,6 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/boot_bank.c \
              ../src/wifi_cred.c \
              ../src/wifi_session.c \
-             ../src/wifi_boot_policy.c \
              ../src/wifi_sdk_profile.c \
              ../src/wifi_sta.c \
              ../src/app_wifi_cli.c \
@@ -81,6 +80,7 @@ HOST_SRCS :=              ../src/app_log.c \
              fakes/shim/minicli_host.c \
              ../src/ota_url.c \
              ../src/ota_image.c \
+             ../src/ota_verify.c \
              ../src/ota_slot_health.c \
              ../src/flash_bank_logic.c \
              ../src/aw9523b.c \
@@ -145,6 +145,7 @@ HOST_SRCS :=              ../src/app_log.c \
              fakes/fake_boot_bank.c \
              fakes/fake_mqtt_port.c \
              fakes/fake_ota_port.c \
+             fakes/fake_flash_bank_port.c \
              fakes/fake_wifi_port.c \
              fakes/shim/nvdm_record.c \
              fakes/shim/wifi_sdk_hal_host.c \

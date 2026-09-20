@@ -16,7 +16,6 @@
 #include "app_log.h"
 
 #include "httpclient.h"
-#include "mbedtls/sha512.h"
 
 #include "flash_bank_logic.h"
 #include "flash_bank_port.h"
@@ -25,6 +24,7 @@
 #include "ota_image.h"
 #include "ota_port.h"
 #include "ota_preflight.h"
+#include "ota_verify.h"
 #include "wifi_api.h"
 
 #define OTA_DL_TASK_STACK   (12288)
@@ -62,9 +62,7 @@ static void ota_adapter_reboot(void)
 {
     /*
      * Disconnect before WDT reboot into the inactive bank. N9 is force-reset on
-     * next boot (connsys_force_n9_reset.patch). Bank-B boots may show ~30 s
-     * N9 idle before STA ready (__seek_and_connect in N9 ROM) — not fixable
-     * from CM4; see spec/30-processes/wifi-lifecycle.md § Bank-B boot delay.
+     * next boot (connsys_force_n9_reset.patch).
      */
     APP_LOG_I("ota", "pre-reboot: disconnect AP");
     (void)wifi_connection_disconnect_ap();
@@ -121,8 +119,7 @@ static port_err_t ota_adapter_fetch_range(const char *url,
                                           uint32_t offset,
                                           uint32_t range_end,
                                           uint32_t *file_total_out,
-                                          uint32_t *range_bytes_out,
-                                          mbedtls_sha512_context *sha_ctx)
+                                          uint32_t *range_bytes_out)
 {
     httpclient_t client = {0};
     httpclient_data_t client_data = {0};
@@ -211,7 +208,6 @@ static port_err_t ota_adapter_fetch_range(const char *url,
                 return PORT_ERR_IO;
             }
 
-            mbedtls_sha512_update(sha_ctx, (const unsigned char *)chunk_buf, data_len);
             range_downloaded += data_len;
         }
     } while (ret == HTTPCLIENT_RETRIEVE_MORE_DATA);
@@ -256,9 +252,13 @@ static port_err_t ota_adapter_fetch_range(const char *url,
     return PORT_OK;
 }
 
+/*
+ * Range loop.  No hash is kept over the received stream: a retried range
+ * re-programs the same offsets, and verification hashes the bank afterwards
+ * (spec/30-processes/ota-flow.md § Verification).
+ */
 static port_err_t ota_adapter_http_download(const char *url,
-                                            uint32_t *downloaded_out,
-                                            uint8_t hash_out[FLASH_BANK_SHA512_LEN])
+                                            uint32_t *downloaded_out)
 {
     /* Task-stack buffers: no heap (fragmented) and no permanent BSS reservation. */
     uint8_t chunk_storage[OTA_CHUNK_SIZE];
@@ -268,11 +268,7 @@ static port_err_t ota_adapter_http_download(const char *url,
     uint32_t downloaded = 0;
     uint32_t total = 0;
     uint8_t last_report_pct = 0;
-    mbedtls_sha512_context ctx;
     port_err_t err;
-
-    mbedtls_sha512_init(&ctx);
-    mbedtls_sha512_starts(&ctx, 0);
 
     flash_bank_port_get()->erase_inactive();
 
@@ -303,7 +299,7 @@ static port_err_t ota_adapter_http_download(const char *url,
                     (total == 0) ? hdr_buf : NULL,
                     OTA_RANGE_HDR_BUF,
                     downloaded, range_end,
-                    &total, &range_bytes, &ctx);
+                    &total, &range_bytes);
 
             if (err == PORT_OK) {
                 break;
@@ -312,7 +308,6 @@ static port_err_t ota_adapter_http_download(const char *url,
 
         if (err != PORT_OK) {
             app_log_error("ota", "range fail at %lu after retries", (unsigned long)downloaded);
-            mbedtls_sha512_free(&ctx);
             return err;
         }
 
@@ -349,7 +344,6 @@ static port_err_t ota_adapter_http_download(const char *url,
     }
 
     if (s_abort_requested) {
-        mbedtls_sha512_free(&ctx);
         return PORT_ERR_BUSY;
     }
 
@@ -358,12 +352,8 @@ static port_err_t ota_adapter_http_download(const char *url,
                       "download incomplete bytes=%lu total=%lu",
                       (unsigned long)downloaded,
                       (unsigned long)total);
-        mbedtls_sha512_free(&ctx);
         return PORT_ERR_IO;
     }
-
-    mbedtls_sha512_finish(&ctx, hash_out);
-    mbedtls_sha512_free(&ctx);
 
     if (!ota_image_size_allowed(downloaded)) {
         return PORT_ERR_INVALID_ARG;
@@ -413,7 +403,7 @@ static void ota_adapter_task(void *param)
     app_log_info("ota", "mqtt down, http start");
     ota_adapter_report(OTA_STATUS_CONNECTING, 0, "");
 
-    err = ota_adapter_http_download(job.url, &downloaded, s_image_hash);
+    err = ota_adapter_http_download(job.url, &downloaded);
     if (err != PORT_OK) {
         const char *error = (err == PORT_ERR_INVALID_ARG) ? "image_too_large" : "download_failed";
         app_log_error("ota", "download error=%s err=%d", error, (int)err);
@@ -423,15 +413,16 @@ static void ota_adapter_task(void *param)
 
     ota_adapter_report(OTA_STATUS_VERIFYING, 100, "");
 
-    if (job.has_expected_sha512 &&
-        memcmp(s_image_hash, job.expected_sha512, FLASH_BANK_SHA512_LEN) != 0) {
+    err = ota_verify_bank(flash, downloaded,
+                          job.has_expected_sha512 ? job.expected_sha512 : NULL,
+                          s_image_hash);
+    if (err == PORT_ERR_INVALID_ARG) {
         app_log_error("ota", "sha512 mismatch");
         ota_adapter_task_fail("verify_failed");
         return;
     }
-
-    if (flash->verify_inactive(s_image_hash, downloaded) != PORT_OK) {
-        app_log_error("ota", "flash verify failed");
+    if (err != PORT_OK) {
+        app_log_error("ota", "flash verify failed err=%d", (int)err);
         ota_adapter_task_fail("verify_failed");
         return;
     }

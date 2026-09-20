@@ -28,6 +28,11 @@
 #define BANK_B_BASE    0x08100000
 #define BANK_B_LENGTH  0x000EE000  /* 952 KB */
 
+/* CM4 cache region 0 — both application banks execute cached (XIP).
+ * spec/40-architecture/partition-layout.md § CM4 cache regions */
+#define XIP_CACHE_BASE    CM4_BASE
+#define XIP_CACHE_LENGTH  (BANK_B_BASE + BANK_B_LENGTH - CM4_BASE)  /* 1904 KB */
+
 /* Bootloader bl_fota.c compatibility (staging = inactive bank) */
 #define FOTA_RESERVED_BASE    BANK_B_BASE
 #define FOTA_RESERVED_LENGTH  BANK_B_LENGTH
