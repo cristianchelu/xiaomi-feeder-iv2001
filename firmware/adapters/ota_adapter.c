@@ -1,9 +1,7 @@
 /*
- * OTA port adapter — HTTP download to inactive bank.
- *
- * Downloads firmware using HTTP Range requests to avoid overwhelming the
- * MT7687 connsys RX buffer pool.  Each range is a separate TCP connection
- * carrying at most OTA_RANGE_SIZE bytes of payload.
+ * OTA port adapter — one HTTP GET streamed into the inactive bank, resumed
+ * with a Range request when the connection drops (ota-flow.md § Streaming
+ * download and resume).
  */
 
 #include <stdlib.h>
@@ -21,6 +19,7 @@
 #include "flash_bank_port.h"
 #include "hal_cache.h"
 #include "hal_sys.h"
+#include "ota_download.h"
 #include "ota_image.h"
 #include "ota_port.h"
 #include "ota_preflight.h"
@@ -29,7 +28,7 @@
 
 #define OTA_DL_TASK_STACK   (12288)
 #define OTA_DL_TASK_PRIO    (TASK_PRIORITY_ABOVE_NORMAL - 1)
-#define OTA_RANGE_HDR_BUF   256
+#define OTA_HDR_BUF         512
 
 typedef struct {
     char url[OTA_URL_MAX_LEN + 1];
@@ -43,6 +42,8 @@ static volatile bool s_abort_requested;
 static ota_progress_cb_t s_progress_cb;
 static void *s_progress_ctx;
 static uint8_t s_image_hash[FLASH_BANK_SHA512_LEN];
+static uint8_t s_last_report_pct;
+static TickType_t s_flash_ticks;
 
 static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *error)
 {
@@ -72,7 +73,7 @@ static void ota_adapter_reboot(void)
 
 /*
  * Parse total file size from a Content-Range header value.
- * Expected format: "bytes 0-4095/396652" → returns 396652.
+ * Expected format: "bytes 163840-525623/525624" → returns 525624.
  */
 static uint32_t ota_adapter_parse_content_range_total(const char *hdr_buf)
 {
@@ -104,41 +105,65 @@ static uint32_t ota_adapter_parse_content_range_total(const char *hdr_buf)
     return strtoul(p + 1, NULL, 10);
 }
 
+static void ota_adapter_progress(uint32_t downloaded, uint32_t total)
+{
+    uint8_t pct;
+
+    if (total == 0) {
+        return;
+    }
+
+    pct = ota_progress_pct(downloaded, total);
+    if (pct >= s_last_report_pct + OTA_PROGRESS_STEP_PCT || pct == 100) {
+        app_log_debug("ota",
+                      "%u%% (%lu/%lu) heap=%u min=%u",
+                      pct,
+                      (unsigned long)downloaded,
+                      (unsigned long)total,
+                      (unsigned)xPortGetFreeHeapSize(),
+                      (unsigned)xPortGetMinimumEverFreeHeapSize());
+        s_last_report_pct = pct;
+        ota_adapter_report(OTA_STATUS_DOWNLOADING, pct, "");
+    }
+}
+
 /*
- * Download a single Range chunk.  Opens a fresh TCP connection, sends
- * GET with Range header, receives body into flash, then closes.
- * Returns the number of body bytes written to flash via *range_bytes_out.
+ * One GET streamed into the inactive bank, starting at `offset` (a Range
+ * resume when offset > 0).  Bytes programmed by this attempt are reported in
+ * *received_out even on failure; *total_out is the image length learned from
+ * the response headers (0 when none).
  */
-static port_err_t ota_adapter_fetch_range(const char *url,
-                                          char *chunk_buf,
-                                          char *hdr_buf,
-                                          int hdr_buf_len,
-                                          uint32_t offset,
-                                          uint32_t range_end,
-                                          uint32_t *file_total_out,
-                                          uint32_t *range_bytes_out)
+static port_err_t ota_adapter_stream(const char *url,
+                                     char *chunk_buf,
+                                     char *hdr_buf,
+                                     uint32_t offset,
+                                     uint32_t known_total,
+                                     uint32_t *total_out,
+                                     uint32_t *received_out)
 {
     httpclient_t client = {0};
     httpclient_data_t client_data = {0};
-    char range_hdr[64];
+    char range_hdr[48];
     int32_t ret;
     int32_t recv_temp = -1;
-    uint32_t range_downloaded = 0;
+    uint32_t received = 0;
+    uint32_t total = 0;
+    bool headers_checked = false;
     const flash_bank_port_t *flash = flash_bank_port_get();
 
-    snprintf(range_hdr, sizeof(range_hdr),
-             "Range: bytes=%lu-%lu\r\n",
-             (unsigned long)offset, (unsigned long)range_end);
+    *received_out = 0;
+    *total_out = 0;
 
     client_data.response_buf = chunk_buf;
     client_data.response_buf_len = OTA_CHUNK_SIZE;
+    client_data.header_buf = hdr_buf;
+    client_data.header_buf_len = OTA_HDR_BUF;
 
-    if (hdr_buf != NULL) {
-        client_data.header_buf = hdr_buf;
-        client_data.header_buf_len = hdr_buf_len;
+    if (offset > 0) {
+        snprintf(range_hdr, sizeof(range_hdr),
+                 "Range: bytes=%lu-\r\n", (unsigned long)offset);
+        httpclient_set_custom_header(&client, range_hdr);
     }
-
-    httpclient_set_custom_header(&client, range_hdr);
 
     ret = httpclient_connect(&client, (char *)url);
     if (ret != HTTPCLIENT_OK) {
@@ -165,6 +190,7 @@ static port_err_t ota_adapter_fetch_range(const char *url,
 
         if (s_abort_requested) {
             httpclient_close(&client);
+            *received_out = received;
             return PORT_ERR_BUSY;
         }
 
@@ -173,10 +199,53 @@ static port_err_t ota_adapter_fetch_range(const char *url,
             app_log_error("ota",
                           "recv fail at %lu+%lu ret=%ld",
                           (unsigned long)offset,
-                          (unsigned long)range_downloaded,
+                          (unsigned long)received,
                           (long)ret);
             httpclient_close(&client);
+            *received_out = received;
             return PORT_ERR_IO;
+        }
+
+        if (!headers_checked) {
+            int code = httpclient_get_response_code(&client);
+
+            headers_checked = true;
+
+            if (offset == 0 && code == 200) {
+                total = (client_data.response_content_len > 0)
+                        ? (uint32_t)client_data.response_content_len : 0;
+            } else if (code == 206) {
+                total = ota_adapter_parse_content_range_total(hdr_buf);
+            } else {
+                app_log_error("ota", "server returned %d at %lu", code, (unsigned long)offset);
+                httpclient_close(&client);
+                return PORT_ERR_IO;
+            }
+
+            if (total == 0) {
+                app_log_error("ota", "image length missing");
+                httpclient_close(&client);
+                return PORT_ERR_IO;
+            }
+
+            *total_out = total;
+
+            if (known_total != 0 && total != known_total) {
+                app_log_error("ota", "image length changed %lu -> %lu",
+                              (unsigned long)known_total, (unsigned long)total);
+                httpclient_close(&client);
+                return PORT_ERR_IO;
+            }
+
+            if (!ota_image_size_allowed(total)) {
+                app_log_error("ota", "image length %lu exceeds bank", (unsigned long)total);
+                httpclient_close(&client);
+                return PORT_ERR_INVALID_ARG;
+            }
+
+            if (offset == 0) {
+                app_log_debug("ota", "file size %lu bytes", (unsigned long)total);
+            }
         }
 
         if (recv_temp < 0) {
@@ -188,13 +257,16 @@ static port_err_t ota_adapter_fetch_range(const char *url,
         recv_temp = client_data.retrieve_len;
 
         if (data_len > 0) {
-            uint32_t write_offset = offset + range_downloaded;
+            uint32_t write_offset = offset + received;
+            TickType_t t0;
 
             if (write_offset + data_len > CM4_LENGTH) {
                 httpclient_close(&client);
+                *received_out = received;
                 return PORT_ERR_INVALID_ARG;
             }
 
+            t0 = xTaskGetTickCount();
             if (flash->write_inactive(write_offset, (const uint8_t *)chunk_buf,
                                       data_len) != PORT_OK) {
                 app_log_error("ota",
@@ -202,162 +274,85 @@ static port_err_t ota_adapter_fetch_range(const char *url,
                               (unsigned long)write_offset,
                               (unsigned long)data_len);
                 httpclient_close(&client);
+                *received_out = received;
                 return PORT_ERR_IO;
             }
+            s_flash_ticks += xTaskGetTickCount() - t0;
 
-            range_downloaded += data_len;
+            received += data_len;
+            ota_adapter_progress(offset + received, total);
         }
     } while (ret == HTTPCLIENT_RETRIEVE_MORE_DATA);
 
-    /* Extract total file size from Content-Range on the first range. */
-    if (file_total_out != NULL && *file_total_out == 0) {
-        int resp_code = httpclient_get_response_code(&client);
-
-        if (resp_code == 206) {
-            *file_total_out = ota_adapter_parse_content_range_total(hdr_buf);
-        } else {
-            app_log_error("ota", "server returned %d, Range not supported", resp_code);
-            httpclient_close(&client);
-            return PORT_ERR_IO;
-        }
-
-        if (*file_total_out == 0) {
-            app_log_error("ota", "Content-Range total missing");
-            httpclient_close(&client);
-            return PORT_ERR_IO;
-        }
-
-        app_log_debug("ota", "file size %lu bytes", (unsigned long)*file_total_out);
-    }
-
-    {
-        uint32_t range_expected = range_end - offset + 1;
-
-        if (range_downloaded < range_expected) {
-            app_log_error("ota",
-                          "range short at %lu got %lu want %lu",
-                          (unsigned long)offset,
-                          (unsigned long)range_downloaded,
-                          (unsigned long)range_expected);
-            httpclient_close(&client);
-            return PORT_ERR_IO;
-        }
-    }
-
     httpclient_close(&client);
-    *range_bytes_out = range_downloaded;
+    *received_out = received;
     return PORT_OK;
 }
 
 /*
- * Range loop.  No hash is kept over the received stream: a retried range
- * re-programs the same offsets, and verification hashes the bank afterwards
- * (spec/30-processes/ota-flow.md § Verification).
+ * Streaming download with Range resume (ota_download.c holds the rules).
+ * No hash is kept over the received stream: verification hashes the bank
+ * afterwards (spec/30-processes/ota-flow.md § Verification).
  */
 static port_err_t ota_adapter_http_download(const char *url,
                                             uint32_t *downloaded_out)
 {
     /* Task-stack buffers: no heap (fragmented) and no permanent BSS reservation. */
     uint8_t chunk_storage[OTA_CHUNK_SIZE];
-    char hdr_storage[OTA_RANGE_HDR_BUF];
-    char *chunk_buf = (char *)chunk_storage;
-    char *hdr_buf = hdr_storage;
-    uint32_t downloaded = 0;
-    uint32_t total = 0;
-    uint8_t last_report_pct = 0;
-    port_err_t err;
+    char hdr_storage[OTA_HDR_BUF];
+    ota_download_state_t st;
+    TickType_t t_start = xTaskGetTickCount();
+
+    ota_download_init(&st);
+    s_last_report_pct = 0;
+    s_flash_ticks = 0;
 
     flash_bank_port_get()->erase_inactive();
 
     app_log_debug("ota",
-                  "range download start heap=%u min=%u",
+                  "download start heap=%u min=%u",
                   (unsigned)xPortGetFreeHeapSize(),
                   (unsigned)xPortGetMinimumEverFreeHeapSize());
 
-    while (!s_abort_requested) {
-        uint32_t range_end;
-        uint32_t range_bytes = 0;
-        int retries;
+    for (;;) {
+        uint32_t total_seen = 0;
+        uint32_t received = 0;
+        port_err_t err;
+        ota_download_step_t step;
 
-        range_end = downloaded + OTA_RANGE_SIZE - 1;
-        if (total > 0 && range_end >= total) {
-            range_end = total - 1;
+        if (s_abort_requested) {
+            return PORT_ERR_BUSY;
         }
 
-        err = PORT_ERR_IO;
-        for (retries = 0; retries < 3; retries++) {
-            if (retries > 0) {
-                app_log_debug("ota", "retry %d at %lu", retries, (unsigned long)downloaded);
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
-
-            err = ota_adapter_fetch_range(
-                    url, chunk_buf,
-                    (total == 0) ? hdr_buf : NULL,
-                    OTA_RANGE_HDR_BUF,
-                    downloaded, range_end,
-                    &total, &range_bytes);
-
-            if (err == PORT_OK) {
-                break;
-            }
-        }
-
-        if (err != PORT_OK) {
-            app_log_error("ota", "range fail at %lu after retries", (unsigned long)downloaded);
+        err = ota_adapter_stream(url, (char *)chunk_storage, hdr_storage,
+                                 st.downloaded, st.total, &total_seen, &received);
+        if (err == PORT_ERR_BUSY || err == PORT_ERR_INVALID_ARG) {
             return err;
         }
 
-        if (hdr_buf != NULL && total > 0) {
-            hdr_buf = NULL;
-        }
-
-        downloaded += range_bytes;
-
-        if (total > 0) {
-            uint8_t pct = ota_progress_pct(downloaded, total);
-            if (pct >= last_report_pct + OTA_PROGRESS_STEP_PCT || pct == 100) {
-                app_log_debug("ota",
-                              "%u%% (%lu/%lu) heap=%u min=%u",
-                              pct,
-                              (unsigned long)downloaded,
-                              (unsigned long)total,
-                              (unsigned)xPortGetFreeHeapSize(),
-                              (unsigned)xPortGetMinimumEverFreeHeapSize());
-                last_report_pct = pct;
-                ota_adapter_report(OTA_STATUS_DOWNLOADING, pct, "");
-            }
-        }
-
-        if (total > 0 && downloaded >= total) {
+        step = ota_download_account(&st, err, received, total_seen);
+        if (step == OTA_DOWNLOAD_DONE) {
             break;
         }
-
-        if (range_bytes == 0) {
-            break;
+        if (step == OTA_DOWNLOAD_FAILED) {
+            app_log_error("ota", "download failed at %lu after %u attempts",
+                          (unsigned long)st.downloaded, st.failures);
+            return PORT_ERR_IO;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(OTA_RANGE_DELAY_MS));
+        app_log_debug("ota", "retry %u at %lu", st.failures, (unsigned long)st.downloaded);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    if (s_abort_requested) {
-        return PORT_ERR_BUSY;
-    }
-
-    if (downloaded == 0 || (total > 0 && downloaded != total)) {
-        app_log_error("ota",
-                      "download incomplete bytes=%lu total=%lu",
-                      (unsigned long)downloaded,
-                      (unsigned long)total);
-        return PORT_ERR_IO;
-    }
-
-    if (!ota_image_size_allowed(downloaded)) {
+    if (!ota_image_size_allowed(st.downloaded)) {
         return PORT_ERR_INVALID_ARG;
     }
 
-    *downloaded_out = downloaded;
-    app_log_info("ota", "download complete bytes=%lu", (unsigned long)downloaded);
+    *downloaded_out = st.downloaded;
+    app_log_info("ota", "download complete bytes=%lu in %lu ms flash=%lu ms",
+                 (unsigned long)st.downloaded,
+                 (unsigned long)((xTaskGetTickCount() - t_start) * portTICK_PERIOD_MS),
+                 (unsigned long)(s_flash_ticks * portTICK_PERIOD_MS));
     return PORT_OK;
 }
 

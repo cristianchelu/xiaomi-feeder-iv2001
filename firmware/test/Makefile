@@ -81,6 +81,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/ota_url.c \
              ../src/ota_image.c \
              ../src/ota_verify.c \
+             ../src/ota_download.c \
              ../src/ota_slot_health.c \
              ../src/flash_bank_logic.c \
              ../src/aw9523b.c \

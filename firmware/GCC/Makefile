@@ -192,6 +192,7 @@ APP_FILES      += $(APP_PATH_SRC)/weight_units.c
 APP_FILES      += $(APP_PATH_SRC)/ota_url.c
 APP_FILES      += $(APP_PATH_SRC)/ota_image.c
 APP_FILES      += $(APP_PATH_SRC)/ota_verify.c
+APP_FILES      += $(APP_PATH_SRC)/ota_download.c
 APP_FILES      += $(APP_PATH_SRC)/flash_bank_logic.c
 APP_FILES      += $(APP_PATH_SRC)/ota_client.c
 APP_FILES      += $(APP_PATH_SRC)/ota_preflight.c

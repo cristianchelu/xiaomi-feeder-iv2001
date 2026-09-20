@@ -54,29 +54,39 @@ console and [web-ui.md](web-ui.md).
 
 1. Publish `.../ota/status`: `{"state": "downloading", "pct": 0}`.
 2. Suspend idle tasks (above).
-3. HTTP(S) GET to provided URL.
-4. Read in `[tune]` 4 KB chunks.
-5. Write chunks to the inactive application bank (A/B layout).
+3. One HTTP(S) GET to the provided URL, streamed to flash as it arrives.
+4. Receive in `[tune]` 4 KB chunks (`OTA_CHUNK_SIZE`).
+5. Write each chunk to the inactive application bank at its stream offset.
 6. Publish progress every `[tune]` 5 % (e.g. at 5, 10, 15 … 100 %).
 7. Enforce maximum image size (partition size minus header). Abort if exceeded.
 
 HTTPS: supported if `mqtt/tls` is enabled and mbedTLS RAM budget permits.
 
-### Range download and retry
+### Streaming download and resume
 
-The image is fetched with HTTP Range requests of `[tune]` 32 KB
-(`OTA_RANGE_SIZE`), one TCP connection per range, and the lwIP receive
-window is capped at `[tune]` 8 KB
+The image is one HTTP GET whose body is programmed into the inactive bank
+as it arrives; the lwIP receive window is capped at `[tune]` 8 KB
 ([build-integration.md](../40-architecture/build-integration.md) § lwIP
-receive window) so a server burst cannot exhaust the connsys RX buffers.
-Each range gets up to `[tune]` 3 attempts
-with a `[tune]` 1 s pause between them. A retry logs `retry N at <offset>`
-and re-requests the whole range from its start, re-programming the same
-flash offsets with the same bytes. The device keeps no running hash over the
-received stream — the only hash it computes is over the bank contents after
-the download ([Verification](#verification)) — so a retried range cannot
-skew verification. When every attempt fails: `range fail at <offset> after
-retries`, abort with `"download_failed"`. `[design]`
+receive window) so the server cannot exhaust the connsys RX buffers. The
+image length comes from `Content-Length` of the first response (status
+200). `[design]`
+
+When the connection or receive fails, or the server closes before
+`Content-Length` bytes arrived, the device waits `[tune]` 1 s, logs
+`retry N at <offset>`, and reconnects with `Range: bytes=<offset>-` where
+`<offset>` is the number of bytes already programmed. The resume response
+must be 206 with a `Content-Range` total equal to the first length; a 200
+(server ignoring Range) or a different total ends the attempt as a failure.
+Any byte received resets the failure counter; `[tune]` 3 consecutive
+attempts without progress abort with `download failed at <offset> after N
+attempts` and `"download_failed"`. `[design]`
+
+The device keeps no running hash over the received stream — the only hash
+it computes is over the bank contents after the download
+([Verification](#verification)) — so a resumed download cannot skew
+verification. On completion it logs
+`download complete bytes=<n> in <ms> ms flash=<ms> ms`, where `flash` is
+the time spent erasing and programming.
 
 ### Internal progress phases
 
@@ -88,7 +98,7 @@ phases: [display-presentation.md](display-presentation.md) § OTA indicator.
 | Internal status | When reported |
 |-----------------|---------------|
 | `PREPARING` | Download worker task starts (MQTT suspend already done in `start`) |
-| `CONNECTING` | After pre-download settle, immediately before HTTP Range download |
+| `CONNECTING` | After pre-download settle, immediately before the HTTP GET |
 | `DOWNLOADING` | First HTTP body bytes; `pct` 0–100 during transfer |
 | `VERIFYING` | Download complete; SHA-512 / flash verify |
 | `APPLYING` | Bank swap pending; reboot follows |

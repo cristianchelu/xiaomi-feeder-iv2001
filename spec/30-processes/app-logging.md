@@ -162,6 +162,8 @@ Bench OTA scripts under `tools/ota/` grep UART captures for tagged `ota` lines
 | Command received | `cmd ota topic=<topic> len=<n>` — tag `mqtt` (see above); legacy `[ota] accepted` removed |
 | Download armed | `download started` |
 | Per-chunk progress | `NN% (downloaded/total) heap=… min=…` |
+| Resume | `retry N at <offset>` — reconnect with `Range: bytes=<offset>-` |
+| Download complete | `download complete bytes=<n> in <ms> ms flash=<ms> ms` |
 | Download finished | `download complete bytes=…` |
 | HTTP phase start | `mqtt down, http start` |
 

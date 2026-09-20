@@ -13,8 +13,6 @@
 #include "port_err.h"
 
 #define OTA_CHUNK_SIZE        4096
-#define OTA_RANGE_SIZE        32768
-#define OTA_RANGE_DELAY_MS    0
 #define OTA_PROGRESS_STEP_PCT 5
 
 uint8_t ota_progress_pct(uint32_t downloaded, uint32_t total);
