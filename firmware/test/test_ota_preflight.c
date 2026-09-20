@@ -10,6 +10,7 @@
 #include "fake_mqtt_port.h"
 #include "fake_time.h"
 #include "fake_wifi_port.h"
+#include "feeder_runtime.h"
 #include "mqtt_client.h"
 #include "mqtt_client_test.h"
 #include "mqtt_cred.h"
@@ -38,6 +39,23 @@ static void remote_cli_test_reset_all(void)
     fake_time_reset();
     console_mux_test_reset();
     remote_cli_test_reset();
+}
+
+void test_preflight_marks_ota_window_for_app_polls(void)
+{
+    fake_time_reset();
+    fake_mqtt_port_reset();
+    seed_broker_config();
+    mqtt_client_test_bootstrap();
+    setup_wifi_up();
+    feeder_runtime_test_reset();
+
+    TEST_ASSERT_FALSE(feeder_runtime_ota_active());
+    TEST_ASSERT_EQUAL(PORT_OK, ota_preflight_suspend_idle_tasks());
+    TEST_ASSERT_TRUE(feeder_runtime_ota_active());
+
+    ota_preflight_resume_idle_tasks();
+    TEST_ASSERT_FALSE(feeder_runtime_ota_active());
 }
 
 void test_preflight_suspend_mqtt_blocks_connect(void)

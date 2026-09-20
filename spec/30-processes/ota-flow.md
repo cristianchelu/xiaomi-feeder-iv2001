@@ -43,10 +43,11 @@ download worker needs `[tune]` 12 KB stack. `[design]`
 | `app_cli` | Suspend UART0 console task and delete to free stack; recreated after failed OTA |
 | `wifi_sta` | Suspend connect worker and delete to free stack; recreated after failed OTA |
 | `mqtt_io` | Disarm reconnect, disconnect broker session (task keeps running; broker buffers freed) |
+| `app` peripheral polls | Runtime snapshot flag *OTA active* set; idle weight sampling, hopper background sensing, and battery sampling skip their ticks so no `WEIGH` / `ADC` / `EXPANDER` bus loan runs during the download — each loan tears down the Wi-Fi SPI link ([wfci-bus-arbitration.md](wfci-bus-arbitration.md)) and the 500 ms weigh cadence alone caps the download near 17 KB/s `[probe]` 2026-09-20. The panel keeps its `DISPLAY` micro-loans (redraw only on 10 % steps). Button IRQ handling stays active. |
 
 On download-worker spawn failure or any download/verify/apply failure before
-reboot: resume suspended tasks in reverse order (admin HTTP when enabled,
-MQTT, `wifi_sta`, `app_cli`, `remote_cli` when enabled). On successful apply:
+reboot: clear *OTA active* and resume suspended tasks in reverse order (admin
+HTTP when enabled, MQTT, `wifi_sta`, `app_cli`, `remote_cli` when enabled). On successful apply:
 reboot — no resume. See [uart-console.md](uart-console.md) § Remote telnet
 console and [web-ui.md](web-ui.md).
 

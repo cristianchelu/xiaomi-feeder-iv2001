@@ -9,6 +9,7 @@
 
 #include "app_log.h"
 #include "app_cli_ota.h"
+#include "feeder_runtime.h"
 #include "mqtt_client.h"
 #include "remote_cli.h"
 #if WEB_UI_ENABLE
@@ -25,6 +26,8 @@ port_err_t ota_preflight_suspend_idle_tasks(void)
      * Reclaim idle task stacks before xTaskCreate allocates the ~12 KB OTA
      * worker. Order: bench CLI, UART CLI, Wi-Fi connect worker, then MQTT.
      */
+    feeder_runtime_set_ota_active(true);
+
     remote_cli_suspend_for_ota();
 #if WEB_UI_ENABLE
     web_ui_suspend_for_ota();
@@ -50,6 +53,7 @@ port_err_t ota_preflight_suspend_idle_tasks(void)
 
 void ota_preflight_resume_idle_tasks(void)
 {
+    feeder_runtime_set_ota_active(false);
     wifi_sta_resume_after_ota();
     app_cli_resume_after_ota();
     remote_cli_resume_after_ota();

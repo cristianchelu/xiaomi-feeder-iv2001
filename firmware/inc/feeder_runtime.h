@@ -14,6 +14,10 @@ void feeder_runtime_init(void);
 void feeder_runtime_set_dispense_active(bool active);
 bool feeder_runtime_dispense_active(void);
 
+/* OTA window: peripheral polls that need a WFCI bus loan skip their tick. */
+void feeder_runtime_set_ota_active(bool active);
+bool feeder_runtime_ota_active(void);
+
 void feeder_runtime_test_reset(void);
 
 #endif /* FEEDER_RUNTIME_H */

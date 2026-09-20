@@ -110,8 +110,10 @@ loads — no lock. `[design]`
 | Flag | Writer | Readers | Meaning |
 |------|--------|---------|---------|
 | Dispense active | `dispense.c` | `app.c` (idle weight sampling), `auto_tare.c` (drift suppression) | True while a dispense job is pending or in motor/settle phase |
+| OTA active | `ota_preflight.c` (set on the `app` task at OTA accept; cleared by the OTA worker on failure — a single `bool`, so the cross-task clear is benign) | `app.c` (idle weight, hopper background, battery polls) | True from OTA accept until failure exit or reboot; peripheral polls that need a WFCI bus loan skip their tick ([ota-flow.md](../30-processes/ota-flow.md) § Pre-download memory reclaim) |
 
-Canonical API: `feeder_runtime.h` (`feeder_runtime_dispense_active()`).
+Canonical API: `feeder_runtime.h` (`feeder_runtime_dispense_active()`,
+`feeder_runtime_ota_active()`).
 
 ## ISR-to-task communication
 

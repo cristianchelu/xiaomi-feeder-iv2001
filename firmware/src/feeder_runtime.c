@@ -5,10 +5,22 @@
 #include "feeder_runtime.h"
 
 static volatile bool s_dispense_active;
+static volatile bool s_ota_active;
 
 void feeder_runtime_init(void)
 {
     s_dispense_active = false;
+    s_ota_active = false;
+}
+
+void feeder_runtime_set_ota_active(bool active)
+{
+    s_ota_active = active;
+}
+
+bool feeder_runtime_ota_active(void)
+{
+    return s_ota_active;
 }
 
 void feeder_runtime_set_dispense_active(bool active)

@@ -253,8 +253,8 @@ static void app_weight_idle_on_display_tick(uint32_t now_ms)
         return;
     }
 
-    if (feeder_runtime_dispense_active()) {
-        return;
+    if (feeder_runtime_dispense_active() || feeder_runtime_ota_active()) {
+        return;  /* no WEIGH bus loans while the OTA download owns Wi-Fi SPI */
     }
 
     if (s_weight_last_sample_ms != 0u &&
@@ -579,7 +579,7 @@ void app_dispatch(const app_event_t *ev)
             (void)display_presentation_refresh();
         }
         power_source_input_poll(ev->u.display_tick.now_ms);
-        {
+        if (!feeder_runtime_ota_active()) {
             bool hopper_bg = power_source_input_is_valid() &&
                              power_source_input_get() == POWER_SOURCE_MAINS;
 
@@ -608,7 +608,9 @@ void app_dispatch(const app_event_t *ev)
             (void)ota_slot_health_poll_ms();
             time_sync_poll(now_ms);
             app_weight_boot_advance();
-            battery_monitor_poll(now_ms);
+            if (!feeder_runtime_ota_active()) {
+                battery_monitor_poll(now_ms);
+            }
         }
         break;
 
