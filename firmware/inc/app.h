@@ -12,6 +12,11 @@
 #include "app_event.h"
 #include "weight_units.h"
 
+/* Display heartbeat period — spec/40-architecture/task-model.md (app task row). */
+#define APP_DISPLAY_TICK_MS      50u
+#define APP_DISPLAY_TICK_OTA_MS  250u
+uint32_t app_display_tick_period_ms(void);
+
 void app_start(void);
 void app_dispatch(const app_event_t *ev);
 void app_process_received_event(const app_event_t *ev);

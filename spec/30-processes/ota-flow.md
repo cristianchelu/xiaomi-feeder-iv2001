@@ -86,8 +86,9 @@ The device keeps no running hash over the received stream — the only hash
 it computes is over the bank contents after the download
 ([Verification](#verification)) — so a resumed download cannot skew
 verification. On completion it logs
-`download complete bytes=<n> in <ms> ms flash=<ms> ms`, where `flash` is
-the time spent erasing and programming.
+`download complete bytes=<n> in <ms> ms flash=<ms> ms recv=<ms> ms/<calls>`,
+where `flash` is the time spent erasing and programming and `recv` the time
+blocked in the HTTP receive path over `<calls>` receive calls.
 
 ### Internal progress phases
 

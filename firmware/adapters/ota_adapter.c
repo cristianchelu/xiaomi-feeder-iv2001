@@ -27,7 +27,7 @@
 #include "wifi_api.h"
 
 #define OTA_DL_TASK_STACK   (12288)
-#define OTA_DL_TASK_PRIO    (TASK_PRIORITY_ABOVE_NORMAL - 1)
+#define OTA_DL_TASK_PRIO    (TASK_PRIORITY_ABOVE_NORMAL)  /* above app, below lwIP/net */
 #define OTA_HDR_BUF         512
 
 typedef struct {
@@ -44,6 +44,8 @@ static void *s_progress_ctx;
 static uint8_t s_image_hash[FLASH_BANK_SHA512_LEN];
 static uint8_t s_last_report_pct;
 static TickType_t s_flash_ticks;
+static TickType_t s_recv_ticks;
+static uint32_t s_recv_calls;
 
 static void ota_adapter_report(ota_status_t status, uint8_t pct, const char *error)
 {
@@ -194,7 +196,13 @@ static port_err_t ota_adapter_stream(const char *url,
             return PORT_ERR_BUSY;
         }
 
-        ret = httpclient_recv_response(&client, &client_data);
+        {
+            TickType_t t_recv = xTaskGetTickCount();
+
+            ret = httpclient_recv_response(&client, &client_data);
+            s_recv_ticks += xTaskGetTickCount() - t_recv;
+            s_recv_calls++;
+        }
         if (ret < HTTPCLIENT_OK) {
             app_log_error("ota",
                           "recv fail at %lu+%lu ret=%ld",
@@ -306,6 +314,8 @@ static port_err_t ota_adapter_http_download(const char *url,
     ota_download_init(&st);
     s_last_report_pct = 0;
     s_flash_ticks = 0;
+    s_recv_ticks = 0;
+    s_recv_calls = 0;
 
     flash_bank_port_get()->erase_inactive();
 
@@ -349,10 +359,12 @@ static port_err_t ota_adapter_http_download(const char *url,
     }
 
     *downloaded_out = st.downloaded;
-    app_log_info("ota", "download complete bytes=%lu in %lu ms flash=%lu ms",
+    app_log_info("ota", "download complete bytes=%lu in %lu ms flash=%lu ms recv=%lu ms/%lu",
                  (unsigned long)st.downloaded,
                  (unsigned long)((xTaskGetTickCount() - t_start) * portTICK_PERIOD_MS),
-                 (unsigned long)(s_flash_ticks * portTICK_PERIOD_MS));
+                 (unsigned long)(s_flash_ticks * portTICK_PERIOD_MS),
+                 (unsigned long)(s_recv_ticks * portTICK_PERIOD_MS),
+                 (unsigned long)s_recv_calls);
     return PORT_OK;
 }
 
