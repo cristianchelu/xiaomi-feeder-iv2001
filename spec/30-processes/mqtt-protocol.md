@@ -147,7 +147,7 @@ discovered, republishing discovery alone does not move existing entities —
 clear the config topic (empty retained payload) and republish, or use
 `tools/mqtt/mqtt-bench.sh ha rediscover` / `ha rediscover-categories`.
 
-### Full entity table (planned)
+### Full entity table
 
 | Component | object_id | HA device_class | entity_category | Notes |
 |-----------|-----------|-----------------|-----------------|-------|
@@ -158,7 +158,7 @@ clear the config topic (empty retained payload) and republish, or use
 | binary_sensor | mains | `power` | — | Mains connected — `ON`/`OFF` on `.../mains` |
 | button | dispense | — | — | Triggers default portion |
 | event | dispense_completed | — | — | Fires on each dispense job completion |
-| number | dispense_custom | — | `config` | Range: 5–150 g |
+| number | dispense_custom | — | `config` | Range: 5–150 g, `box` mode, optimistic: **entering a value dispenses that many grams** (`cmd/dispense {"g": N}`), it is not a stored setting |
 | switch | feeding_schedule | — | `config` | On = global schedule enabled |
 | switch | weight_compensation | — | `config` | On = compensated dispense mode |
 | switch | overfill_protection | — | `config` | On = skip scheduled feeds when bowl ≥ threshold |
@@ -166,6 +166,11 @@ clear the config topic (empty retained payload) and republish, or use
 | switch | child_lock | — | `config` | On/off |
 | select | display_mode | — | `config` | Options: weight, eaten_today, off |
 | number | display_brightness | — | `config` | Range: 1–4 |
+| number | display_battery_off | — | `config` | Seconds, 0–600 (0 = never); panel idle-blank on battery |
+| button | reboot | `restart` | `config` | `cmd/reboot` |
+| button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
+| button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
+| sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear` |
 | sensor | battery_voltage | `voltage` | `diagnostic` | Unit: mV; `enabled_by_default`: false |
 | sensor | device_timezone | — | `diagnostic` | POSIX or label string |
 

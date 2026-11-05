@@ -69,6 +69,19 @@ int mqtt_ha_format_child_lock_config(char *buf,
                                      size_t len,
                                      const char *device_id);
 
+int mqtt_ha_format_reboot_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_calibrate_zero_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_calibrate_span_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_display_mode_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_display_brightness_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_display_battery_off_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_eaten_today_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_dispense_custom_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_hopper_ir_config(char *buf, size_t len, const char *device_id);
+
+/* Number of entities in the discovery table. */
+unsigned mqtt_ha_discovery_entity_count(void);
+
 /* Outbox occupancy above which the discovery pump waits (spec § Discovery pacing). */
 #define MQTT_HA_DISCOVERY_MAX_PENDING  12u
 

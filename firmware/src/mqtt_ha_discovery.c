@@ -867,6 +867,132 @@ int mqtt_ha_format_overfill_threshold_g_config(char *buf, size_t len, const char
     return written;
 }
 
+
+/* Table-driven entities (no per-entity boilerplate). */
+typedef struct {
+    const char *name;
+    const char *object_id;
+    const char *state_suffix;   /* NULL = no state_topic */
+    const char *cmd_suffix;     /* NULL = no command_topic */
+    const char *extra;          /* JSON members, no braces, no trailing comma */
+} mqtt_ha_generic_t;
+
+static int mqtt_ha_format_generic(char *buf,
+                                  size_t len,
+                                  const char *device_id,
+                                  const mqtt_ha_generic_t *g)
+{
+    char state_member[128] = "";
+    char cmd_member[128] = "";
+    char state_topic[96];
+    char cmd_topic[96];
+    char connection_topic[96];
+    char device_block[192];
+    int written;
+
+    if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
+        return -1;
+    }
+    if (g->state_suffix != NULL) {
+        if (mqtt_topic_format(state_topic, sizeof(state_topic), device_id, g->state_suffix)
+                != PORT_OK) {
+            return -1;
+        }
+        (void)snprintf(state_member, sizeof(state_member), "\"state_topic\":\"%s\",", state_topic);
+    }
+    if (g->cmd_suffix != NULL) {
+        if (mqtt_topic_format(cmd_topic, sizeof(cmd_topic), device_id, g->cmd_suffix) != PORT_OK) {
+            return -1;
+        }
+        (void)snprintf(cmd_member, sizeof(cmd_member), "\"command_topic\":\"%s\",", cmd_topic);
+    }
+    if (mqtt_topic_format(connection_topic, sizeof(connection_topic), device_id, "connection")
+            != PORT_OK) {
+        return -1;
+    }
+    if (mqtt_ha_format_device_suffix(device_block, sizeof(device_block), device_id) < 0) {
+        return -1;
+    }
+
+    written = snprintf(buf,
+                       len,
+                       "{\"name\":\"%s\","
+                       "\"unique_id\":\"petfeeder_%s_%s\","
+                       "%s%s%s,"
+                       "\"availability_topic\":\"%s\","
+                       "\"payload_available\":\"online\","
+                       "\"payload_not_available\":\"offline\","
+                       "%s}",
+                       g->name,
+                       device_id,
+                       g->object_id,
+                       state_member,
+                       cmd_member,
+                       g->extra,
+                       connection_topic,
+                       device_block);
+    if (written < 0 || (size_t)written >= len) {
+        return -1;
+    }
+    return written;
+}
+
+#define MQTT_HA_GENERIC(fn, ...)                                              \
+    int fn(char *buf, size_t len, const char *device_id)                      \
+    {                                                                         \
+        static const mqtt_ha_generic_t spec = { __VA_ARGS__ };                \
+        return mqtt_ha_format_generic(buf, len, device_id, &spec);            \
+    }
+
+MQTT_HA_GENERIC(mqtt_ha_format_reboot_config,
+    "Reboot", "reboot", NULL, "cmd/reboot",
+    "\"payload_press\":\"{}\",\"device_class\":\"restart\",\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_calibrate_zero_config,
+    "Calibrate zero (bowl removed)", "calibrate_zero", NULL, "cmd/calibrate",
+    "\"payload_press\":\"{\\\"action\\\":\\\"zero\\\"}\",\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_calibrate_span_config,
+    "Calibrate span (empty 350 g bowl)", "calibrate_span", NULL, "cmd/calibrate",
+    "\"payload_press\":\"{\\\"action\\\":\\\"span\\\"}\",\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_display_mode_config,
+    "Display mode", "display_mode", "display", "cmd/display",
+    "\"value_template\":\"{{ value_json.mode }}\","
+    "\"command_template\":\"{\\\"mode\\\": \\\"{{ value }}\\\"}\","
+    "\"options\":[\"weight\",\"eaten_today\",\"off\"],"
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_display_brightness_config,
+    "Display brightness", "display_brightness", "display", "cmd/display",
+    "\"value_template\":\"{{ value_json.brightness }}\","
+    "\"command_template\":\"{\\\"brightness\\\": {{ value | int }}}\","
+    "\"min\":1,\"max\":4,\"step\":1,\"mode\":\"slider\",\"optimistic\":false,"
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_display_battery_off_config,
+    "Display off delay on battery", "display_battery_off", "display", "cmd/display",
+    "\"value_template\":\"{{ value_json.battery_off_s }}\","
+    "\"command_template\":\"{\\\"battery_off_s\\\": {{ value | int }}}\","
+    "\"min\":0,\"max\":600,\"step\":10,\"unit_of_measurement\":\"s\","
+    "\"mode\":\"box\",\"optimistic\":false,\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_eaten_today_config,
+    "Eaten today", "eaten_today", "eaten_today", NULL,
+    "\"device_class\":\"weight\",\"unit_of_measurement\":\"g\","
+    "\"state_class\":\"total_increasing\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_dispense_custom_config,
+    "Dispense custom amount", "dispense_custom", NULL, "cmd/dispense",
+    "\"command_template\":\"{\\\"g\\\": {{ value | int }}}\","
+    "\"min\":5,\"max\":150,\"step\":1,\"unit_of_measurement\":\"g\","
+    "\"mode\":\"box\",\"optimistic\":true,\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_hopper_ir_config,
+    "Hopper IR beam", "hopper_ir", "hopper_ir", NULL,
+    "\"device_class\":\"enum\",\"options\":[\"blocked\",\"clear\"],"
+    "\"entity_category\":\"diagnostic\"")
+
 static const mqtt_ha_entity_t s_ha_entities[] = {
     {
         .component = "button",
@@ -938,6 +1064,51 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .object_id = "child_lock",
         .format_config = mqtt_ha_format_child_lock_config,
     },
+    {
+        .component = "button",
+        .object_id = "reboot",
+        .format_config = mqtt_ha_format_reboot_config,
+    },
+    {
+        .component = "button",
+        .object_id = "calibrate_zero",
+        .format_config = mqtt_ha_format_calibrate_zero_config,
+    },
+    {
+        .component = "button",
+        .object_id = "calibrate_span",
+        .format_config = mqtt_ha_format_calibrate_span_config,
+    },
+    {
+        .component = "select",
+        .object_id = "display_mode",
+        .format_config = mqtt_ha_format_display_mode_config,
+    },
+    {
+        .component = "number",
+        .object_id = "display_brightness",
+        .format_config = mqtt_ha_format_display_brightness_config,
+    },
+    {
+        .component = "number",
+        .object_id = "display_battery_off",
+        .format_config = mqtt_ha_format_display_battery_off_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "eaten_today",
+        .format_config = mqtt_ha_format_eaten_today_config,
+    },
+    {
+        .component = "number",
+        .object_id = "dispense_custom",
+        .format_config = mqtt_ha_format_dispense_custom_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "hopper_ir",
+        .format_config = mqtt_ha_format_hopper_ir_config,
+    },
 };
 
 static bool mqtt_ha_enqueue_entity(const mqtt_ha_entity_t *entity,
@@ -979,6 +1150,11 @@ static size_t s_discovery_next;
 static bool s_discovery_armed;
 
 #define HA_ENTITY_COUNT  (sizeof(s_ha_entities) / sizeof(s_ha_entities[0]))
+
+unsigned mqtt_ha_discovery_entity_count(void)
+{
+    return (unsigned)HA_ENTITY_COUNT;
+}
 
 void mqtt_ha_discovery_test_reset(void)
 {

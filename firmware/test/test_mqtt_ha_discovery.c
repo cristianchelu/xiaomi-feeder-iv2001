@@ -1,5 +1,6 @@
 /* Tests: spec/30-processes/mqtt-protocol.md § Home Assistant validation slice */
 
+#include <stdio.h>
 #include <string.h>
 
 #include "unity.h"
@@ -274,7 +275,7 @@ void test_mqtt_ha_discovery_schedule_arms_without_enqueuing(void)
     setup_discovery_outbox();
     mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
-    TEST_ASSERT_EQUAL_UINT(14, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), mqtt_ha_discovery_remaining());
 }
 
 void test_mqtt_ha_discovery_pump_enqueues_one_entity_per_call(void)
@@ -284,7 +285,7 @@ void test_mqtt_ha_discovery_pump_enqueues_one_entity_per_call(void)
 
     TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
     TEST_ASSERT_EQUAL_UINT(1, mqtt_outbox_pending());
-    TEST_ASSERT_EQUAL_UINT(13, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count() - 1u, mqtt_ha_discovery_remaining());
     TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
     TEST_ASSERT_EQUAL_UINT(2, mqtt_outbox_pending());
 }
@@ -301,7 +302,7 @@ void test_mqtt_ha_discovery_pump_stops_at_pending_threshold(void)
     }
 
     TEST_ASSERT_EQUAL_UINT(MQTT_HA_DISCOVERY_MAX_PENDING, mqtt_outbox_pending());
-    TEST_ASSERT_EQUAL_UINT(14u - MQTT_HA_DISCOVERY_MAX_PENDING,
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count() - MQTT_HA_DISCOVERY_MAX_PENDING,
                            mqtt_ha_discovery_remaining());
     TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
 }
@@ -324,12 +325,12 @@ void test_mqtt_ha_discovery_pump_resumes_after_drain_and_publishes_all(void)
     }
 
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_EQUAL_UINT(14, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
-    TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/child_lock/config",
+    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/hopper_ir/config",
                              mqtt->last_publish_topic);
     TEST_ASSERT_TRUE(mqtt->last_publish_retain);
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Child lock\""));
+    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Hopper IR beam\""));
     TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
 }
 
@@ -365,7 +366,7 @@ void test_mqtt_ha_discovery_schedule_rearms_from_first_entity(void)
     mqtt_outbox_reset();
 
     mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
-    TEST_ASSERT_EQUAL_UINT(14, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), mqtt_ha_discovery_remaining());
     TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
     drain_all_outbox();
 
@@ -390,4 +391,112 @@ void test_mqtt_ha_format_child_lock_config_json(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_off\":\"OFF\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"unique_id\":\"petfeeder_ddeeff_child_lock\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"config\""));
+}
+
+typedef int (*ha_format_fn_t)(char *, size_t, const char *);
+
+static void assert_common(const char *buf, const char *object_id)
+{
+    char needle[96];
+
+    (void)snprintf(needle, sizeof(needle), "\"unique_id\":\"petfeeder_ddeeff_%s\"", object_id);
+    TEST_ASSERT_NOT_NULL(strstr(buf, needle));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"availability_topic\":\"petfeeder/ddeeff/connection\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"identifiers\":[\"petfeeder_ddeeff\"]"));
+}
+
+void test_mqtt_ha_format_reboot_button(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_reboot_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "reboot");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/reboot\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"device_class\":\"restart\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"config\""));
+    TEST_ASSERT_NULL(strstr(buf, "state_topic"));
+}
+
+void test_mqtt_ha_format_calibrate_buttons(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_calibrate_zero_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "calibrate_zero");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/calibrate\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_press\":\"{\\\"action\\\":\\\"zero\\\"}\""));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_calibrate_span_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "calibrate_span");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_press\":\"{\\\"action\\\":\\\"span\\\"}\""));
+}
+
+void test_mqtt_ha_format_display_entities(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_display_mode_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "display_mode");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/display\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/display\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.mode"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"options\":[\"weight\",\"eaten_today\",\"off\"]"));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_display_brightness_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "display_brightness");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.brightness"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"min\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":4"));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_display_battery_off_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "display_battery_off");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.battery_off_s"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":600"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"unit_of_measurement\":\"s\""));
+}
+
+void test_mqtt_ha_format_eaten_today_sensor(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_eaten_today_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "eaten_today");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/eaten_today\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"device_class\":\"weight\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"unit_of_measurement\":\"g\""));
+    TEST_ASSERT_NULL(strstr(buf, "command_topic"));
+}
+
+void test_mqtt_ha_format_dispense_custom_number(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_dispense_custom_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "dispense_custom");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/dispense\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "{\\\"g\\\": {{ value | int }}}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"min\":5"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":150"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"mode\":\"box\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"optimistic\":true"));
+}
+
+void test_mqtt_ha_format_hopper_ir_diagnostic_sensor(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_hopper_ir_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "hopper_ir");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/hopper_ir\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"options\":[\"blocked\",\"clear\"]"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"diagnostic\""));
+}
+
+void test_mqtt_ha_format_new_entities_reject_bad_args(void)
+{
+    char tiny[16];
+
+    TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_reboot_config(NULL, 64u, TEST_DEVICE_ID));
+    TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_reboot_config(tiny, sizeof(tiny), ""));
+    TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_display_mode_config(tiny, sizeof(tiny), TEST_DEVICE_ID));
 }
