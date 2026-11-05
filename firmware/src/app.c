@@ -51,6 +51,7 @@
 #include "hopper_ir_port.h"
 #include "hopper_level.h"
 #include "mqtt_hopper.h"
+#include "mqtt_ha_discovery.h"
 #include "power_source_input.h"
 #include "power_source_port.h"
 #include "battery_monitor.h"
@@ -595,6 +596,7 @@ void app_dispatch(const app_event_t *ev)
         hopper_level_poll();
         app_hopper_mqtt_sync();
         app_power_mqtt_sync();
+        (void)mqtt_ha_discovery_pump();
         break;
 
     case EVT_BUTTON_IRQ:

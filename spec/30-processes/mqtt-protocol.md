@@ -82,6 +82,29 @@ publish discovery configs to:
 (retained, QoS 1). Post-connect discovery publishes go through
 [mqtt_outbox](#publish-path) — only `mqtt_io` drains the queue.
 
+### Discovery pacing
+
+The entity table can hold more configs than the outbox has slots, and the
+connect snapshots share the same ring. Discovery is therefore enqueued in
+the background, not as one burst:
+
+- On `EVT_MQTT_CONNECTED` the `app` task arms discovery with the device id;
+  nothing is enqueued yet.
+- On every `EVT_DISPLAY_TICK` while armed and the outbox is accepting, `app`
+  enqueues the next entity of the table (table order) if the outbox holds
+  fewer than `[tune]` 12 pending items. At most one entity is enqueued per
+  tick.
+- After the last entity the module disarms. A new `EVT_MQTT_CONNECTED`
+  re-arms from the first entity.
+- When the outbox stops accepting (disconnect, OTA suspend) discovery
+  disarms; the next connect re-arms it.
+- A failed enqueue (payload formatting or full ring) retries the same entity
+  on the next tick.
+
+State and command-reply publishes enqueued by `app` keep at least
+`[tune]` 12 free slots (ring depth 24 minus the pacing threshold) while
+discovery is running.
+
 Each discovery message includes a `device` block with `identifiers`,
 `name`, `manufacturer`, `model` for unified HA device grouping.
 `manufacturer` and `model` identify the **physical hardware** (retail
@@ -404,7 +427,7 @@ Bench and runtime behavior (UART details in
 | Boot | `mqtt_io` task starts; if `mqtt/host` is stored, connect when Wi-Fi STA has DHCP (no `mqtt connect` needed). Otherwise remain idle until armed |
 | `mqtt connect` (or provisioning success) | Arm client; connect when Wi-Fi STA has DHCP |
 | `mqtt disconnect` | Disarm for this boot; no reconnect until `mqtt connect` or reboot |
-| Successful CONNECT | Subscribe `cmd/#`; publish retained `online` on `.../connection`; LWT installed; `EVT_MQTT_CONNECTED` enqueues retained `.../state`, `.../ota/status`, and HA discovery (drained by `mqtt_io`) |
+| Successful CONNECT | Subscribe `cmd/#`; publish retained `online` on `.../connection`; LWT installed; `EVT_MQTT_CONNECTED` enqueues retained `.../state`, `.../ota/status` and the other snapshots, and arms paced HA discovery ([Discovery pacing](#discovery-pacing); drained by `mqtt_io`) |
 | Connected idle | `mqtt_io` drains [mqtt_outbox](#publish-path) then `MQTTYield`; inbound commands are heap-copied to `app_event_q` and routed on `app` (see [Inbound commands](#inbound-commands)) |
 | Session loss while armed | Exponential backoff reconnect (see below) |
 
@@ -430,7 +453,7 @@ readings keep the last good sample on `PORT_ERR_BUSY`.
 |------|------|----------|
 | Arm + session sync | `mqtt_io` or `app` producer | `mqtt_client_request_connect()` sets pending flags and posts connecting phase |
 | Handshake | `mqtt_cn` worker | `ConnectNetwork`, `MQTTConnect`, subscribe `cmd/#`, publish retained `connection`=`online`; `mqtt_adapter_yield` before worker exit |
-| Post-connect enqueue | `app` on `EVT_MQTT_CONNECTED` | Enqueue retained `.../state`, `.../ota/status`, HA discovery — no `mqtt_port->publish` from `app` |
+| Post-connect enqueue | `app` on `EVT_MQTT_CONNECTED` | Enqueue retained `.../state`, `.../ota/status` and the other snapshots, arm paced HA discovery — no `mqtt_port->publish` from `app` |
 | Poll | `mqtt_io` | `[tune]` 50 ms step delay while worker runs; on completion apply backoff or post `EVT_MQTT_CONNECTED` |
 | Disarm | `mqtt_client_stop()` | Clears worker state; disconnect if session was up |
 
@@ -492,7 +515,7 @@ Post-connect MQTT publishes use a ring-buffered **mqtt_outbox** owned by
 
 | Parameter | Value |
 |-----------|-------|
-| Ring depth | `[tune]` 16 slots |
+| Ring depth | `[tune]` 24 slots |
 | Max payload per slot | `[tune]` 1024 B (HA discovery; feeding schedule switch at max `device_id` length) |
 | Min interval between successful drains | `[tune]` 100 ms |
 

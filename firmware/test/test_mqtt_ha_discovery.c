@@ -259,32 +259,119 @@ void test_mqtt_ha_primary_entities_omit_entity_category(void)
     TEST_ASSERT_NULL(strstr(buf, "entity_category"));
 }
 
-void test_mqtt_ha_discovery_schedule_enqueues_one_item(void)
+static void setup_discovery_outbox(void)
 {
-    mqtt_outbox_reset();
-    mqtt_outbox_set_accepting(true);
-    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
-    TEST_ASSERT_EQUAL_UINT(14, mqtt_outbox_pending());
-}
-
-void test_mqtt_ha_discovery_schedule_drain_publishes_retained(void)
-{
-    const fake_mqtt_port_state_t *mqtt;
-
     fake_time_reset();
     fake_mqtt_port_reset();
     mqtt_outbox_reset();
+    mqtt_ha_discovery_test_reset();
     mqtt_outbox_set_accepting(true);
     fake_mqtt_port_get()->connect(NULL);
+}
 
+void test_mqtt_ha_discovery_schedule_arms_without_enqueuing(void)
+{
+    setup_discovery_outbox();
     mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
-    drain_all_outbox();
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(14, mqtt_ha_discovery_remaining());
+}
+
+void test_mqtt_ha_discovery_pump_enqueues_one_entity_per_call(void)
+{
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+
+    TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
+    TEST_ASSERT_EQUAL_UINT(1, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(13, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
+    TEST_ASSERT_EQUAL_UINT(2, mqtt_outbox_pending());
+}
+
+void test_mqtt_ha_discovery_pump_stops_at_pending_threshold(void)
+{
+    unsigned i;
+
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+
+    for (i = 0; i < 30u; i++) {
+        (void)mqtt_ha_discovery_pump();
+    }
+
+    TEST_ASSERT_EQUAL_UINT(MQTT_HA_DISCOVERY_MAX_PENDING, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(14u - MQTT_HA_DISCOVERY_MAX_PENDING,
+                           mqtt_ha_discovery_remaining());
+    TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
+}
+
+void test_mqtt_ha_discovery_pump_resumes_after_drain_and_publishes_all(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    unsigned guard = 0;
+
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+
+    while ((mqtt_ha_discovery_remaining() > 0u || mqtt_outbox_pending() > 0u) &&
+           guard++ < 200u) {
+        (void)mqtt_ha_discovery_pump();
+        if (!mqtt_outbox_drain_one(fake_mqtt_port_get())) {
+            fake_time_advance_ms(101u);
+            (void)mqtt_outbox_drain_one(fake_mqtt_port_get());
+        }
+    }
 
     mqtt = fake_mqtt_port_state();
     TEST_ASSERT_EQUAL_UINT(14, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
     TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/child_lock/config",
                              mqtt->last_publish_topic);
+    TEST_ASSERT_TRUE(mqtt->last_publish_retain);
     TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Child lock\""));
+    TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
+}
+
+void test_mqtt_ha_discovery_pump_disarms_when_outbox_not_accepting(void)
+{
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+    mqtt_outbox_set_accepting(false);
+
+    TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
+}
+
+void test_mqtt_ha_discovery_disarm_stops_pump(void)
+{
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+    mqtt_ha_discovery_disarm();
+
+    TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+}
+
+void test_mqtt_ha_discovery_schedule_rearms_from_first_entity(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+
+    setup_discovery_outbox();
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+    (void)mqtt_ha_discovery_pump();
+    (void)mqtt_ha_discovery_pump();
+    mqtt_outbox_reset();
+
+    mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
+    TEST_ASSERT_EQUAL_UINT(14, mqtt_ha_discovery_remaining());
+    TEST_ASSERT_TRUE(mqtt_ha_discovery_pump());
+    drain_all_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_STRING("homeassistant/button/petfeeder_ddeeff/dispense/config",
+                             mqtt->last_publish_topic);
 }
 
 void test_mqtt_ha_format_child_lock_config_json(void)

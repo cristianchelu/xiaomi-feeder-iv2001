@@ -5,7 +5,10 @@
 #ifndef MQTT_HA_DISCOVERY_H
 #define MQTT_HA_DISCOVERY_H
 
+#include <stdbool.h>
 #include <stddef.h>
+
+#include "mqtt_cred.h"
 
 #define MQTT_HA_MANUFACTURER  "Xiaomi"
 #define MQTT_HA_MODEL         "Smart Pet Food Feeder 2"
@@ -66,6 +69,21 @@ int mqtt_ha_format_child_lock_config(char *buf,
                                      size_t len,
                                      const char *device_id);
 
+/* Outbox occupancy above which the discovery pump waits (spec § Discovery pacing). */
+#define MQTT_HA_DISCOVERY_MAX_PENDING  12u
+
+/* Arm paced discovery from the first entity; nothing is enqueued yet. */
 void mqtt_ha_discovery_schedule(const char *device_id);
+
+/* Enqueue the next entity when the outbox has room. Returns true if one was enqueued. */
+bool mqtt_ha_discovery_pump(void);
+
+/* Entities not yet enqueued (0 when disarmed or done). */
+unsigned mqtt_ha_discovery_remaining(void);
+
+/* Stop pending discovery (session ended). */
+void mqtt_ha_discovery_disarm(void);
+
+void mqtt_ha_discovery_test_reset(void);
 
 #endif /* MQTT_HA_DISCOVERY_H */

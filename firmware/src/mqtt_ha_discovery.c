@@ -974,15 +974,68 @@ static bool mqtt_ha_enqueue_entity(const mqtt_ha_entity_t *entity,
     return true;
 }
 
+static char s_discovery_device_id[MQTT_DEVICE_ID_MAX_LEN + 1];
+static size_t s_discovery_next;
+static bool s_discovery_armed;
+
+#define HA_ENTITY_COUNT  (sizeof(s_ha_entities) / sizeof(s_ha_entities[0]))
+
+void mqtt_ha_discovery_test_reset(void)
+{
+    s_discovery_device_id[0] = '\0';
+    s_discovery_next = 0u;
+    s_discovery_armed = false;
+}
+
+void mqtt_ha_discovery_disarm(void)
+{
+    s_discovery_armed = false;
+}
+
 void mqtt_ha_discovery_schedule(const char *device_id)
 {
-    size_t i;
-
-    if (device_id == NULL || device_id[0] == '\0') {
+    if (device_id == NULL || device_id[0] == '\0' ||
+        strlen(device_id) > MQTT_DEVICE_ID_MAX_LEN) {
         return;
     }
 
-    for (i = 0; i < (sizeof(s_ha_entities) / sizeof(s_ha_entities[0])); i++) {
-        (void)mqtt_ha_enqueue_entity(&s_ha_entities[i], device_id);
+    strcpy(s_discovery_device_id, device_id);
+    s_discovery_next = 0u;
+    s_discovery_armed = true;
+}
+
+unsigned mqtt_ha_discovery_remaining(void)
+{
+    if (!s_discovery_armed) {
+        return 0u;
     }
+
+    return (unsigned)(HA_ENTITY_COUNT - s_discovery_next);
+}
+
+bool mqtt_ha_discovery_pump(void)
+{
+    if (!s_discovery_armed) {
+        return false;
+    }
+
+    if (!mqtt_outbox_is_accepting()) {
+        s_discovery_armed = false;
+        return false;
+    }
+
+    if (mqtt_outbox_pending() >= MQTT_HA_DISCOVERY_MAX_PENDING) {
+        return false;
+    }
+
+    if (!mqtt_ha_enqueue_entity(&s_ha_entities[s_discovery_next], s_discovery_device_id)) {
+        return false;
+    }
+
+    s_discovery_next++;
+    if (s_discovery_next >= HA_ENTITY_COUNT) {
+        s_discovery_armed = false;
+    }
+
+    return true;
 }

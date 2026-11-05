@@ -19,6 +19,7 @@
 #include "mqtt_backoff.h"
 #include "mqtt_client.h"
 #include "mqtt_cred.h"
+#include "mqtt_ha_discovery.h"
 #include "mqtt_outbox.h"
 #include "mqtt_port.h"
 #include "mqtt_route.h"
@@ -412,6 +413,7 @@ static void mqtt_client_do_disconnect(const mqtt_port_t *mqtt)
     }
 
     mqtt_outbox_reset();
+    mqtt_ha_discovery_disarm();
     mqtt_state_on_outbox_reset();
     mqtt_bowl_weight_on_outbox_reset();
     mqtt_battery_on_outbox_reset();
@@ -563,6 +565,7 @@ void mqtt_client_test_reset(void)
     s_device_id[0] = '\0';
     mqtt_backoff_init(&s_backoff);
     mqtt_outbox_reset();
+    mqtt_ha_discovery_disarm();
     mqtt_outbox_set_accepting(true);
     mqtt_state_test_reset();
     mqtt_bowl_weight_test_reset();
