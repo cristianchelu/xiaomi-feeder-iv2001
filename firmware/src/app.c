@@ -315,6 +315,8 @@ static void app_hopper_mqtt_sync(void)
 {
     hopper_level_state_transition_t tr;
 
+    mqtt_hopper_ir_sync(hopper_input_last_raw());
+
     while (hopper_level_pop_transition(&tr)) {
         mqtt_hopper_sync(tr.level);
     }

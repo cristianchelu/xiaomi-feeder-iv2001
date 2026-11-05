@@ -16,6 +16,7 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../state` | `{"bowl_error": false}` — device condition (faults / health); see [Device condition](#device-condition) | 1 |
 | `.../bowl_weight` | `42.3` — plain string, one decimal (0.1 g); empty string when unknown; see [Bowl weight](#bowl-weight) | 1 |
 | `.../hopper` | `normal` \| `low` \| `empty` (plain text) | 1 |
+| `.../hopper_ir` | `blocked` \| `clear` (plain text) — raw IR beam; see [Hopper](#hopper) | 1 |
 | `.../battery` | `75` — plain integer 0–100; `unknown` when absent; see [Battery](#battery) | 1 |
 | `.../battery_voltage` | `5200` — plain integer pack mV; see [Battery pack voltage](#battery-pack-voltage) | 1 |
 | `.../mains` | `ON` or `OFF` — barrel connected; see [Mains](#mains) | 1 |
@@ -895,6 +896,16 @@ Home Assistant discovers **Battery pack voltage** with `enabled_by_default`:
 `false` — hidden until enabled in the UI.
 
 ## Hopper
+
+### Raw IR beam (`hopper_ir`)
+
+Topic `.../hopper_ir` (retained, QoS 1) mirrors the **last raw IR reading**
+before debounce and the empty latch ([hopper-sensing.md](hopper-sensing.md)):
+`blocked` (food in the beam path) or `clear` (beam unobstructed). Nothing is
+published until the first successful reading. Published on connect (once a
+reading exists) and whenever the raw reading changes — raw readings arrive on
+the sensing schedule (post-dispense, debounce streaks, mains idle every 60 s),
+so this is a diagnostic aid, not a faster level.
 
 Topic `.../hopper` (retained, QoS 1) reports the published three-state hopper
 level (see [hopper-sensing.md](hopper-sensing.md) `hopper_level`).

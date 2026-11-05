@@ -83,6 +83,12 @@ failed. `empty` is stronger: out-of-food for feeding purposes. A compensated
 `underfill` may latch `empty` even when the last few grams came from chute
 stragglers — the hopper is effectively empty after that job.
 
+## Raw reading
+
+`hopper_input_last_raw()` returns the last successful `sense()` result before
+debounce: `-1` none yet, `0` beam clear, `1` beam blocked. Published as
+`.../hopper_ir` ([mqtt-protocol.md](mqtt-protocol.md) § Hopper).
+
 ## Process module (`hopper_input`)
 
 Host-testable debounce over `hopper_ir_port` (same layering as

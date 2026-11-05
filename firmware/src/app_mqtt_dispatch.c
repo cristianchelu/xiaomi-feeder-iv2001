@@ -13,6 +13,7 @@
 #include "mqtt_bowl_weight.h"
 #include "mqtt_battery.h"
 #include "mqtt_battery_voltage.h"
+#include "hopper_input.h"
 #include "mqtt_hopper.h"
 #include "mqtt_mains.h"
 #include "mqtt_timezone.h"
@@ -59,6 +60,7 @@ void app_mqtt_on_connected(void)
     mqtt_child_lock_connect_snapshot();
     mqtt_display_connect_snapshot();
     mqtt_eaten_today_connect_snapshot();
+    mqtt_hopper_ir_connect_snapshot(hopper_input_last_raw());
 }
 
 void app_mqtt_dispatch(const char *topic,

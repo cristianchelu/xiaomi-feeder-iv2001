@@ -31,6 +31,8 @@ void hopper_input_reset(void);
 void hopper_input_notify_dispense_complete(void);
 void hopper_input_poll(uint32_t now_ms, bool background_enabled);
 hopper_level_t hopper_input_get_level(void);
+/* -1 none yet, 0 beam clear, 1 beam blocked (pre-debounce). */
+int8_t hopper_input_last_raw(void);
 bool hopper_input_almost_empty(void);
 bool hopper_input_pop_transition(hopper_level_transition_t *tr);
 
