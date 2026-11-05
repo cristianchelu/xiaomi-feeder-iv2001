@@ -107,7 +107,6 @@ void test_mqtt_display_cmd_unknown_mode_rejected(void)
 {
     setup();
     TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, cmd("{\"mode\":\"sparkle\"}"));
-    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, cmd("{\"mode\":\"eaten_today\"}"));
     TEST_ASSERT_EQUAL(DISPLAY_MODE_WEIGHT, display_settings_mode_get());
 }
 
@@ -150,4 +149,16 @@ void test_mqtt_display_cmd_brightness_reaches_panel_when_on(void)
     setup();
     TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"brightness\":2}"));
     TEST_ASSERT_EQUAL_UINT8(2u, fake_display_port_brightness());
+}
+
+void test_mqtt_display_cmd_accepts_eaten_today_mode(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+
+    setup();
+    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"eaten_today\"}"));
+    TEST_ASSERT_EQUAL(DISPLAY_MODE_EATEN_TODAY, display_settings_mode_get());
+    drain_outbox();
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_STRING("{\"mode\":\"eaten_today\",\"brightness\":4}", mqtt->last_publish_payload);
 }

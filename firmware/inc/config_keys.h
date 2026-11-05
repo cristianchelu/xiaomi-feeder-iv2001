@@ -35,6 +35,10 @@
 #define CONFIG_KEY_DISPLAY_MODE         "mode"
 #define CONFIG_KEY_DISPLAY_BRIGHTNESS   "brightness"
 
+#define CONFIG_GROUP_EATEN              "eaten"
+#define CONFIG_KEY_EATEN_DAY            "day"
+#define CONFIG_KEY_EATEN_DG             "dg"
+
 #define CONFIG_GROUP_POWER                 "power"
 #define CONFIG_KEY_POWER_BATT_SCALE_X1000  "batt_scale_x1000"
 

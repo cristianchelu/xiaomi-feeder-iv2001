@@ -10,6 +10,7 @@
 
 typedef enum {
     DISPLAY_MODE_WEIGHT = 0,
+    DISPLAY_MODE_EATEN_TODAY,
     DISPLAY_MODE_OFF,
 } display_mode_t;
 

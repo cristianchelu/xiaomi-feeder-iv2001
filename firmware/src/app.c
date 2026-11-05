@@ -22,6 +22,8 @@
 #include "display_child_lock_indicator.h"
 #include "mqtt_child_lock.h"
 #include "display_settings.h"
+#include "eaten_today.h"
+#include "mqtt_eaten_today.h"
 #include "display_bowl_error_indicator.h"
 #include "display_presentation.h"
 #include "mqtt_state.h"
@@ -66,6 +68,7 @@
 
 typedef enum {
     APP_DISPLAY_MODE_WEIGHT = 0,
+    APP_DISPLAY_MODE_EATEN_TODAY,
     APP_DISPLAY_MODE_OFF,
 } app_display_mode_t;
 
@@ -154,6 +157,10 @@ static void app_weight_sync_display_scene(bool force_mqtt_bowl_weight)
         digits = bowl_mass_display_digits(cal, s_bowl_valid, presented_dg, &shown);
     }
     app_weight_log_bowl_presence(bowl_err);
+    if (s_display_mode == APP_DISPLAY_MODE_EATEN_TODAY) {
+        (void)display_presentation_set_digits(weight_dg_to_display_g(eaten_today_total_dg()));
+        return;
+    }
     switch (digits) {
     case BOWL_DISPLAY_DASH:
         (void)display_presentation_set_digits_dash();
@@ -184,7 +191,8 @@ void app_display_apply_settings(void)
         return;
     }
 
-    s_display_mode = APP_DISPLAY_MODE_WEIGHT;
+    s_display_mode = (mode == DISPLAY_MODE_EATEN_TODAY) ? APP_DISPLAY_MODE_EATEN_TODAY
+                                                        : APP_DISPLAY_MODE_WEIGHT;
     (void)display_presentation_set_blanked(false);
 }
 
@@ -242,6 +250,13 @@ static void app_weight_idle_tick(void)
     auto_tare_sync_bowl_error(bowl_err);
 
     auto_tare_idle_sample(s_bowl_dg, s_bowl_valid);
+    eaten_today_on_idle_sample(auto_tare_present_dg(s_bowl_dg, s_bowl_valid),
+                               cal == WEIGHT_CAL_SUCCESS && s_bowl_valid &&
+                                   !bowl_error_is_active(bowl_err) &&
+                                   auto_tare_stable_valid() &&
+                                   !auto_tare_pending_calibration(),
+                               eaten_today_day_key_now());
+    mqtt_eaten_today_sync();
     app_weight_sync_display_scene(false);
 }
 
@@ -252,6 +267,7 @@ void app_weight_notify_dispense_complete(void)
     }
 
     s_weight_resample_after_dispense = true;
+    eaten_today_invalidate();
 }
 
 static void app_weight_resample_after_dispense_if_needed(void)
@@ -544,6 +560,7 @@ void app_dispatch(const app_event_t *ev)
         app_display_apply_settings();
         app_child_lock_sync_display(feed_config_child_lock_is_active());
         auto_tare_init();
+        eaten_today_init(eaten_today_day_key_now());
         feeder_runtime_init();
         app_weight_boot_arm();
         break;

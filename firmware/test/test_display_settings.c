@@ -60,7 +60,10 @@ void test_display_settings_mode_names_parse_and_format(void)
     TEST_ASSERT_EQUAL_STRING("off", display_settings_mode_name(DISPLAY_MODE_OFF));
     TEST_ASSERT_TRUE(display_settings_mode_parse("off", &m));
     TEST_ASSERT_EQUAL(DISPLAY_MODE_OFF, m);
-    TEST_ASSERT_FALSE(display_settings_mode_parse("eaten_today", &m));
+    TEST_ASSERT_TRUE(display_settings_mode_parse("eaten_today", &m));
+    TEST_ASSERT_EQUAL(DISPLAY_MODE_EATEN_TODAY, m);
+    TEST_ASSERT_EQUAL_STRING("eaten_today", display_settings_mode_name(DISPLAY_MODE_EATEN_TODAY));
+    TEST_ASSERT_FALSE(display_settings_mode_parse("sparkle", &m));
     TEST_ASSERT_FALSE(display_settings_mode_parse("", &m));
     TEST_ASSERT_FALSE(display_settings_mode_parse(NULL, &m));
 }

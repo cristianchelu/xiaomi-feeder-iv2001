@@ -13,7 +13,14 @@
 
 const char *display_settings_mode_name(display_mode_t mode)
 {
-    return mode == DISPLAY_MODE_OFF ? "off" : "weight";
+    switch (mode) {
+    case DISPLAY_MODE_OFF:
+        return "off";
+    case DISPLAY_MODE_EATEN_TODAY:
+        return "eaten_today";
+    default:
+        return "weight";
+    }
 }
 
 bool display_settings_mode_parse(const char *name, display_mode_t *out)
@@ -23,6 +30,10 @@ bool display_settings_mode_parse(const char *name, display_mode_t *out)
     }
     if (strcmp(name, "weight") == 0) {
         *out = DISPLAY_MODE_WEIGHT;
+        return true;
+    }
+    if (strcmp(name, "eaten_today") == 0) {
+        *out = DISPLAY_MODE_EATEN_TODAY;
         return true;
     }
     if (strcmp(name, "off") == 0) {

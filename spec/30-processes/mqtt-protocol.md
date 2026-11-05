@@ -27,6 +27,7 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../timezone` | Device timezone plain text — see [Device timezone](#device-timezone) | 1 |
 | `.../display` | `{"mode": "weight", "brightness": 4}` | 1 |
+| `.../eaten_today` | `85.3` — plain string, one decimal (0.1 g); see [Eaten today](#eaten-today) | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
 
 ## Event topics (published by device, not retained)
@@ -686,6 +687,13 @@ whether it came from the physical combo or from `cmd/child_lock`.
 Home Assistant discovery publishes a **switch** (`child_lock`) with
 `entity_category: config` — see [validation slice](#home-assistant-validation-slice).
 
+## Eaten today
+
+Topic `.../eaten_today` (retained, QoS 1): grams eaten since local midnight
+([eaten-today.md](eaten-today.md)), plain string with one decimal (`0.0`,
+`85.3`). Published on MQTT connect and whenever the value changes (also on the
+midnight reset to `0.0`).
+
 ## Calibrate command
 
 `cmd/calibrate` runs the same capture as UART `weigh cal zero|span`
@@ -724,7 +732,7 @@ Command topic `.../cmd/display` takes a JSON object with either or both keys:
 
 | Key | Values | Effect |
 |-----|--------|--------|
-| `mode` | `weight` \| `off` (`eaten_today` once the consumption counter ships) | `off` blanks the panel and powers the TM1637 rail down; `weight` restores the bowl-weight scene |
+| `mode` | `weight` \| `eaten_today` \| `off` | `off` blanks the panel and powers the TM1637 rail down; `weight` restores the bowl-weight scene |
 | `brightness` | integer 1–4 | TM1637 brightness; stored even while the panel is off |
 
 Rules:

@@ -28,6 +28,8 @@ MT7682 NVDM (Non-Volatile Data Management) — SDK-provided key-value flash stor
 | feed | overfill_threshold_g | uint8 | 50 | Overfill threshold in grams; clamped 30–100 on load |
 | display | mode | enum | weight | Display mode: weight / eaten_today / off |
 | display | brightness | uint8 | 4 | TM1637 brightness (1–4, maps to `0x88`–`0x8B`) |
+| eaten | day | uint32 | 0 | Local date `YYYYMMDD` the eaten total belongs to |
+| eaten | dg | uint32 | 0 | Eaten-today total in tenth-grams |
 | schedule | enabled | bool | true | Global schedule master switch |
 | schedule | slots | blob (IF1S v1) | empty | Packed slot config (up to 32 slots) — see [scheduler-engine.md](scheduler-engine.md) § NVDM persistence |
 | schedule | runtime | blob (IF1R v1) | — | **Future** — today runtime snapshot; separate key from config |

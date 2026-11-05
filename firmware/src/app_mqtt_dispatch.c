@@ -20,6 +20,7 @@
 #include "mqtt_config.h"
 #include "mqtt_child_lock.h"
 #include "mqtt_display.h"
+#include "mqtt_eaten_today.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "hopper_level.h"
@@ -57,6 +58,7 @@ void app_mqtt_on_connected(void)
     mqtt_feed_overfill_connect_snapshot();
     mqtt_child_lock_connect_snapshot();
     mqtt_display_connect_snapshot();
+    mqtt_eaten_today_connect_snapshot();
 }
 
 void app_mqtt_dispatch(const char *topic,
