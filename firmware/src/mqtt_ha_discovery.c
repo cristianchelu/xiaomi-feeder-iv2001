@@ -993,6 +993,15 @@ MQTT_HA_GENERIC(mqtt_ha_format_hopper_ir_config,
     "\"device_class\":\"enum\",\"options\":[\"blocked\",\"clear\"],"
     "\"entity_category\":\"diagnostic\"")
 
+MQTT_HA_GENERIC(mqtt_ha_format_ota_state_config,
+    "Firmware update state", "ota_state", "ota/status", NULL,
+    "\"value_template\":\"{{ value_json.state }}\","
+    "\"entity_category\":\"diagnostic\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_firmware_bank_config,
+    "Firmware bank", "firmware_bank", "ota/status", NULL,
+    "\"value_template\":\"{{ value_json.bank }}\",\"entity_category\":\"diagnostic\"")
+
 static const mqtt_ha_entity_t s_ha_entities[] = {
     {
         .component = "button",
@@ -1108,6 +1117,16 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .component = "sensor",
         .object_id = "hopper_ir",
         .format_config = mqtt_ha_format_hopper_ir_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "ota_state",
+        .format_config = mqtt_ha_format_ota_state_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "firmware_bank",
+        .format_config = mqtt_ha_format_firmware_bank_config,
     },
 };
 

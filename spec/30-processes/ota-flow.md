@@ -23,7 +23,7 @@ exists (`dispense-cycle.md`).
 
 | Check | Action on failure | Enforced |
 |-------|-------------------|----------|
-| Dispense in progress? | Reject OTA, publish error: `"busy_dispense"` | No — requires `dispense-cycle.md` |
+| Dispense in progress? | Reject OTA, publish error: `"busy_dispense"` | Yes (`dispense_is_active()`) |
 | URL scheme valid? | Reject, publish error: `"invalid_url"` | Yes |
 | Already updating? | Reject, publish error: `"already_in_progress"` | Yes |
 

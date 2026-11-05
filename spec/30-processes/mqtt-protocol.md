@@ -171,6 +171,8 @@ clear the config topic (empty retained payload) and republish, or use
 | button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
 | button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
 | sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear` |
+| sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |
+| sensor | firmware_bank | — | `diagnostic` | `value_json.bank` of `.../ota/status` (`A` or `B`) |
 | sensor | battery_voltage | `voltage` | `diagnostic` | Unit: mV; `enabled_by_default`: false |
 | sensor | device_timezone | — | `diagnostic` | POSIX or label string |
 

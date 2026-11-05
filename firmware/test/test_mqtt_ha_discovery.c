@@ -327,10 +327,10 @@ void test_mqtt_ha_discovery_pump_resumes_after_drain_and_publishes_all(void)
     mqtt = fake_mqtt_port_state();
     TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/hopper_ir/config",
+    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/firmware_bank/config",
                              mqtt->last_publish_topic);
     TEST_ASSERT_TRUE(mqtt->last_publish_retain);
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Hopper IR beam\""));
+    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Firmware bank\""));
     TEST_ASSERT_FALSE(mqtt_ha_discovery_pump());
 }
 
@@ -499,4 +499,19 @@ void test_mqtt_ha_format_new_entities_reject_bad_args(void)
     TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_reboot_config(NULL, 64u, TEST_DEVICE_ID));
     TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_reboot_config(tiny, sizeof(tiny), ""));
     TEST_ASSERT_LESS_THAN(0, mqtt_ha_format_display_mode_config(tiny, sizeof(tiny), TEST_DEVICE_ID));
+}
+
+void test_mqtt_ha_format_ota_sensors(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_ota_state_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "ota_state");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/ota/status\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.state"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"diagnostic\""));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_firmware_bank_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "firmware_bank");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.bank"));
 }

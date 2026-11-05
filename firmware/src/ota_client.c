@@ -7,6 +7,7 @@
 
 #include "app_log.h"
 #include "boot_bank_target.h"
+#include "dispense.h"
 
 #include "mqtt_outbox.h"
 #include "mqtt_port.h"
@@ -187,6 +188,12 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
     }
 
     app_log_debug("ota", "parsed url=%s sha512=%s", url, has_sha512 ? "yes" : "no");
+
+    if (dispense_is_active()) {
+        app_log_error("ota", "rejected: dispense in progress");
+        ota_client_publish_status("error", 0, "busy_dispense");
+        return;
+    }
 
     ota_client_publish_status("downloading", 0, "");
 

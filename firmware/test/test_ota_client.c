@@ -4,7 +4,10 @@
 
 #include "unity.h"
 
+#include "dispense.h"
 #include "fake_mqtt_port.h"
+#include "fake_motor_port.h"
+#include "motor_port_provider_host.h"
 #include "fake_ota_port.h"
 #include "fake_time.h"
 #include "fake_boot_bank.h"
@@ -12,6 +15,8 @@
 #include "ota_client.h"
 
 #define TEST_DEVICE_ID "ddeeff"
+
+extern void fake_app_event_q_reset(void);
 
 static void drain_ota_outbox(void)
 {
@@ -27,6 +32,10 @@ static void drain_ota_outbox(void)
 
 static void setup_ota_client_connected(void)
 {
+    motor_port_host_reset();
+    fake_motor_port_reset();
+    fake_app_event_q_reset();
+    dispense_test_reset();
     fake_mqtt_port_reset();
     fake_ota_port_reset();
     mqtt_outbox_reset();
@@ -269,4 +278,25 @@ void test_ota_rollback_mark_reports_error_on_connect_and_clears(void)
     TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"rolled_back\",\"bank\":\"A\"}",
                              mqtt->last_publish_payload);
     fake_boot_bank_reset();
+}
+
+void test_ota_cmd_rejected_while_dispense_active(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    const fake_ota_port_state_t *ota;
+    const char *topic = "petfeeder/ddeeff/cmd/ota";
+    const char *payload = "{\"url\":\"http://10.0.0.5/fw.bin\"}";
+
+    setup_ota_client_connected();
+    TEST_ASSERT_EQUAL(DISPENSE_SUBMIT_OK, dispense_submit_grams(10u, DISPENSE_SOURCE_MQTT));
+
+    ota_client_on_mqtt_message(topic, payload, strlen(payload));
+    drain_ota_outbox();
+
+    mqtt = fake_mqtt_port_state();
+    ota = fake_ota_port_state();
+    TEST_ASSERT_EQUAL_UINT(0, ota->start_calls);
+    TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"busy_dispense\",\"bank\":\"A\"}",
+                             mqtt->last_publish_payload);
+    dispense_test_reset();
 }
