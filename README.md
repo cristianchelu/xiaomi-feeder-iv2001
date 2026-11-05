@@ -40,15 +40,17 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 
 - [x] Wi-Fi STA (stored credentials, connect lifecycle)
 - [x] MQTT broker session (LWT on `connection`, device condition on `state`, reconnect backoff)
-- [x] MQTT OTA command (`cmd/ota`)
+- [x] MQTT OTA command (`cmd/ota`; refused during a dispense; one-command helper [`tools/ota/push.py`](tools/ota/push.py))
+- [x] MQTT `cmd/reboot`
 - [ ] TLS
 - [x] Home Assistant / MQTT integration [partial] — auto-discovery with Diagnostics
   and Configuration entity sections; dispense button, bowl error, bowl weight,
   battery, battery pack voltage (diagnostic), mains connected, hopper level,
   device timezone (diagnostic), dispense completed event, feeding schedule
   (config, with full JSON attributes), weight compensation (config), overfill protection
-  (config), and overfill threshold (config); pending: child lock, custom dispense
-  grams, eaten today, display mode, display brightness (see
+  (config), and overfill threshold (config), child lock, custom dispense amount, eaten today,
+  display mode / brightness / battery-off delay, reboot and calibrate buttons, raw hopper IR,
+  firmware state and bank (see
   [`mqtt-protocol.md`](spec/30-processes/mqtt-protocol.md))
 - [x] LAN web admin UI on port 80 when STA is up (`WEB_UI_ENABLE=y`; see
   [`web-ui.md`](spec/30-processes/web-ui.md))
@@ -57,6 +59,7 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 
 - [x] Captive portal on first boot (home Wi-Fi + MQTT via `PetFeeder-XXXX` AP)
 - [x] Factory reset via UART CLI (`factory-reset`)
+- [x] Boots on boards fitted with the GigaDevice GD25LQ16 flash (JEDEC C8 60 15)
 - [ ] Re-provisioning via pin-hole reset (short press)
 - [ ] Factory reset via pin-hole reset (long press)
 
@@ -79,15 +82,14 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 - [x] Hopper level sensing (IR + dispense weight check; UART and MQTT `hopper`)
 - [x] Status pictographs (Wi-Fi, MQTT, dispense, bowl error, child lock)
 - [x] Bowl missing / calibration fault detection (`bowl_error` on `state`, HA sensor)
-- [ ] Alternate display modes (eaten today, off) from product paths
-- [ ] MQTT `cmd/calibrate` and `cmd/display` (UART/CLI paths exist)
+- [x] Alternate display modes (eaten today, off), brightness, idle blank on battery (MQTT `cmd/display`, HA select/numbers)
+- [x] MQTT `cmd/calibrate` (zero / span) and `cmd/display`; raw hopper IR on `hopper_ir`
 
 ### Controls
 
 - [x] Physical button input and gesture detection
 - [x] Manual dispense button (short press)
-- [x] Child lock [partial] — reset+dispense combo, persistent NVRAM, display feedback;
-  MQTT / HA entity pending (`cmd/config` does not accept `child_lock` yet)
+- [x] Child lock — reset+dispense combo, persistent NVRAM, display feedback, MQTT `child_lock` / `cmd/child_lock`, HA switch
 - [ ] Rear power button sleep / wake
 - [ ] Pin-hole reset gestures (see Provisioning)
 
@@ -113,7 +115,7 @@ reporting, conservation) and [`controls.md`](spec/20-stories/controls.md)
 - [x] Global enable, today-only override, per-slot skip, and runtime status
   (`pending`, `skipped`, `skipped_full`, `dispensed`, …)
 - [x] Next-feed reporting (`schedule/next` MQTT topic and web API)
-- [ ] Eaten-today tracking and MQTT sensor
+- [x] Eaten-today tracking and MQTT sensor (`eaten_today`, midnight reset, persisted)
 
 ## Quick start
 
