@@ -24,6 +24,7 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../config` | Config snapshot JSON — see [Config snapshot](#config-snapshot) | 1 |
 | `.../feed/mode` | `open_loop` or `compensated` (plain text) — see [Feed mode](#feed-mode) | 1 |
 | `.../feed/overfill` | `{"enabled":false,"threshold_g":50}` — see [Overfill protection](#overfill-protection) | 1 |
+| `.../child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../timezone` | Device timezone plain text — see [Device timezone](#device-timezone) | 1 |
 | `.../display` | `{"mode": "weight", "brightness": 4}` | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
@@ -55,6 +56,7 @@ unchanged.
 | `.../cmd/display` | `{"mode": "weight", "brightness": 4}` | 1 |
 | `.../cmd/feed/mode` | `open_loop` or `compensated` (plain text) — see [Feed mode](#feed-mode) | 1 |
 | `.../cmd/feed/overfill` | `{"enabled":true}` and/or `{"threshold_g":40}` — see [Overfill protection](#overfill-protection) | 1 |
+| `.../cmd/child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../cmd/config` | `{"tz_rule":"...", "tz_label":"..."}` — **legacy** time slice only; see [Config snapshot](#config-snapshot) | 1 |
 | `.../cmd/reboot` | `{}` | 1 |
 | `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional | 1 |
@@ -349,6 +351,26 @@ Bench payload: `tools/mqtt/payloads/ha-overfill_protection.json`.
 
 Bench payload: `tools/mqtt/payloads/ha-overfill_threshold_g.json`.
 
+**Child lock** switch (validation slice):
+
+| Field | Value |
+|-------|-------|
+| Discovery topic | `homeassistant/switch/petfeeder_<device_id>/child_lock/config` |
+| `name` | `Child lock` |
+| `state_topic` | `petfeeder/<device_id>/child_lock` |
+| `state_on` | `ON` |
+| `state_off` | `OFF` |
+| `command_topic` | `petfeeder/<device_id>/cmd/child_lock` |
+| `payload_on` | `ON` |
+| `payload_off` | `OFF` |
+| `availability_topic` | `petfeeder/<device_id>/connection` |
+| `payload_available` | `online` |
+| `payload_not_available` | `offline` |
+| `unique_id` | `petfeeder_<device_id>_child_lock` |
+| `entity_category` | `config` |
+
+Bench payload: `tools/mqtt/payloads/ha-child_lock.json`.
+
 `cmd/dispense` accepts `{}` (one default portion) or `{"g": <5–150>}` for
 gram-targeted dispense. Invalid JSON or out-of-range `g` is rejected at info
 with no dispense. UART logs use tag `dispense` — see
@@ -600,6 +622,32 @@ is configured.
 Home Assistant discovery publishes a **switch** (`overfill_protection`) bound
 to `enabled` and a **number** (`overfill_threshold_g`) bound to `threshold_g`.
 Both use `entity_category: config` — see [validation slice](#home-assistant-validation-slice).
+
+## Child lock
+
+Topic `.../child_lock` (retained, QoS 1) reports the child-lock state from
+NVDM `feed/child_lock` (see [config-store.md](config-store.md) and
+[button-handling.md](button-handling.md) § Child lock).
+
+| Payload | Meaning |
+|---------|---------|
+| `ON` | Child lock active: every physical button gesture except the reset+dispense unlock combo is ignored |
+| `OFF` | Child lock inactive |
+
+Command topic `.../cmd/child_lock` accepts the same plain-text payloads;
+leading and trailing whitespace is ignored and matching is case-sensitive.
+Any other payload is rejected at info with no NVDM change. A command equal to
+the current state succeeds without an NVDM write or a publish. A successful
+command sets or clears the panel lock icon exactly as the physical combo does.
+
+The lock gates physical buttons only. Dispense commands from MQTT, the LAN web
+UI, UART, and the scheduler are not affected.
+
+Publish state on boot (MQTT connect snapshot) and after every change,
+whether it came from the physical combo or from `cmd/child_lock`.
+
+Home Assistant discovery publishes a **switch** (`child_lock`) with
+`entity_category: config` — see [validation slice](#home-assistant-validation-slice).
 
 ## Device timezone
 

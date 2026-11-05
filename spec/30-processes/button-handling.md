@@ -138,7 +138,9 @@ released so lock-on/off does not look like a blocked gesture.
   (steady on when active); logs `child_lock on` / `child_lock off` at `info`.
   No blocked-feedback blink on toggle — only the steady icon changes. Gesture
   UART at `debug`: `btn child_lock toggle`.
-- **MQTT:** `cmd/config {"child_lock": true|false}`.
+- **MQTT:** `cmd/child_lock` with `ON` or `OFF` — see
+  [mqtt-protocol.md](mqtt-protocol.md) § Child lock. The panel icon and the
+  retained `child_lock` state follow every change, whichever path made it.
 
 ### Behavior when locked
 
