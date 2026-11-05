@@ -7,6 +7,7 @@ bootloader_ctrl_slot.patch
 copy_firmware_iv2001.patch
 copy_firmware_iv2001_bl_board.patch
 flash_combo_w25q16dw.patch
+flash_combo_gd25lq16.patch
 fota_config_dual_mt7682.patch
 fota_module_mt7682_dual.patch
 mtd_winbond_page_program.patch
