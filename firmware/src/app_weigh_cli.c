@@ -9,6 +9,7 @@
 
 #include "cli.h"
 #include "weigh_cli.h"
+#include "app.h"
 #include "app_weigh_cli.h"
 #include "weight_units.h"
 
@@ -89,6 +90,7 @@ static uint8_t weigh_cli_cal_zero_cmd(uint8_t argc, char *argv[])
         return 1;
     }
 
+    app_weight_notify_calibration_changed();
     app_log_info("cli", "weigh cal zero ok");
     app_log_info("cli", "install provided bowl, then: weigh cal span");
     return 0;
@@ -107,6 +109,7 @@ static uint8_t weigh_cli_cal_span_cmd(uint8_t argc, char *argv[])
         return 1;
     }
 
+    app_weight_notify_calibration_changed();
     app_log_info("cli", "weigh cal span ok");
     return 0;
 }

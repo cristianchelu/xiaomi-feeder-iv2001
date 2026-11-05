@@ -156,3 +156,28 @@ void test_eaten_today_clock_arrives_after_restore_same_day_keeps_total(void)
     feed(400, 2u, DAY2);
     TEST_ASSERT_EQUAL_INT32(0, eaten_today_total_dg());
 }
+
+void test_eaten_today_old_schema_total_is_zeroed_once(void)
+{
+    const config_port_t *cfg = fake_config_port_get();
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(PORT_OK, cfg->write(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DAY, "20261105"));
+    TEST_ASSERT_EQUAL(PORT_OK, cfg->write(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DG, "3500"));
+    eaten_today_init(20261105u);
+    TEST_ASSERT_EQUAL(0, eaten_today_total_dg());
+}
+
+void test_eaten_today_reset_zeroes_and_persists(void)
+{
+    const config_port_t *cfg = fake_config_port_get();
+    char buf[16];
+
+    fake_config_port_reset();
+    eaten_today_init(20261105u);
+    eaten_today_on_idle_sample(500, true, 20261105u);
+    eaten_today_reset();
+    TEST_ASSERT_EQUAL(0, eaten_today_total_dg());
+    TEST_ASSERT_EQUAL(PORT_OK, cfg->read(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DG, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("0", buf);
+}

@@ -62,16 +62,17 @@ void test_mqtt_display_connect_snapshot_publishes_defaults_retained(void)
     TEST_ASSERT_TRUE(mqtt->last_publish_retain);
 }
 
-void test_mqtt_display_cmd_off_persists_blanks_and_publishes(void)
+void test_mqtt_display_cmd_brightness_zero_means_panel_off(void)
 {
     const fake_mqtt_port_state_t *mqtt;
 
     setup();
-    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"off\"}"));
-    TEST_ASSERT_EQUAL(DISPLAY_MODE_OFF, display_settings_mode_get());
+    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"brightness\":0}"));
+    TEST_ASSERT_EQUAL_UINT8(0u, display_settings_brightness_get());
     drain_outbox();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_EQUAL_STRING("{\"mode\":\"off\",\"brightness\":4,\"battery_off_s\":60}", mqtt->last_publish_payload);
+    TEST_ASSERT_EQUAL_STRING("{\"mode\":\"weight\",\"brightness\":0,\"battery_off_s\":60}", mqtt->last_publish_payload);
+    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, cmd("{\"mode\":\"off\"}"));
 }
 
 void test_mqtt_display_cmd_brightness_only_keeps_mode(void)
@@ -87,10 +88,10 @@ void test_mqtt_display_cmd_both_keys_apply_together(void)
     const fake_mqtt_port_state_t *mqtt;
 
     setup();
-    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"off\",\"brightness\":1,\"battery_off_s\":60}"));
+    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"eaten_today\",\"brightness\":1,\"battery_off_s\":60}"));
     drain_outbox();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_EQUAL_STRING("{\"mode\":\"off\",\"brightness\":1,\"battery_off_s\":60}", mqtt->last_publish_payload);
+    TEST_ASSERT_EQUAL_STRING("{\"mode\":\"eaten_today\",\"brightness\":1,\"battery_off_s\":60}", mqtt->last_publish_payload);
     TEST_ASSERT_EQUAL_UINT(1, mqtt->publish_calls);
 }
 
@@ -125,7 +126,7 @@ void test_mqtt_display_cmd_no_change_succeeds_without_publish(void)
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
 }
 
-void test_mqtt_display_cmd_off_powers_panel_down_and_weight_restores(void)
+void test_mqtt_display_cmd_brightness_zero_powers_panel_down_and_restores(void)
 {
     size_t n;
     const fake_display_op_t *ops;
@@ -134,12 +135,12 @@ void test_mqtt_display_cmd_off_powers_panel_down_and_weight_restores(void)
     (void)display_presentation_set_digits(42u);
     (void)display_presentation_refresh();
 
-    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"off\"}"));
+    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"brightness\":0}"));
     ops = fake_display_port_ops(&n);
     TEST_ASSERT_TRUE(n > 0u);
     TEST_ASSERT_EQUAL(FAKE_DISPLAY_OP_POWER_OFF, ops[n - 1u].kind);
 
-    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"mode\":\"weight\"}"));
+    TEST_ASSERT_EQUAL(PORT_OK, cmd("{\"brightness\":3}"));
     ops = fake_display_port_ops(&n);
     TEST_ASSERT_EQUAL(FAKE_DISPLAY_OP_SHOW_GRIDS, ops[n - 1u].kind);
 }

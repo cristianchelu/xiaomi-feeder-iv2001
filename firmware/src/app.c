@@ -60,6 +60,13 @@
 #include "power_source_input.h"
 #include "power_source_port.h"
 #include "battery_monitor.h"
+#include "mqtt_power.h"
+#include "power_policy.h"
+#include "provision_reset.h"
+#include "wifi_sta.h"
+#ifndef HOST_TEST
+#include "wifi_sdk_profile.h"
+#endif
 #include "motor_cli.h"
 #include "motor_port.h"
 #include "weigh_product.h"
@@ -70,7 +77,6 @@
 typedef enum {
     APP_DISPLAY_MODE_WEIGHT = 0,
     APP_DISPLAY_MODE_EATEN_TODAY,
-    APP_DISPLAY_MODE_OFF,
 } app_display_mode_t;
 
 typedef enum {
@@ -86,6 +92,108 @@ static bool s_last_on_battery;
 static uint32_t s_last_tick_ms;
 static weight_boot_phase_t s_weight_boot = WEIGHT_BOOT_PENDING;
 static weight_dg_t s_bowl_dg;
+static bool s_panel_off;
+static bool s_health_bowl;
+static bool s_health_hopper;
+static bool s_health_battery;
+static bool s_asleep;
+static bool s_wifi_up = true;
+static uint32_t s_last_dispense_ms;
+static bool s_dispense_seen;
+static uint32_t s_policy_last_ms;
+
+#define APP_POLICY_PERIOD_MS      1000u
+#define APP_POLICY_BOOT_GRACE_MS  60000u
+
+bool app_is_asleep(void)
+{
+    return s_asleep;
+}
+
+static bool app_low_battery(void)
+{
+    uint8_t pct = battery_monitor_pct();
+
+    return pct != BATTERY_MONITOR_PCT_UNKNOWN && pct < POWER_POLICY_LOW_BATTERY_PCT;
+}
+
+/* Wi-Fi on battery / low-battery conservation / sleep — power-state-machine.md. */
+static void app_power_policy_poll(uint32_t now_ms)
+{
+    power_policy_input_t in;
+    schedule_next_t next;
+    bool wanted;
+
+    if ((now_ms - s_policy_last_ms) < APP_POLICY_PERIOD_MS && s_policy_last_ms != 0u) {
+        return;
+    }
+    s_policy_last_ms = now_ms;
+
+    if (feeder_runtime_dispense_active()) {
+        s_last_dispense_ms = now_ms;
+        s_dispense_seen = true;
+    }
+
+    memset(&in, 0, sizeof(in));
+    in.on_battery = power_source_input_is_valid() &&
+                    power_source_input_get() == POWER_SOURCE_BATTERY;
+    in.asleep = s_asleep;
+    in.low_battery = app_low_battery();
+    in.mode = mqtt_power_battery_wifi_get();
+    in.next_in_min = schedule_compute_next(&next) ? next.in_min : -1;
+    in.dispense_recent = feeder_runtime_dispense_active() ||
+                         (s_dispense_seen &&
+                          (now_ms - s_last_dispense_ms) < POWER_POLICY_DISPENSE_HOLD_MS);
+
+    wanted = power_policy_wifi_wanted(&in);
+    if (wanted == s_wifi_up || feeder_runtime_ota_active() || wifi_sta_busy() != WIFI_STA_IDLE) {
+        return;
+    }
+    if (!wanted && !s_asleep && now_ms < APP_POLICY_BOOT_GRACE_MS) {
+        return;  /* let the first connection and time sync finish */
+    }
+
+    if (wanted ? wifi_sta_request_connect() : wifi_sta_request_disconnect()) {
+        s_wifi_up = wanted;
+        app_log_info("app", wanted ? "wifi policy: connect" : "wifi policy: disconnect");
+    }
+}
+
+static void app_sleep_enter(void)
+{
+    if (s_asleep) {
+        return;
+    }
+    if (feeder_runtime_dispense_active()) {
+        app_log_info("app", "sleep refused: dispense active");
+        return;
+    }
+    s_asleep = true;
+    (void)display_presentation_set_blanked(true);
+    app_log_info("app", "sleep");
+}
+
+static void app_factory_reset_now(void)
+{
+    if (!provision_erase_app_groups(config_port_get())) {
+        app_log_error("app", "factory reset failed");
+        return;
+    }
+#ifndef HOST_TEST
+    wifi_sdk_profile_invalidate();
+#endif
+    app_log_info("app", "factory reset — rebooting");
+    (void)reboot_request_arm();
+}
+
+/* Status lightbar: green when healthy, orange when any problem is active. */
+static void app_health_apply(void)
+{
+    uint8_t pct = battery_monitor_pct();
+
+    s_health_battery = pct != BATTERY_MONITOR_PCT_UNKNOWN && pct < BATTERY_MONITOR_LOW_PCT;
+    display_mqtt_indicator_set_problem(s_health_bowl || s_health_hopper || s_health_battery);
+}
 static bool s_bowl_valid;
 static uint32_t s_weight_last_sample_ms;
 static bool s_weight_resample_after_dispense;
@@ -150,6 +258,8 @@ static void app_weight_sync_display_scene(bool force_mqtt_bowl_weight)
     display_bowl_error_indicator_sync(bowl_err);
 
     mqtt_state_sync(bowl_error_is_active(bowl_err));
+    s_health_bowl = bowl_error_is_active(bowl_err);
+    app_health_apply();
 
     {
         weight_dg_t presented_dg = auto_tare_present_dg(s_bowl_dg, s_bowl_valid);
@@ -193,11 +303,11 @@ void app_display_apply_settings(void)
     s_idle_blank = false;
     display_idle_note_activity(s_last_tick_ms);
 
-    (void)display_presentation_set_brightness(display_settings_brightness_get());
+    s_panel_off = display_settings_brightness_get() == 0u;
+    if (!s_panel_off) {
+        (void)display_presentation_set_brightness(display_settings_brightness_get());
+    }
     switch (mode) {
-    case DISPLAY_MODE_OFF:
-        s_display_mode = APP_DISPLAY_MODE_OFF;
-        break;
     case DISPLAY_MODE_EATEN_TODAY:
         s_display_mode = APP_DISPLAY_MODE_EATEN_TODAY;
         break;
@@ -205,7 +315,7 @@ void app_display_apply_settings(void)
         s_display_mode = APP_DISPLAY_MODE_WEIGHT;
         break;
     }
-    (void)display_presentation_set_blanked(mode == DISPLAY_MODE_OFF);
+    (void)display_presentation_set_blanked(s_panel_off);
 }
 
 /* Blank the panel after inactivity on battery — display-presentation.md. */
@@ -222,12 +332,15 @@ static void app_display_idle_poll(uint32_t now_ms)
     }
     s_last_on_battery = on_battery;
 
-    wanted = display_idle_blank_wanted(now_ms, on_battery, s_battery_off_s);
+    wanted = s_asleep || display_idle_blank_wanted(now_ms, on_battery,
+                                                   power_policy_screen_off_s(s_battery_off_s,
+                                                                              on_battery,
+                                                                              app_low_battery()));
     if (wanted == s_idle_blank) {
         return;
     }
     s_idle_blank = wanted;
-    if (s_display_mode != APP_DISPLAY_MODE_OFF) {
+    if (!s_panel_off) {
         (void)display_presentation_set_blanked(wanted);
     }
 }
@@ -306,6 +419,16 @@ void app_weight_notify_dispense_complete(void)
     eaten_today_invalidate();
 }
 
+void app_weight_notify_calibration_changed(void)
+{
+    s_bowl_valid = false;
+    auto_tare_on_bowl_removed();
+    eaten_today_invalidate();
+    if (s_weight_boot == WEIGHT_BOOT_DONE) {
+        s_weight_resample_after_dispense = true;
+    }
+}
+
 static void app_weight_resample_after_dispense_if_needed(void)
 {
     if (!s_weight_resample_after_dispense) {
@@ -352,6 +475,8 @@ static void app_hopper_mqtt_sync(void)
     hopper_level_state_transition_t tr;
 
     mqtt_hopper_ir_sync(hopper_input_last_raw());
+    s_health_hopper = hopper_level_get() != HOPPER_LEVEL_STATE_NORMAL;
+    app_health_apply();
 
     while (hopper_level_pop_transition(&tr)) {
         mqtt_hopper_sync(tr.level);
@@ -509,6 +634,24 @@ static void app_button_handle_gesture(const button_gesture_event_t *ev)
         app_child_lock_sync_display(locked);
         app_log_info("app", "child_lock %s", locked ? "on" : "off");
         mqtt_child_lock_publish_snapshot();
+        return;
+    }
+
+    if (ev->id == BUTTON_ID_RESET && ev->kind == BUTTON_GESTURE_LONG) {
+        app_factory_reset_now();  /* recessed pin-hole: not blocked by child lock */
+        return;
+    }
+
+    if (s_asleep) {
+        if (ev->id == BUTTON_ID_POWER) {
+            app_log_info("app", "wake");
+            (void)reboot_request_arm();  /* wake = normal boot sequence */
+        }
+        return;
+    }
+
+    if (ev->id == BUTTON_ID_POWER && ev->kind == BUTTON_GESTURE_LONG) {
+        app_sleep_enter();
         return;
     }
 
@@ -672,6 +815,7 @@ void app_dispatch(const app_event_t *ev)
         app_power_mqtt_sync();
         (void)mqtt_ha_discovery_pump();
         reboot_request_poll(ev->u.display_tick.now_ms);
+        app_power_policy_poll(ev->u.display_tick.now_ms);
         break;
 
     case EVT_BUTTON_IRQ:
@@ -689,7 +833,9 @@ void app_dispatch(const app_event_t *ev)
                 (uint32_t)(xTaskGetTickCount() * (TickType_t)portTICK_PERIOD_MS);
 
             dispense_poll(now_ms);
-            schedule_poll(now_ms);
+            if (!s_asleep) {
+                schedule_poll(now_ms);
+            }
             (void)ota_slot_health_poll_ms();
             time_sync_poll(now_ms);
             app_weight_boot_advance();
@@ -799,6 +945,16 @@ void app_process_received_event(const app_event_t *ev)
 
 void app_test_reset(void)
 {
+    s_asleep = false;
+    s_wifi_up = true;
+    s_dispense_seen = false;
+    s_last_dispense_ms = 0u;
+    s_policy_last_ms = 0u;
+    s_health_bowl = false;
+    s_health_hopper = false;
+    s_health_battery = false;
+    s_panel_off = false;
+    display_mqtt_indicator_set_problem(false);
     s_battery_off_s = DISPLAY_BATTERY_OFF_S_DEFAULT;
     s_idle_blank = false;
     s_last_on_battery = false;

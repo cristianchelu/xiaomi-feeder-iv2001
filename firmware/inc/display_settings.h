@@ -11,10 +11,10 @@
 typedef enum {
     DISPLAY_MODE_WEIGHT = 0,
     DISPLAY_MODE_EATEN_TODAY,
-    DISPLAY_MODE_OFF,
 } display_mode_t;
 
-#define DISPLAY_BRIGHTNESS_MIN      1u
+/* 0 = panel off; 1..4 = lit. */
+#define DISPLAY_BRIGHTNESS_MIN      0u
 #define DISPLAY_BRIGHTNESS_MAX      4u
 #define DISPLAY_BRIGHTNESS_DEFAULT  4u
 

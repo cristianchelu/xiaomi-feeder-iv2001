@@ -84,6 +84,15 @@ mqtt_route_kind_t mqtt_route_classify(const char *topic, const char *device_id)
     if (topic_matches_cmd(topic, device_id, "reboot")) {
         return MQTT_ROUTE_CMD_REBOOT;
     }
+    if (topic_matches_cmd(topic, device_id, "eaten_reset")) {
+        return MQTT_ROUTE_CMD_EATEN_RESET;
+    }
+    if (topic_matches_cmd(topic, device_id, "power")) {
+        return MQTT_ROUTE_CMD_POWER;
+    }
+    if (topic_matches_cmd(topic, device_id, "ota_base")) {
+        return MQTT_ROUTE_CMD_OTA_BASE;
+    }
     if (topic_matches_cmd(topic, device_id, "ota")) {
         return MQTT_ROUTE_CMD_OTA;
     }
@@ -124,6 +133,12 @@ const char *mqtt_route_label(mqtt_route_kind_t route)
         return "child_lock";
     case MQTT_ROUTE_CMD_REBOOT:
         return "reboot";
+    case MQTT_ROUTE_CMD_EATEN_RESET:
+        return "eaten_reset";
+    case MQTT_ROUTE_CMD_POWER:
+        return "power";
+    case MQTT_ROUTE_CMD_OTA_BASE:
+        return "ota_base";
     case MQTT_ROUTE_CMD_OTA:
         return "ota";
     default:

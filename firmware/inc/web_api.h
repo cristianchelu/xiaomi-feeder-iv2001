@@ -27,6 +27,12 @@ typedef enum {
     WEB_API_POST_FEED_MODE,
     WEB_API_POST_FEED_OVERFILL,
     WEB_API_POST_CONFIG,
+    WEB_API_POST_DISPLAY,
+    WEB_API_POST_CALIBRATE,
+    WEB_API_POST_EATEN_RESET,
+    WEB_API_POST_REBOOT,
+    WEB_API_POST_CHILD_LOCK,
+    WEB_API_POST_POWER,
 } web_api_route_t;
 
 web_api_route_t web_api_classify(const char *method, const char *path);

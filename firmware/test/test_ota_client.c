@@ -12,6 +12,8 @@
 #include "fake_time.h"
 #include "fake_boot_bank.h"
 #include "mqtt_outbox.h"
+#include "fake_config_port.h"
+#include "ota_base.h"
 #include "ota_client.h"
 
 #define TEST_DEVICE_ID "ddeeff"
@@ -299,4 +301,40 @@ void test_ota_cmd_rejected_while_dispense_active(void)
     TEST_ASSERT_EQUAL_STRING("{\"state\":\"error\",\"pct\":0,\"error\":\"busy_dispense\",\"bank\":\"A\"}",
                              mqtt->last_publish_payload);
     dispense_test_reset();
+}
+
+void test_ota_install_uses_base_url_and_inactive_bank(void)
+{
+    const fake_ota_port_state_t *ota;
+    const char *topic = "petfeeder/ddeeff/cmd/ota";
+    const char *payload = "{\"install\":true}";
+    const char *base = "http://10.20.10.5:8123/local/feeder";
+
+    setup_ota_client_connected();
+    TEST_ASSERT_EQUAL(PORT_OK, ota_base_handle(base, strlen(base)));
+
+    ota_client_on_mqtt_message(topic, payload, strlen(payload));
+    drain_ota_outbox();
+
+    ota = fake_ota_port_state();
+    TEST_ASSERT_EQUAL_UINT(1, ota->start_calls);
+    TEST_ASSERT_EQUAL_STRING("http://10.20.10.5:8123/local/feeder/petfeeder_b.bin", ota->last_url);
+}
+
+void test_ota_install_without_base_reports_error(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    const fake_ota_port_state_t *ota;
+    const char *topic = "petfeeder/ddeeff/cmd/ota";
+    const char *payload = "{\"install\":true}";
+
+    setup_ota_client_connected();
+    fake_config_port_reset();
+    ota_client_on_mqtt_message(topic, payload, strlen(payload));
+    drain_ota_outbox();
+
+    ota = fake_ota_port_state();
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_UINT(0, ota->start_calls);
+    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "no_base_url"));
 }

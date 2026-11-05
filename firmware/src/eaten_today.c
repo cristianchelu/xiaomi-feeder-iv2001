@@ -30,6 +30,8 @@ static void eaten_today_persist(void)
     (void)cfg->write(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DAY, buf);
     (void)snprintf(buf, sizeof(buf), "%lu", (unsigned long)s_total_dg);
     (void)cfg->write(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DG, buf);
+    (void)snprintf(buf, sizeof(buf), "%u", (unsigned)EATEN_TODAY_SCHEMA_VERSION);
+    (void)cfg->write(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_VER, buf);
 }
 
 static bool eaten_today_read_u32(const char *key, uint32_t *out)
@@ -55,7 +57,19 @@ void eaten_today_init(uint32_t day_key)
     uint32_t day = 0u;
     uint32_t dg = 0u;
 
+    uint32_t ver = 0u;
+
     eaten_today_test_reset();
+    if (eaten_today_read_u32(CONFIG_KEY_EATEN_DAY, &day) &&
+        (!eaten_today_read_u32(CONFIG_KEY_EATEN_VER, &ver) ||
+         ver != EATEN_TODAY_SCHEMA_VERSION)) {
+        /* Totals written by an older firmware may include calibration artefacts. */
+        s_day = day_key;
+        s_total_dg = 0;
+        eaten_today_persist();
+        return;
+    }
+    day = 0u;
     if (!eaten_today_read_u32(CONFIG_KEY_EATEN_DAY, &day) ||
         !eaten_today_read_u32(CONFIG_KEY_EATEN_DG, &dg)) {
         s_day = day_key;
@@ -84,6 +98,14 @@ static void eaten_today_rollover(uint32_t day_key)
         s_total_dg = 0;
         eaten_today_persist();
     }
+}
+
+void eaten_today_reset(void)
+{
+    s_total_dg = 0;
+    s_ref_valid = false;
+    s_settle = 0u;
+    eaten_today_persist();
 }
 
 void eaten_today_invalidate(void)

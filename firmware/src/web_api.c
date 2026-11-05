@@ -11,12 +11,17 @@
 #include "app_cmd_dispatch.h"
 #include "dispense.h"
 #include "feed_config.h"
+#include "eaten_today.h"
 #include "feeder_runtime.h"
+#include "hopper_input.h"
+#include "mqtt_display.h"
+#include "mqtt_eaten_today.h"
 #include "mqtt_battery.h"
 #include "mqtt_bowl_weight.h"
 #include "mqtt_config.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_hopper.h"
+#include "mqtt_power.h"
 #include "mqtt_mains.h"
 #include "mqtt_route.h"
 #include "mqtt_state.h"
@@ -50,6 +55,18 @@ static mqtt_route_kind_t web_api_post_route_to_mqtt(web_api_route_t route)
         return MQTT_ROUTE_CMD_FEED_OVERFILL;
     case WEB_API_POST_CONFIG:
         return MQTT_ROUTE_CMD_CONFIG;
+    case WEB_API_POST_DISPLAY:
+        return MQTT_ROUTE_CMD_DISPLAY;
+    case WEB_API_POST_CALIBRATE:
+        return MQTT_ROUTE_CMD_CALIBRATE;
+    case WEB_API_POST_EATEN_RESET:
+        return MQTT_ROUTE_CMD_EATEN_RESET;
+    case WEB_API_POST_REBOOT:
+        return MQTT_ROUTE_CMD_REBOOT;
+    case WEB_API_POST_CHILD_LOCK:
+        return MQTT_ROUTE_CMD_CHILD_LOCK;
+    case WEB_API_POST_POWER:
+        return MQTT_ROUTE_CMD_POWER;
     default:
         return MQTT_ROUTE_UNKNOWN;
     }
@@ -154,6 +171,46 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
         if (off < 0) {
             return -1;
         }
+    }
+
+    {
+        char disp[80];
+
+        if (mqtt_display_format_snapshot(disp, sizeof(disp))) {
+            off = web_api_append(buf, len, off, ",\"display\":%s", disp);
+            if (off < 0) {
+                return -1;
+            }
+        }
+    }
+
+    {
+        char pw[48];
+
+        if (mqtt_power_format_snapshot(pw, sizeof(pw))) {
+            off = web_api_append(buf, len, off, ",\"power\":%s", pw);
+            if (off < 0) {
+                return -1;
+            }
+        }
+    }
+
+    off = web_api_append(buf, len, off, ",\"child_lock\":%s",
+                         feed_config_child_lock_is_active() ? "true" : "false");
+    if (off < 0) {
+        return -1;
+    }
+
+    if (mqtt_eaten_today_format(eaten_today_total_dg(), wire, sizeof(wire))) {
+        off = web_api_append(buf, len, off, ",\"eaten_today\":\"%s\"", wire);
+        if (off < 0) {
+            return -1;
+        }
+    }
+
+    off = web_api_append(buf, len, off, ",\"hopper_ir\":%d", (int)hopper_input_last_raw());
+    if (off < 0) {
+        return -1;
     }
 
     return off;
@@ -301,6 +358,24 @@ web_api_route_t web_api_classify(const char *method, const char *path)
     }
     if (strcmp(path, "/api/config") == 0) {
         return WEB_API_POST_CONFIG;
+    }
+    if (strcmp(path, "/api/display") == 0) {
+        return WEB_API_POST_DISPLAY;
+    }
+    if (strcmp(path, "/api/calibrate") == 0) {
+        return WEB_API_POST_CALIBRATE;
+    }
+    if (strcmp(path, "/api/eaten_reset") == 0) {
+        return WEB_API_POST_EATEN_RESET;
+    }
+    if (strcmp(path, "/api/reboot") == 0) {
+        return WEB_API_POST_REBOOT;
+    }
+    if (strcmp(path, "/api/child_lock") == 0) {
+        return WEB_API_POST_CHILD_LOCK;
+    }
+    if (strcmp(path, "/api/power") == 0) {
+        return WEB_API_POST_POWER;
     }
 
     return WEB_API_ROUTE_UNKNOWN;

@@ -9,7 +9,9 @@
 #include "boot_bank_target.h"
 #include "dispense.h"
 
+#include "mqtt_json.h"
 #include "mqtt_outbox.h"
+#include "ota_base.h"
 #include "mqtt_port.h"
 #include "mqtt_route.h"
 #include "mqtt_topics.h"
@@ -180,7 +182,19 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
     memcpy(payload_buf, payload, len);
     payload_buf[len] = '\0';
 
-    err = ota_cmd_parse(payload_buf, len, url, sizeof(url), sha512, &has_sha512);
+    if (mqtt_json_has_key(payload_buf, len, "install")) {
+        /* One-button install: <base>/petfeeder_<inactive bank>.bin. */
+        char inactive = (ota_client_active_bank_letter() == 'A') ? 'b' : 'a';
+
+        has_sha512 = false;
+        if (!ota_base_build_url(inactive, url, sizeof(url))) {
+            ota_client_publish_status("error", 0, "no_base_url");
+            return;
+        }
+        err = PORT_OK;
+    } else {
+        err = ota_cmd_parse(payload_buf, len, url, sizeof(url), sha512, &has_sha512);
+    }
     if (err != PORT_OK) {
         app_log_error("ota", "cmd parse failed");
         ota_client_publish_status("error", 0, "invalid_url");

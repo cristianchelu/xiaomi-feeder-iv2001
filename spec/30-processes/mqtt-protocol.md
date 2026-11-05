@@ -61,7 +61,10 @@ unchanged.
 | `.../cmd/child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../cmd/config` | `{"tz_rule":"...", "tz_label":"..."}` — **legacy** time slice only; see [Config snapshot](#config-snapshot) | 1 |
 | `.../cmd/reboot` | `{}` — restart the device ([Reboot command](#reboot-command)) | 1 |
-| `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional | 1 |
+| `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional; or `{"install":true}` ([One-button install](ota-flow.md#one-button-install)) | 1 |
+| `.../cmd/ota_base` | Plain-text `http(s)://host[:port]/dir` firmware folder; stored in NVDM `system/ota_base`, retained on `.../ota/base` | 1 |
+| `.../cmd/eaten_reset` | `{}` — zero today's eaten total | 1 |
+| `.../cmd/power` | `{"battery_wifi":"on"\|"off"\|"scheduled_only"}`; retained on `.../power` | 1 |
 
 ### Reboot command
 
@@ -164,12 +167,16 @@ clear the config topic (empty retained payload) and republish, or use
 | switch | overfill_protection | — | `config` | On = skip scheduled feeds when bowl ≥ threshold |
 | number | overfill_threshold_g | — | `config` | Range: 30–100 g |
 | switch | child_lock | — | `config` | On/off |
-| select | display_mode | — | `config` | Options: weight, eaten_today, off |
-| number | display_brightness | — | `config` | Range: 1–4 |
+| select | display_mode | — | `config` | Options: weight, eaten_today |
+| number | display_brightness | — | `config` | Range: 0–4 (0 = panel off) |
 | number | display_battery_off | — | `config` | Seconds, 0–600 (0 = never); panel idle-blank on battery |
 | button | reboot | `restart` | `config` | `cmd/reboot` |
 | button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
 | button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
+| button | eaten_reset | — | `config` | `cmd/eaten_reset` |
+| select | battery_wifi | — | `config` | Options: on, off, scheduled_only (`power/battery_wifi`) |
+| text | ota_base | — | `config` | Firmware folder URL (≤ 120 chars) |
+| button | ota_install | `update` | `config` | `cmd/ota {"install":true}` |
 | sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear` |
 | sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |
 | sensor | firmware_bank | — | `diagnostic` | `value_json.bank` of `.../ota/status` (`A` or `B`) |
@@ -718,6 +725,15 @@ Rules:
   action, non-JSON) is rejected at info with no capture.
 - Rejected with `PORT_ERR_BUSY` while a dispense or an OTA is active.
 - `span` before `zero` is rejected by the driver (`PORT_ERR_INVALID_ARG`).
+- Each capture is the **median of 5** consecutive CS1270 queries; a spread above
+  25 raw counts (hand on the scale, bowl moving) is rejected with `PORT_ERR_BUSY`.
+- `span` is rejected (`PORT_ERR_INVALID_ARG`) when it differs from `zero` by fewer
+  than 50 raw counts (bowl not installed, or zero was taken with the bowl on).
+- `zero` is rejected (`PORT_ERR_INVALID_ARG`) when a complete calibration exists
+  and the new reading is above half the bowl step (bowl still installed).
+- After any successful capture the app drops the cached bowl sample, restarts
+  the auto-tare anchor, invalidates the eaten-today baseline and resamples
+  immediately, so the panel shows `0g` and no calibration step counts as eaten.
 - A capture error from the scale (rail off, no stable sample) is logged at
   info (`calibrate <action> failed`) and leaves NVDM unchanged.
 - Success logs `calibrate zero ok` / `calibrate span ok`. The calibration
@@ -740,8 +756,8 @@ Command topic `.../cmd/display` takes a JSON object with either or both keys:
 
 | Key | Values | Effect |
 |-----|--------|--------|
-| `mode` | `weight` \| `eaten_today` \| `off` | `off` blanks the panel and powers the TM1637 rail down; `weight` restores the bowl-weight scene |
-| `brightness` | integer 1–4 | TM1637 brightness; stored even while the panel is off |
+| `mode` | `weight` \| `eaten_today` | What the panel shows. `off` is not a mode: set `brightness` 0 |
+| `brightness` | integer 0–4 | TM1637 brightness; **0 = panel off** (rail powered down), 1–4 lit |
 | `battery_off_s` | integer 0–600 | Seconds of inactivity before the panel blanks **on battery**; `0` disables ([display-presentation.md](display-presentation.md) § Idle blank on battery) |
 
 Rules:

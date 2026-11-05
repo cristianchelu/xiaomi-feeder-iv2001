@@ -71,6 +71,10 @@ int mqtt_ha_format_child_lock_config(char *buf,
 
 int mqtt_ha_format_reboot_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_calibrate_zero_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_battery_wifi_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_ota_base_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_ota_install_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_eaten_reset_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_calibrate_span_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_display_mode_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_display_brightness_config(char *buf, size_t len, const char *device_id);

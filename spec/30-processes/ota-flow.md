@@ -15,6 +15,16 @@ image as written to the inactive bank (see [Verification](#verification)).
 
 Device validates URL (non-empty, http:// or https:// scheme).
 
+## One-button install
+
+`cmd/ota_base` stores a firmware folder URL (for example
+`http://10.20.10.5:8123/local/feeder`, e.g. Home Assistant's `www` folder). The
+Home Assistant button *Install firmware update* publishes `cmd/ota {"install":true}`.
+The device then downloads `<base>/petfeeder_<x>.bin` where `<x>` is the letter of
+the **inactive** bank (`a` when running from B, `b` when running from A) and the
+usual flow below applies. No `sha512` is sent (the image header and slot health
+checks still apply). Missing base: `ota/status` error `no_base_url`.
+
 ## Pre-flight checks
 
 Firmware enforces URL validation and duplicate-OTA rejection. Dispense

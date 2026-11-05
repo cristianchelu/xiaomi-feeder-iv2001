@@ -45,6 +45,13 @@ and bowl removal are never counted as eaten).
 
 ## Persistence
 
+NVDM `eaten/ver` stores the format version (`EATEN_TODAY_SCHEMA_VERSION`). A
+missing or different version zeroes the stored total once at boot, so a firmware
+that changes the accounting does not inherit old totals. `cmd/eaten_reset`
+(HA button, web *Reset*) zeroes the total on demand.
+
+
+
 NVDM group `eaten`: `day` (uint32 `YYYYMMDD`), `dg` (uint32). Written only when
 the total changes or rolls over. On boot the stored total is restored when its
 day equals the current local day or the clock is not yet known; otherwise it

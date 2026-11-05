@@ -110,6 +110,14 @@ In **compensated** gram dispense, the job (and blink) remain active through
 post-motor weigh settle until bowl grams are stabilized and the display is
 updated — see [weight-compensation.md](weight-compensation.md).
 
+## Status lightbar health
+
+With the broker connected the bar shows device health: **green** when healthy,
+**steady orange** while any problem is active — bowl error (missing bowl or
+calibration incomplete), hopper `low`/`empty`, or battery below 15 %. The
+connecting blink and error pattern below take precedence when MQTT is not
+connected. `display_mqtt_indicator_set_problem()` is fed by `app`.
+
 ## MQTT indicator (status lightbar)
 
 `display_mqtt_indicator.c` drives `DISPLAY_ICON_BAR_ORANGE` and
@@ -211,7 +219,7 @@ or pin masks.
 | `display_presentation_clear_digits()` | Blanks grids 0–2 until the next `set_digits` |
 | `display_presentation_set_unit(unit)` | `NONE`, `PERCENT`, or `GRAM` — lights unit pictograph on grid 3 |
 | `display_presentation_icon_set(icon, on)` | Toggle one pictograph by `display_icon_t` label |
-| `display_presentation_set_brightness(level)` | 1–4; default `[tune]` 4 |
+| `display_presentation_set_brightness(level)` | 1–4; default `[tune]` 4 (app maps persisted brightness 0 to `set_blanked(true)`) |
 
 Values above 999 are rejected with `PORT_ERR_INVALID_ARG`.
 

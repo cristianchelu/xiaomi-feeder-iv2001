@@ -25,6 +25,9 @@ void app_test_reset_bowl_presence_log(void);
 void app_test_clear_btn_log(void);
 bool app_test_take_btn_log(char *buf, size_t len);
 void app_weight_notify_dispense_complete(void);
+bool app_is_asleep(void);
+/* Scale calibration changed: drop cached sample, auto-tare anchor and eaten-today baseline, resample. */
+void app_weight_notify_calibration_changed(void);
 /* Refresh the panel lock icon from the stored child-lock state (app task only). */
 void app_child_lock_refresh_display(void);
 /* Apply persisted display mode + brightness to the panel (app task only). */

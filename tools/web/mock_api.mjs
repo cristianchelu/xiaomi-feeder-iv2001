@@ -157,6 +157,11 @@ function statusPayload(state) {
     if (state.mains !== undefined) {
         body.mains = state.mains;
     }
+    body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60 };
+    body.power = state.power || { battery_wifi: 'on' };
+    body.child_lock = !!state.child_lock;
+    body.eaten_today = state.eaten_today || '0.0';
+    body.hopper_ir = state.hopper === 'normal' ? 1 : 0;
     if (next) {
         body.next = next;
     }
@@ -249,6 +254,30 @@ export function createMockApiHandler(getState, setState) {
             }
             setState({ ...state, dispense_busy: true });
             setTimeout(() => setState({ ...getState(), dispense_busy: false }), 2500);
+            return json(res, 200, { ok: true });
+        }
+
+        if (path === '/api/display') {
+            const d = { ...(state.display || { mode: 'weight', brightness: 4, battery_off_s: 60 }) };
+            if (body.mode !== undefined) d.mode = body.mode;
+            if (body.brightness !== undefined) d.brightness = body.brightness;
+            if (body.battery_off_s !== undefined) d.battery_off_s = body.battery_off_s;
+            setState({ ...state, display: d });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/power') {
+            setState({ ...state, power: { battery_wifi: body.battery_wifi } });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/child_lock') {
+            setState({ ...state, child_lock: body === 'ON' });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/eaten_reset') {
+            setState({ ...state, eaten_today: '0.0' });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/calibrate' || path === '/api/reboot') {
             return json(res, 200, { ok: true });
         }
 

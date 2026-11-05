@@ -440,12 +440,12 @@ void test_mqtt_ha_format_display_entities(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/display\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/display\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.mode"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"options\":[\"weight\",\"eaten_today\",\"off\"]"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"options\":[\"weight\",\"eaten_today\"]"));
 
     TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_display_brightness_config(buf, sizeof(buf), TEST_DEVICE_ID));
     assert_common(buf, "display_brightness");
     TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.brightness"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"min\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"min\":0"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":4"));
 
     TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_display_battery_off_config(buf, sizeof(buf), TEST_DEVICE_ID));
@@ -514,4 +514,29 @@ void test_mqtt_ha_format_ota_sensors(void)
     TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_firmware_bank_config(buf, sizeof(buf), TEST_DEVICE_ID));
     assert_common(buf, "firmware_bank");
     TEST_ASSERT_NOT_NULL(strstr(buf, "value_json.bank"));
+}
+
+void test_mqtt_ha_format_ota_entities(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_ota_base_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "ota_base");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/ota/base\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/ota_base\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":120"));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_ota_install_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "ota_install");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/ota\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_press\":\"{\\\"install\\\":true}\""));
+}
+
+void test_mqtt_ha_format_eaten_reset_button(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_eaten_reset_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "eaten_reset");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/eaten_reset\""));
 }

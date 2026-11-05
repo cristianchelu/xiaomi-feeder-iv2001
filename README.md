@@ -40,7 +40,7 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 
 - [x] Wi-Fi STA (stored credentials, connect lifecycle)
 - [x] MQTT broker session (LWT on `connection`, device condition on `state`, reconnect backoff)
-- [x] MQTT OTA command (`cmd/ota`; refused during a dispense; one-command helper [`tools/ota/push.py`](tools/ota/push.py))
+- [x] MQTT OTA command (`cmd/ota`; refused during a dispense; one-command helper [`tools/ota/push.py`](tools/ota/push.py); or one-button install from a stored firmware folder URL, HA button *Install firmware update*)
 - [x] MQTT `cmd/reboot`
 - [ ] TLS
 - [x] Home Assistant / MQTT integration [partial] — auto-discovery with Diagnostics
@@ -49,7 +49,7 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
   device timezone (diagnostic), dispense completed event, feeding schedule
   (config, with full JSON attributes), weight compensation (config), overfill protection
   (config), and overfill threshold (config), child lock, custom dispense amount, eaten today,
-  display mode / brightness / battery-off delay, reboot and calibrate buttons, raw hopper IR,
+  display mode / brightness / battery-off delay, reboot, reset-eaten and calibrate buttons, Wi-Fi on battery, firmware URL + install button, raw hopper IR,
   firmware state and bank (see
   [`mqtt-protocol.md`](spec/30-processes/mqtt-protocol.md))
 - [x] LAN web admin UI on port 80 when STA is up (`WEB_UI_ENABLE=y`; see
@@ -60,8 +60,8 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 - [x] Captive portal on first boot (home Wi-Fi + MQTT via `PetFeeder-XXXX` AP)
 - [x] Factory reset via UART CLI (`factory-reset`)
 - [x] Boots on boards fitted with the GigaDevice GD25LQ16 flash (JEDEC C8 60 15)
-- [ ] Re-provisioning via pin-hole reset (short press)
-- [ ] Factory reset via pin-hole reset (long press)
+- [ ] Re-provisioning via pin-hole reset (short press, temporary AP)
+- [x] Factory reset via pin-hole reset (long press, 7 s)
 
 ### Feeding
 
@@ -82,7 +82,8 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 - [x] Hopper level sensing (IR + dispense weight check; UART and MQTT `hopper`)
 - [x] Status pictographs (Wi-Fi, MQTT, dispense, bowl error, child lock)
 - [x] Bowl missing / calibration fault detection (`bowl_error` on `state`, HA sensor)
-- [x] Alternate display modes (eaten today, off), brightness, idle blank on battery (MQTT `cmd/display`, HA select/numbers)
+- [x] Alternate display modes (bowl weight, eaten today), brightness 0–4 (0 = panel off), idle blank on battery
+- [x] Status lightbar: green = healthy, orange = bowl / hopper / low-battery problem (MQTT `cmd/display`, HA select/numbers)
 - [x] MQTT `cmd/calibrate` (zero / span) and `cmd/display`; raw hopper IR on `hopper_ir`
 
 ### Controls
@@ -90,8 +91,8 @@ live in [`spec/20-stories/`](spec/20-stories/), detailed behavior in
 - [x] Physical button input and gesture detection
 - [x] Manual dispense button (short press)
 - [x] Child lock — reset+dispense combo, persistent NVRAM, display feedback, MQTT `child_lock` / `cmd/child_lock`, HA switch
-- [ ] Rear power button sleep / wake
-- [ ] Pin-hole reset gestures (see Provisioning)
+- [x] Rear power button: long press sleeps (soft sleep), any press wakes
+- [x] Pin-hole long press factory reset (short press re-provisioning: not yet)
 
 ### Power & battery
 
@@ -103,10 +104,11 @@ reporting, conservation) and [`controls.md`](spec/20-stories/controls.md)
 
 - [x] Mains vs battery source detection (UART and MQTT `mains`)
 - [x] Battery voltage and percentage (MQTT `battery`, `battery_voltage`; HA sensors)
-- [ ] Power state machine (Normal / Battery / Sleep)
-- [ ] Low-battery warning and conservation (display / Wi-Fi off; keep dispense)
-- [ ] Wi-Fi on battery (`on` / `off` / `scheduled_only`)
-- [ ] Sleep / wake (rear power button)
+- [x] Power state machine (Normal / Battery / Sleep, software sleep)
+- [x] Low-battery conservation (< 15 %: Wi-Fi only around feeds, screen off after 10 s; dispense kept)
+- [x] Wi-Fi on battery (`on` / `off` / `scheduled_only`; HA select, web page)
+- [x] Sleep / wake (rear power button)
+- [ ] Hardware low-power sleep of the MT7682
 
 ### Scheduling
 

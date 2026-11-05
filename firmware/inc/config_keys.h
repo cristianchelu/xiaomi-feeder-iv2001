@@ -39,8 +39,10 @@
 #define CONFIG_GROUP_EATEN              "eaten"
 #define CONFIG_KEY_EATEN_DAY            "day"
 #define CONFIG_KEY_EATEN_DG             "dg"
+#define CONFIG_KEY_EATEN_VER            "ver"
 
 #define CONFIG_GROUP_POWER                 "power"
+#define CONFIG_KEY_POWER_BATTERY_WIFI      "battery_wifi"
 #define CONFIG_KEY_POWER_BATT_SCALE_X1000  "batt_scale_x1000"
 
 #define CONFIG_GROUP_TIME          "time"

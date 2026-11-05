@@ -15,6 +15,12 @@
 #include "weigh_product.h"
 
 #define WEIGH_CAL_SPAN_G  WEIGH_BOWL_MASS_G
+/* Span capture must differ from zero by at least this many raw counts, else the
+ * bowl was not installed (or zero was taken with the bowl on). */
+#define WEIGH_CAL_SPAN_MIN_DELTA_RAW  50
+/* Capture takes the median of N queries and refuses a jittery scale. */
+#define WEIGH_CAL_CAPTURE_SAMPLES     5u
+#define WEIGH_CAL_CAPTURE_MAX_SPREAD  25
 
 typedef struct weigh_cal_model {
     int32_t zero_raw;

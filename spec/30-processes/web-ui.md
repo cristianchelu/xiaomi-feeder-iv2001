@@ -89,6 +89,10 @@ sensor reads from the HTTP handler.
 | `battery` | when publisher cache known | `0`–`100` or `unknown` (`.../battery`) |
 | `mains` | when publisher cache known | `ON` / `OFF` (`.../mains`) |
 | `next` | when time synced and next slot exists | `{hour, min, g, in_min}` (`.../schedule/next`) |
+| `display` | when display module ready | `{mode, brightness 0–4, battery_off_s}` (`.../display`) |
+| `child_lock` | always | boolean |
+| `eaten_today` | always | grams, one decimal (`.../eaten_today`) |
+| `hopper_ir` | always | `-1` none yet, `0` beam clear, `1` blocked (`.../hopper_ir`) |
 
 Per-topic GET mirrors (`/api/bowl_weight`, `/api/hopper`, …) are **deferred**
 past v0.
@@ -110,9 +114,14 @@ POST body is the exact MQTT command payload for the equivalent topic.
 | POST | `/api/feed/mode` | `cmd/feed/mode` plain body |
 | POST | `/api/feed/overfill` | `cmd/feed/overfill` JSON body |
 | POST | `/api/config` | `cmd/config` time slice (`tz_rule`, `tz_label`) |
+| POST | `/api/display` | `cmd/display` (`mode` weight\|eaten_today, `brightness` 0–4 with 0 = panel off, `battery_off_s`) |
+| POST | `/api/child_lock` | `cmd/child_lock` plain `ON` / `OFF` |
+| POST | `/api/calibrate` | `cmd/calibrate` `{"action":"zero"\|"span"}` |
+| POST | `/api/eaten_reset` | `cmd/eaten_reset` |
+| POST | `/api/reboot` | `cmd/reboot` |
 
-Excluded from web API (MQTT-only): `cmd/ota`, `cmd/reboot`, `cmd/calibrate`,
-`cmd/display`.
+Excluded from web API (MQTT-only): `cmd/ota` (the admin HTTP server is
+suspended while the download runs, so a page could not show progress).
 
 ### Command routing
 

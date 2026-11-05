@@ -46,7 +46,7 @@ transitioning IR level from `normal` to `low`.
 
 | Power source | Sampling |
 |--------------|----------|
-| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **60 s** |
+| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **10 s** |
 | **Battery** | Post-dispense only — no periodic background |
 
 Active debounce intervals (1 s between streak readings while a transition is
@@ -98,7 +98,7 @@ Host-testable debounce over `hopper_ir_port` (same layering as
 |-----|----------|
 | `hopper_input_init(port)` | Bind port; level starts `normal` |
 | `hopper_input_notify_dispense_complete()` | Arm immediate sense on next poll (post-dispense check) |
-| `hopper_input_poll(now_ms, background_enabled)` | Run sense when post-dispense pending, debounce interval elapsed, or (mains only) `[tune]` 60 s background timer |
+| `hopper_input_poll(now_ms, background_enabled)` | Run sense when post-dispense pending, debounce interval elapsed, or (mains only) `[tune]` 10 s background timer |
 | `hopper_input_get_level()` | Debounced `normal` \| `low` |
 | `hopper_input_almost_empty()` | `true` when `get_level() == low` |
 | `hopper_input_pop_transition(...)` | IR level edge since last pop |

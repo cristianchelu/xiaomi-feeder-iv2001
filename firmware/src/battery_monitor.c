@@ -19,6 +19,7 @@
 
 static uint32_t s_last_sample_ms;
 static bool s_force_sample;
+static uint8_t s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
 static bool s_has_last_sample_ms;
 
 static uint32_t battery_monitor_interval_ms(void)
@@ -93,13 +94,20 @@ bool battery_monitor_poll(uint32_t now_ms)
     mqtt_battery_voltage_sync(pack_mv, force);
 
     if (pack_mv == 0u) {
+        s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
         mqtt_battery_sync(false, 0u, force);
     } else {
         pct = battery_pct_from_mv(pack_mv, battery_pct_default_chemistry());
+        s_last_pct = pct;
         mqtt_battery_sync(true, pct, force);
     }
 
     return true;
+}
+
+uint8_t battery_monitor_pct(void)
+{
+    return s_last_pct;
 }
 
 void battery_monitor_force_sample(void)
@@ -109,6 +117,7 @@ void battery_monitor_force_sample(void)
 
 void battery_monitor_test_reset(void)
 {
+    s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
     s_last_sample_ms = 0u;
     s_force_sample = false;
     s_has_last_sample_ms = false;

@@ -880,6 +880,68 @@ button {
 </div>
 <div class="set-block">
 <div class="row between">
+<label>Display
+<select id="dispMode">
+<option value="weight">Bowl weight</option>
+<option value="eaten_today">Eaten today</option>
+</select>
+</label>
+<label>Brightness
+<select id="dispBright">
+<option value="0">0 (off)</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+</select>
+</label>
+</div>
+<div class="row between">
+<label>Screen off on battery (s, 0=never) <input type="number" id="dispOff" min="0" max="600" value="60"></label>
+<button id="saveDisp" class="pri sm">Save</button>
+</div>
+</div>
+<div class="set-block">
+<div class="row between">
+<label>Wi-Fi on battery
+<select id="battWifi">
+<option value="on">Always on</option>
+<option value="scheduled_only">Only around feeds</option>
+<option value="off">Off</option>
+</select>
+</label>
+<button id="saveBattWifi" class="pri sm">Save</button>
+</div>
+</div>
+<div class="set-block">
+<div class="row between">
+<label class="tog"><input type="checkbox" id="childLock"> Child lock</label>
+</div>
+</div>
+<div class="set-block">
+<div class="row between">
+<span>Eaten today: <b id="eatenVal">—</b> g</span>
+<button id="eatenReset" class="sm">Reset</button>
+</div>
+<div class="row between">
+<span>Hopper IR: <b id="hopperIr">—</b></span>
+</div>
+</div>
+<div class="set-block">
+<p class="hint">Scale: remove the bowl, press Zero; put the empty 350 g bowl back, press Span.</p>
+<div class="row between">
+<button id="calZero" class="sm">Zero (bowl removed)</button>
+<button id="calSpan" class="sm">Span (empty bowl)</button>
+</div>
+</div>
+<div class="set-block">
+<div class="row between">
+<span>Device</span>
+<button id="rebootBtn" class="sm">Reboot</button>
+</div>
+</div>
+<div class="set-block">
+<div class="row between">
 <label>Timezone <input id="tzRule" size="20" placeholder="UTC0"></label>
 <button id="saveTz" class="pri sm">Save</button>
 </div>
@@ -1042,6 +1104,19 @@ function bindSlotActions(card, s, skipCtrl) {
     loadAll();
   };
 }
+function renderSettings(st) {
+  const d = st.display;
+  const act = document.activeElement;
+  if (d) {
+    if (act !== $('dispMode')) $('dispMode').value = d.mode;
+    if (act !== $('dispBright')) $('dispBright').value = String(d.brightness);
+    if (act !== $('dispOff')) $('dispOff').value = d.battery_off_s;
+  }
+  if (st.power && act !== $('battWifi')) $('battWifi').value = st.power.battery_wifi;
+  $('childLock').checked = !!st.child_lock;
+  $('eatenVal').textContent = st.eaten_today !== undefined && st.eaten_today !== '' ? st.eaten_today : '—';
+  $('hopperIr').textContent = st.hopper_ir === 1 ? 'blocked' : st.hopper_ir === 0 ? 'clear' : '—';
+}
 async function loadStatus() {
   const st = await api('GET', '/api/status');
   const newDow = st.time_synced ? weekdayFromLocalTime(st.local_time) : null;
@@ -1049,6 +1124,7 @@ async function loadStatus() {
   todayDow = newDow;
   deviceLocalTime = st.time_synced ? st.local_time : null;
   renderStatus(st);
+  renderSettings(st);
   $('schedEn').checked = !!st.schedule_enabled;
   $('todayEn').checked = !!st.today_enabled;
   if (dowChanged && $('tab-sched').checked) await loadSchedule();
@@ -1156,6 +1232,17 @@ $('slotEditorForm').addEventListener('submit', async (e) => {
   if (ok) closeEditor();
   loadAll();
 });
+$('saveDisp').onclick = () => postSave('/api/display', {
+  mode: $('dispMode').value,
+  brightness: Number($('dispBright').value),
+  battery_off_s: Number($('dispOff').value),
+}, 'Display saved').then(loadStatus);
+$('saveBattWifi').onclick = () => postSave('/api/power', {battery_wifi: $('battWifi').value}, 'Saved').then(loadStatus);
+$('childLock').onchange = () => postSave('/api/child_lock', $('childLock').checked ? 'ON' : 'OFF', 'Child lock saved').then(loadStatus);
+$('eatenReset').onclick = () => confirm('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
+$('calZero').onclick = () => confirm('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');
+$('calSpan').onclick = () => confirm('Empty 350 g bowl installed?') && postSave('/api/calibrate', {action: 'span'}, 'Span captured');
+$('rebootBtn').onclick = () => confirm('Reboot the feeder?') && postSave('/api/reboot', '{}', 'Rebooting…');
 $('saveMode').onclick = () => postSave('/api/feed/mode', $('feedMode').value, 'Feed mode saved');
 $('overfillEn').onchange = () => { $('overfillG').disabled = !$('overfillEn').checked; };
 $('saveOverfill').onclick = () => postSave('/api/feed/overfill', buildFeedOverfillBody({

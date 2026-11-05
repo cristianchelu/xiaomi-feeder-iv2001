@@ -48,6 +48,9 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/mqtt_eaten_today.c \
              ../src/mqtt_calibrate.c \
              ../src/mqtt_display.c \
+             ../src/ota_base.c \
+             ../src/power_policy.c \
+             ../src/mqtt_power.c \
              ../src/display_settings.c \
              ../src/mqtt_backoff.c \
              ../src/mqtt_topics.c \

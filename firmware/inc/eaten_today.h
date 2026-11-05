@@ -17,6 +17,10 @@
 /* Restore from NVDM. day_key = local YYYYMMDD, 0 when the clock is unknown. */
 void eaten_today_init(uint32_t day_key);
 void eaten_today_on_idle_sample(weight_dg_t presented_dg, bool usable, uint32_t day_key);
+/* Stored-format version: a mismatch (new firmware) zeroes the stored total once. */
+#define EATEN_TODAY_SCHEMA_VERSION  2u
+/* Zero today's total now (HA button / web). */
+void eaten_today_reset(void);
 /* Dispense completed or bowl removed: next settled sample rebases. */
 void eaten_today_invalidate(void);
 weight_dg_t eaten_today_total_dg(void);

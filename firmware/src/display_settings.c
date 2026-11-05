@@ -14,8 +14,6 @@
 const char *display_settings_mode_name(display_mode_t mode)
 {
     switch (mode) {
-    case DISPLAY_MODE_OFF:
-        return "off";
     case DISPLAY_MODE_EATEN_TODAY:
         return "eaten_today";
     default:
@@ -34,10 +32,6 @@ bool display_settings_mode_parse(const char *name, display_mode_t *out)
     }
     if (strcmp(name, "eaten_today") == 0) {
         *out = DISPLAY_MODE_EATEN_TODAY;
-        return true;
-    }
-    if (strcmp(name, "off") == 0) {
-        *out = DISPLAY_MODE_OFF;
         return true;
     }
     return false;
@@ -76,6 +70,15 @@ uint8_t display_settings_brightness_get(void)
     char *end = NULL;
     long v;
 
+    if (cfg != NULL) {
+        char mode[16];
+
+        /* Legacy firmware stored "off" as a display mode: now brightness 0. */
+        if (cfg->read(CONFIG_GROUP_DISPLAY, CONFIG_KEY_DISPLAY_MODE, mode, sizeof(mode)) == PORT_OK &&
+            strcmp(mode, "off") == 0) {
+            return 0u;
+        }
+    }
     if (cfg == NULL ||
         cfg->read(CONFIG_GROUP_DISPLAY, CONFIG_KEY_DISPLAY_BRIGHTNESS, buf, sizeof(buf)) != PORT_OK) {
         return DISPLAY_BRIGHTNESS_DEFAULT;
@@ -93,8 +96,17 @@ bool display_settings_brightness_set(uint8_t level)
     const config_port_t *cfg = config_port_get();
     char buf[8];
 
-    if (cfg == NULL || level < DISPLAY_BRIGHTNESS_MIN || level > DISPLAY_BRIGHTNESS_MAX) {
+    if (cfg == NULL || level > DISPLAY_BRIGHTNESS_MAX) {
         return false;
+    }
+    /* Setting brightness clears a legacy "off" mode. */
+    {
+        char mode[16];
+
+        if (cfg->read(CONFIG_GROUP_DISPLAY, CONFIG_KEY_DISPLAY_MODE, mode, sizeof(mode)) == PORT_OK &&
+            strcmp(mode, "off") == 0) {
+            (void)cfg->write(CONFIG_GROUP_DISPLAY, CONFIG_KEY_DISPLAY_MODE, "weight");
+        }
     }
     (void)snprintf(buf, sizeof(buf), "%u", (unsigned)level);
     return cfg->write(CONFIG_GROUP_DISPLAY, CONFIG_KEY_DISPLAY_BRIGHTNESS, buf) == PORT_OK;

@@ -948,6 +948,25 @@ MQTT_HA_GENERIC(mqtt_ha_format_reboot_config,
     "Reboot", "reboot", NULL, "cmd/reboot",
     "\"payload_press\":\"{}\",\"device_class\":\"restart\",\"entity_category\":\"config\"")
 
+MQTT_HA_GENERIC(mqtt_ha_format_eaten_reset_config,
+    "Reset eaten today", "eaten_reset", NULL, "cmd/eaten_reset",
+    "\"payload_press\":\"{}\",\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_battery_wifi_config,
+    "Wi-Fi on battery", "battery_wifi", "power", "cmd/power",
+    "\"value_template\":\"{{ value_json.battery_wifi }}\","
+    "\"command_template\":\"{\\\"battery_wifi\\\": \\\"{{ value }}\\\"}\","
+    "\"options\":[\"on\",\"off\",\"scheduled_only\"],"
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_ota_base_config,
+    "Firmware URL", "ota_base", "ota/base", "cmd/ota_base",
+    "\"mode\":\"text\",\"min\":0,\"max\":120,\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_ota_install_config,
+    "Install firmware update", "ota_install", NULL, "cmd/ota",
+    "\"payload_press\":\"{\\\"install\\\":true}\",\"device_class\":\"update\",\"entity_category\":\"config\"")
+
 MQTT_HA_GENERIC(mqtt_ha_format_calibrate_zero_config,
     "Calibrate zero (bowl removed)", "calibrate_zero", NULL, "cmd/calibrate",
     "\"payload_press\":\"{\\\"action\\\":\\\"zero\\\"}\",\"entity_category\":\"config\"")
@@ -960,14 +979,14 @@ MQTT_HA_GENERIC(mqtt_ha_format_display_mode_config,
     "Display mode", "display_mode", "display", "cmd/display",
     "\"value_template\":\"{{ value_json.mode }}\","
     "\"command_template\":\"{\\\"mode\\\": \\\"{{ value }}\\\"}\","
-    "\"options\":[\"weight\",\"eaten_today\",\"off\"],"
+    "\"options\":[\"weight\",\"eaten_today\"],"
     "\"entity_category\":\"config\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_display_brightness_config,
     "Display brightness", "display_brightness", "display", "cmd/display",
     "\"value_template\":\"{{ value_json.brightness }}\","
     "\"command_template\":\"{\\\"brightness\\\": {{ value | int }}}\","
-    "\"min\":1,\"max\":4,\"step\":1,\"mode\":\"slider\",\"optimistic\":false,"
+    "\"min\":0,\"max\":4,\"step\":1,\"mode\":\"slider\",\"optimistic\":false,"
     "\"entity_category\":\"config\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_display_battery_off_config,
@@ -1077,6 +1096,26 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .component = "button",
         .object_id = "reboot",
         .format_config = mqtt_ha_format_reboot_config,
+    },
+    {
+        .component = "select",
+        .object_id = "battery_wifi",
+        .format_config = mqtt_ha_format_battery_wifi_config,
+    },
+    {
+        .component = "text",
+        .object_id = "ota_base",
+        .format_config = mqtt_ha_format_ota_base_config,
+    },
+    {
+        .component = "button",
+        .object_id = "ota_install",
+        .format_config = mqtt_ha_format_ota_install_config,
+    },
+    {
+        .component = "button",
+        .object_id = "eaten_reset",
+        .format_config = mqtt_ha_format_eaten_reset_config,
     },
     {
         .component = "button",

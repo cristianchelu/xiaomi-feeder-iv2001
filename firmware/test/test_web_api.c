@@ -5,6 +5,7 @@
 #include "unity.h"
 
 #include "bowl_mass_present.h"
+#include "display_settings.h"
 #include "fake_config_port.h"
 #include "fake_time_port.h"
 #include "feed_config.h"
@@ -174,4 +175,42 @@ void test_web_api_handle_get_status_telemetry(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"bowl_error\":false"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"battery\":\"85\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"mains\":\"ON\""));
+}
+
+void test_web_api_classify_settings_posts(void)
+{
+    TEST_ASSERT_EQUAL(WEB_API_POST_DISPLAY, web_api_classify("POST", "/api/display"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_CALIBRATE, web_api_classify("POST", "/api/calibrate"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_EATEN_RESET, web_api_classify("POST", "/api/eaten_reset"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_REBOOT, web_api_classify("POST", "/api/reboot"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_CHILD_LOCK, web_api_classify("POST", "/api/child_lock"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_POWER, web_api_classify("POST", "/api/power"));
+}
+
+void test_web_api_post_display_sets_brightness_zero(void)
+{
+    char resp[64];
+    const char body[] = "{\"brightness\":0}";
+
+    fake_config_port_reset();
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_DISPLAY, body, strlen(body), resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    TEST_ASSERT_EQUAL_UINT8(0u, display_settings_brightness_get());
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_DISPLAY, "{\"mode\":\"off\"}", 14u, resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"rejected\"}", resp);
+}
+
+void test_web_api_status_includes_settings(void)
+{
+    char buf[768];
+
+    setup_status_synced();
+    setup_status_telemetry();
+    fake_config_port_reset();
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_STATUS, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"display\":{\"mode\":\"weight\",\"brightness\":4,\"battery_off_s\":60}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"power\":{\"battery_wifi\":\"on\"}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"child_lock\":false"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"eaten_today\":\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"hopper_ir\":"));
 }

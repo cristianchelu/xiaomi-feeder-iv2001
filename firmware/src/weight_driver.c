@@ -232,10 +232,48 @@ port_err_t weight_read_raw_grams(weight_driver_state_t *state, int32_t *grams)
     return PORT_OK;
 }
 
+/* Median of N queries; refuses a jittery scale (hand on it, bowl moving). */
+static port_err_t weight_capture_raw(weight_driver_state_t *state, int32_t *out)
+{
+    int32_t v[WEIGH_CAL_CAPTURE_SAMPLES];
+    uint32_t i;
+    uint32_t j;
+
+    for (i = 0u; i < WEIGH_CAL_CAPTURE_SAMPLES; i++) {
+        cs1270_status_t st;
+        port_err_t err = weight_query_raw(state, &v[i], &st);
+
+        if (err != PORT_OK) {
+            return err;
+        }
+        if (st != CS1270_STATUS_WEIGHT) {
+            return PORT_ERR_NOT_SUPPORTED;
+        }
+        if (state->hw.delay_ms != NULL) {
+            state->hw.delay_ms(CS1270_POLL_MS);
+        }
+    }
+
+    for (i = 1u; i < WEIGH_CAL_CAPTURE_SAMPLES; i++) {
+        int32_t key = v[i];
+
+        for (j = i; j > 0u && v[j - 1u] > key; j--) {
+            v[j] = v[j - 1u];
+        }
+        v[j] = key;
+    }
+
+    if ((v[WEIGH_CAL_CAPTURE_SAMPLES - 1u] - v[0]) > WEIGH_CAL_CAPTURE_MAX_SPREAD) {
+        return PORT_ERR_BUSY;
+    }
+
+    *out = v[WEIGH_CAL_CAPTURE_SAMPLES / 2u];
+    return PORT_OK;
+}
+
 port_err_t weight_calibrate_zero(weight_driver_state_t *state)
 {
     int32_t raw;
-    cs1270_status_t st;
     port_err_t err;
 
     if (state == NULL) {
@@ -252,13 +290,21 @@ port_err_t weight_calibrate_zero(weight_driver_state_t *state)
         return err;
     }
 
-    err = weight_query_raw(state, &raw, &st);
+    err = weight_capture_raw(state, &raw);
     if (err != PORT_OK) {
         return err;
     }
 
-    if (st != CS1270_STATUS_WEIGHT) {
-        return PORT_ERR_NOT_SUPPORTED;
+    /* A complete calibration already exists: a "zero" reading near the bowl
+     * level means the bowl is still installed. */
+    if (weigh_cal_is_complete(&state->cal)) {
+        int64_t span_delta = (int64_t)state->cal.span_raw - state->cal.zero_raw;
+        int64_t now_delta = (int64_t)raw - state->cal.zero_raw;
+
+        if (now_delta * 2 * (span_delta < 0 ? -1 : 1) >=
+            (span_delta < 0 ? -span_delta : span_delta)) {
+            return PORT_ERR_INVALID_ARG;
+        }
     }
 
     return weigh_cal_save_zero(state->hw.config, raw, &state->cal);
@@ -267,7 +313,6 @@ port_err_t weight_calibrate_zero(weight_driver_state_t *state)
 port_err_t weight_calibrate_span(weight_driver_state_t *state)
 {
     int32_t raw;
-    cs1270_status_t st;
     port_err_t err;
 
     if (state == NULL) {
@@ -288,13 +333,9 @@ port_err_t weight_calibrate_span(weight_driver_state_t *state)
         return err;
     }
 
-    err = weight_query_raw(state, &raw, &st);
+    err = weight_capture_raw(state, &raw);
     if (err != PORT_OK) {
         return err;
-    }
-
-    if (st != CS1270_STATUS_WEIGHT) {
-        return PORT_ERR_NOT_SUPPORTED;
     }
 
     return weigh_cal_save_span(state->hw.config, WEIGH_BOWL_MASS_G, raw, &state->cal);

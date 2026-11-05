@@ -7,6 +7,8 @@
 #include <string.h>
 
 #include "dispense.h"
+#include "eaten_today.h"
+#include "mqtt_eaten_today.h"
 #include "mqtt_config.h"
 #include "mqtt_dispense_cmd.h"
 #include "app.h"
@@ -16,6 +18,8 @@
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
+#include "mqtt_power.h"
+#include "ota_base.h"
 #include "mqtt_schedule.h"
 #include "reboot_request.h"
 #include "schedule.h"
@@ -84,8 +88,15 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
         return err;
     }
 
-    case MQTT_ROUTE_CMD_CALIBRATE:
-        return mqtt_calibrate_handle(payload, len);
+    case MQTT_ROUTE_CMD_CALIBRATE: {
+        port_err_t err = mqtt_calibrate_handle(payload, len);
+
+        if (err == PORT_OK) {
+            app_weight_notify_calibration_changed();
+        }
+
+        return err;
+    }
 
     case MQTT_ROUTE_CMD_DISPLAY: {
         port_err_t err = mqtt_display_handle(payload, len);
@@ -96,6 +107,17 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
         return err;
     }
+
+    case MQTT_ROUTE_CMD_POWER:
+        return mqtt_power_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_OTA_BASE:
+        return ota_base_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_EATEN_RESET:
+        eaten_today_reset();
+        mqtt_eaten_today_sync();
+        return PORT_OK;
 
     case MQTT_ROUTE_CMD_REBOOT:
         return reboot_request_arm();

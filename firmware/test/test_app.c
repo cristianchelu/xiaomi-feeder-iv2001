@@ -30,6 +30,8 @@
 #include "fake_time.h"
 #include "mqtt_cred.h"
 #include "ota_client.h"
+#include "reboot_request.h"
+#include "feeder_runtime.h"
 #include "display_presentation.h"
 #include "display_child_lock_indicator.h"
 #include "display_wifi_indicator.h"
@@ -1097,4 +1099,55 @@ void test_app_child_lock_command_updates_panel_icon(void)
     app_step();
     (void)fake_display_port_last_grids(grids);
     TEST_ASSERT_EQUAL_UINT8(0x00u, grids[TEST_LOCK_ICON_GRID] & TEST_LOCK_ICON_BIT);
+}
+
+static void app_hold_button(bool power, bool reset, uint32_t from_ms, uint32_t hold_ms)
+{
+    button_sample_t down = { .power_pressed = power, .reset_pressed = reset, .dispense_pressed = false };
+    button_sample_t up = { .power_pressed = false, .reset_pressed = false, .dispense_pressed = false };
+    uint32_t t;
+
+    fake_button_port_set_sample(&down);
+    for (t = from_ms; t <= from_ms + hold_ms; t += 50u) {
+        post_display_tick(t);
+        app_step();
+    }
+    fake_button_port_set_sample(&up);
+    post_display_tick(from_ms + hold_ms + 50u);
+    app_step();
+    post_display_tick(from_ms + hold_ms + 100u);
+    app_step();
+}
+
+void test_app_power_long_press_sleeps_and_short_press_wakes(void)
+{
+    app_test_reset();
+    fake_button_port_reset();
+    reboot_request_test_reset();
+    feeder_runtime_test_reset();
+
+    TEST_ASSERT_FALSE(app_is_asleep());
+    app_hold_button(true, false, 0u, 3200u);
+    TEST_ASSERT_TRUE(app_is_asleep());
+    TEST_ASSERT_FALSE(reboot_request_pending());
+
+    app_hold_button(true, false, 5000u, 200u);
+    TEST_ASSERT_TRUE(reboot_request_pending());
+}
+
+void test_app_reset_hole_long_press_factory_resets(void)
+{
+    const config_port_t *cfg = fake_config_port_get();
+    char buf[16];
+
+    app_test_reset();
+    fake_button_port_reset();
+    fake_config_port_reset();
+    reboot_request_test_reset();
+    feeder_runtime_test_reset();
+    TEST_ASSERT_EQUAL(PORT_OK, cfg->write("wifi", "ssid", "HomeNet"));
+
+    app_hold_button(false, true, 0u, 7200u);
+    TEST_ASSERT_NOT_EQUAL(PORT_OK, cfg->read("wifi", "ssid", buf, sizeof(buf)));
+    TEST_ASSERT_TRUE(reboot_request_pending());
 }
