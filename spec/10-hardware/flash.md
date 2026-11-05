@@ -16,6 +16,12 @@ when the ID is not in the table) with no further UART output and no watchdog
 reset, right after `hal_clock_set_pll_dcm_init`. Both IDs therefore need an
 entry (`flash_combo_w25q16dw.patch`, `flash_combo_gd25lq16.patch`). `[bootlog]`
 
+The SDK flash driver also compiles vendor support per manufacturer (`SF_DAL_*`
+in `hal_flash_opt_gen.h`); only Macronix and Winbond are on by default. With
+the combo entry present but `SF_DAL_GIGADEVICE` off, `hal_flash_init()` stops on
+an assertion for manufacturer `0xC8` (UART stops after `hal_flash_init`).
+`flash_dal_gigadevice.patch` enables it. `[bootlog]` 2026-11-05
+
 ## Chip characteristics
 
 Verified against Winbond W25Q16DW datasheet (Rev J, Sep 2014)

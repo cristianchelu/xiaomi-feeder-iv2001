@@ -1,0 +1,10 @@
+--- a/driver/chip/mt7686/inc/hal_flash_opt_gen.h
++++ b/driver/chip/mt7686/inc/hal_flash_opt_gen.h
+@@ -44,6 +44,7 @@
+ #define __SERIAL_FLASH__
+ #define SF_DAL_MXIC
+ #define SF_DAL_WINBOND
++#define SF_DAL_GIGADEVICE
+ #define __NON_INTEL_SIBLEY__
+ 
+ 
