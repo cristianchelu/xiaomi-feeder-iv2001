@@ -22,6 +22,14 @@ the combo entry present but `SF_DAL_GIGADEVICE` off, `hal_flash_init()` stops on
 an assertion for manufacturer `0xC8` (UART stops after `hal_flash_init`).
 `flash_dal_gigadevice.patch` enables it. `[bootlog]` 2026-11-05
 
+The flash-controller (SFI) settings for the GigaDevice part are not the
+Winbond ones. Copying the Winbond QPI sequence made the ID read back `FF FF FF`
+after `custom_setSFI` and `CMEM_Index()` returned -1 (hang). The values in
+`flash_combo_gd25lq16.patch` are those of the stock firmware's bootloader table
+entry for JEDEC `C8 60 15` (read from the flash backup): quad SPI direct read
+`0xEB0B5770`, `SFI_MISC_CTL` `0x52F80300`, sample delay `0x1D00001D`, device init
+`50`, `01 02 02`, `05 01`, `77 FF`, no QPI entry. `[bootlog]` 2026-11-05
+
 ## Chip characteristics
 
 Verified against Winbond W25Q16DW datasheet (Rev J, Sep 2014)

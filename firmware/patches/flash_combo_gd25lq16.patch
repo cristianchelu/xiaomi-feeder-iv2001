@@ -50,20 +50,21 @@
      COMBO_MEM_STRUCT_FOOT
 --- a/driver/chip/mt7686/inc/hal_flash_combo_sfi_config.h
 +++ b/driver/chip/mt7686/inc/hal_flash_combo_sfi_config.h
-@@ -238,6 +238,38 @@
+@@ -238,6 +238,39 @@
                  0
              }
          }
 +        ,
 +        {
-+            // GD25LQ16 (GigaDevice 2 MB, IV2001) — SFI from MTKSIP_2523_SF_32_04 (EF 60 18)
++            // GD25LQ16 (GigaDevice 2 MB, IV2001) — values read from the stock
++            // bootloader's SFI table (JEDEC C8 60 15): quad SPI, not QPI
 +            {
 +                0x00010000,
-+                0x0C0B7771,
-+                0x52F80310,
-+                0x00000001,
++                0xEB0B5770,
++                0x52F80300,
++                0x00000000,
 +                0x0,
-+                0x17000017,
++                0x1D00001D,
 +                0x00040004,
 +                0,
 +                0,
@@ -71,7 +72,7 @@
 +            },
 +            {
 +                SPI, 1, 0x50, SPI, 3, 0x01, 0x02, 0x02,
-+                SPI, 1, 0x38, QPI, 2, 0xC0, 0x32, SF_UNDEF,
++                SPI, 2, 0x05, 0x01, SPI, 2, 0x77, 0xFF,
 +                0, 0, 0, 0, 0, 0, 0, 0,
 +                0, 0, 0, 0, 0, 0, 0, 0
 +            },
