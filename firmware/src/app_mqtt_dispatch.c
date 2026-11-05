@@ -88,6 +88,7 @@ void app_mqtt_dispatch(const char *topic,
     case MQTT_ROUTE_CMD_FEED_OVERFILL:
     case MQTT_ROUTE_CMD_CHILD_LOCK:
     case MQTT_ROUTE_CMD_DISPLAY:
+    case MQTT_ROUTE_CMD_CALIBRATE:
     case MQTT_ROUTE_CMD_REBOOT:
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:

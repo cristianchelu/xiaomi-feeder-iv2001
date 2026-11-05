@@ -52,7 +52,7 @@ unchanged.
 | `.../cmd/schedule/skip` | `{"hour":8,"min":0,"skip":true}` | 1 |
 | `.../cmd/schedule/enable` | `{"enabled":true}` | 1 |
 | `.../cmd/schedule/today` | `{"enabled":true}` | 1 |
-| `.../cmd/calibrate` | `{"action": "zero"}` or `{"action": "span"}` | 1 |
+| `.../cmd/calibrate` | `{"action": "zero"}` or `{"action": "span"}` — see [Calibrate command](#calibrate-command) | 1 |
 | `.../cmd/display` | `{"mode": "weight", "brightness": 4}` | 1 |
 | `.../cmd/feed/mode` | `open_loop` or `compensated` (plain text) — see [Feed mode](#feed-mode) | 1 |
 | `.../cmd/feed/overfill` | `{"enabled":true}` and/or `{"threshold_g":40}` — see [Overfill protection](#overfill-protection) | 1 |
@@ -685,6 +685,29 @@ whether it came from the physical combo or from `cmd/child_lock`.
 
 Home Assistant discovery publishes a **switch** (`child_lock`) with
 `entity_category: config` — see [validation slice](#home-assistant-validation-slice).
+
+## Calibrate command
+
+`cmd/calibrate` runs the same capture as UART `weigh cal zero|span`
+([weighing.md](weighing.md) § Calibration) and persists the result in NVDM.
+
+| Action | Precondition | Effect |
+|--------|--------------|--------|
+| `zero` | Bowl **removed** | Captures `calib/zero` |
+| `span` | Zero captured, provided 350 g bowl installed (empty) | Captures `calib/span_g` + `calib/span_raw` |
+
+Rules:
+
+- Payload is JSON with a string `action`; anything else (missing, unknown
+  action, non-JSON) is rejected at info with no capture.
+- Rejected with `PORT_ERR_BUSY` while a dispense or an OTA is active.
+- `span` before `zero` is rejected by the driver (`PORT_ERR_INVALID_ARG`).
+- A capture error from the scale (rail off, no stable sample) is logged at
+  info (`calibrate <action> failed`) and leaves NVDM unchanged.
+- Success logs `calibrate zero ok` / `calibrate span ok`. The calibration
+  state surfaces through the existing `bowl_error` and `bowl_weight` topics
+  on the next weigh tick; no dedicated state topic.
+- Not exposed on the web API (MQTT and UART only).
 
 ## Display
 

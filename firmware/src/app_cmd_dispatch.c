@@ -10,6 +10,7 @@
 #include "mqtt_config.h"
 #include "mqtt_dispense_cmd.h"
 #include "app.h"
+#include "mqtt_calibrate.h"
 #include "mqtt_child_lock.h"
 #include "mqtt_display.h"
 #include "mqtt_feed_mode.h"
@@ -82,6 +83,9 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
         return err;
     }
+
+    case MQTT_ROUTE_CMD_CALIBRATE:
+        return mqtt_calibrate_handle(payload, len);
 
     case MQTT_ROUTE_CMD_DISPLAY: {
         port_err_t err = mqtt_display_handle(payload, len);
