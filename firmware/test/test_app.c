@@ -24,6 +24,10 @@
 #include "mqtt_client.h"
 #include "mqtt_client_test.h"
 #include "mqtt_bowl_weight.h"
+#include "mqtt_child_lock.h"
+#include "mqtt_outbox.h"
+#include "app_cmd_dispatch.h"
+#include "fake_time.h"
 #include "mqtt_cred.h"
 #include "ota_client.h"
 #include "display_presentation.h"
@@ -1011,4 +1015,86 @@ void test_app_calibrated_bowl_missing_shows_underflow_and_icon(void)
     TEST_ASSERT_EQUAL_HEX8(0x00u, grids[2]);
     TEST_ASSERT_EQUAL_HEX8(0x04u, grids[4]);
     TEST_ASSERT_NOT_NULL(strstr(app_log_test_last_line(), "bowl missing"));
+}
+
+void test_app_child_lock_combo_publishes_state(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    button_sample_t both_down = {
+        .power_pressed = false,
+        .reset_pressed = true,
+        .dispense_pressed = true,
+    };
+
+    app_test_reset();
+    fake_button_port_reset();
+    fake_config_port_reset();
+    fake_mqtt_port_reset();
+    fake_time_reset();
+    mqtt_outbox_reset();
+    mqtt_child_lock_test_reset();
+    mqtt_outbox_set_accepting(true);
+    fake_mqtt_port_get()->connect(NULL);
+    mqtt_child_lock_set_device_id("ddeeff");
+
+    fake_button_port_set_sample(&both_down);
+    post_display_tick(0u);
+    app_step();
+    post_display_tick(50u);
+    app_step();
+    post_display_tick(50u + BUTTON_GESTURE_CHILD_LOCK_MS + 50u);
+    app_step();
+
+    while (mqtt_outbox_pending() > 0) {
+        if (!mqtt_outbox_drain_one(fake_mqtt_port_get())) {
+            fake_time_advance_ms(101u);
+            (void)mqtt_outbox_drain_one(fake_mqtt_port_get());
+        }
+    }
+
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_TRUE(feed_config_child_lock_is_active());
+    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/child_lock", mqtt->last_publish_topic);
+    TEST_ASSERT_EQUAL_STRING("ON", mqtt->last_publish_payload);
+}
+
+/* CHILD_LOCK icon is bit 0 of grid 3 — see display_glyph.c. */
+#define TEST_LOCK_ICON_GRID  3u
+#define TEST_LOCK_ICON_BIT   0x01u
+
+void test_app_child_lock_command_updates_panel_icon(void)
+{
+    uint8_t grids[TM1637_GRID_COUNT];
+
+    /* Start from an unlocked config and a clean panel (earlier tests leave the icon on). */
+    fake_config_port_reset();
+    app_test_reset();
+    display_child_lock_indicator_test_reset();
+    display_presentation_reset();
+    fake_button_port_reset();
+    mqtt_outbox_reset();
+    mqtt_child_lock_test_reset();
+    mqtt_child_lock_set_device_id("ddeeff");
+
+    /* Unlock first so the icon state is known regardless of earlier tests. */
+    TEST_ASSERT_EQUAL(PORT_OK,
+                      app_cmd_dispatch(MQTT_ROUTE_CMD_CHILD_LOCK, "OFF", 3u, "ddeeff"));
+    post_display_tick(0u);
+    app_step();
+    (void)fake_display_port_last_grids(grids);
+    TEST_ASSERT_EQUAL_UINT8(0x00u, grids[TEST_LOCK_ICON_GRID] & TEST_LOCK_ICON_BIT);
+
+    TEST_ASSERT_EQUAL(PORT_OK,
+                      app_cmd_dispatch(MQTT_ROUTE_CMD_CHILD_LOCK, "ON", 2u, "ddeeff"));
+    post_display_tick(50u);
+    app_step();
+    (void)fake_display_port_last_grids(grids);
+    TEST_ASSERT_EQUAL_UINT8(TEST_LOCK_ICON_BIT, grids[TEST_LOCK_ICON_GRID] & TEST_LOCK_ICON_BIT);
+
+    TEST_ASSERT_EQUAL(PORT_OK,
+                      app_cmd_dispatch(MQTT_ROUTE_CMD_CHILD_LOCK, "OFF", 3u, "ddeeff"));
+    post_display_tick(100u);
+    app_step();
+    (void)fake_display_port_last_grids(grids);
+    TEST_ASSERT_EQUAL_UINT8(0x00u, grids[TEST_LOCK_ICON_GRID] & TEST_LOCK_ICON_BIT);
 }

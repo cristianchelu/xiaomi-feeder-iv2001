@@ -42,6 +42,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/mqtt_json.c \
              ../src/mqtt_feed_mode.c \
              ../src/mqtt_feed_overfill.c \
+             ../src/mqtt_child_lock.c \
              ../src/mqtt_backoff.c \
              ../src/mqtt_topics.c \
              ../src/mqtt_route.c \

@@ -264,7 +264,7 @@ void test_mqtt_ha_discovery_schedule_enqueues_one_item(void)
     mqtt_outbox_reset();
     mqtt_outbox_set_accepting(true);
     mqtt_ha_discovery_schedule(TEST_DEVICE_ID);
-    TEST_ASSERT_EQUAL_UINT(13, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(14, mqtt_outbox_pending());
 }
 
 void test_mqtt_ha_discovery_schedule_drain_publishes_retained(void)
@@ -281,8 +281,26 @@ void test_mqtt_ha_discovery_schedule_drain_publishes_retained(void)
     drain_all_outbox();
 
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_EQUAL_UINT(13, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/number/petfeeder_ddeeff/overfill_threshold_g/config",
+    TEST_ASSERT_EQUAL_UINT(14, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/child_lock/config",
                              mqtt->last_publish_topic);
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Overfill threshold\""));
+    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"name\":\"Child lock\""));
+}
+
+void test_mqtt_ha_format_child_lock_config_json(void)
+{
+    char buf[768];
+    int written;
+
+    written = mqtt_ha_format_child_lock_config(buf, sizeof(buf), TEST_DEVICE_ID);
+    TEST_ASSERT_GREATER_THAN(0, written);
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"name\":\"Child lock\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/child_lock\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_on\":\"ON\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_off\":\"OFF\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/child_lock\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_on\":\"ON\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_off\":\"OFF\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"unique_id\":\"petfeeder_ddeeff_child_lock\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"config\""));
 }

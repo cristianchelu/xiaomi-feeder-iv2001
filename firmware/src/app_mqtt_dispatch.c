@@ -18,6 +18,7 @@
 #include "mqtt_timezone.h"
 #include "mqtt_schedule.h"
 #include "mqtt_config.h"
+#include "mqtt_child_lock.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "hopper_level.h"
@@ -53,6 +54,7 @@ void app_mqtt_on_connected(void)
     mqtt_config_connect_snapshot();
     mqtt_feed_mode_connect_snapshot();
     mqtt_feed_overfill_connect_snapshot();
+    mqtt_child_lock_connect_snapshot();
 }
 
 void app_mqtt_dispatch(const char *topic,
@@ -82,6 +84,7 @@ void app_mqtt_dispatch(const char *topic,
     case MQTT_ROUTE_CMD_CONFIG:
     case MQTT_ROUTE_CMD_FEED_MODE:
     case MQTT_ROUTE_CMD_FEED_OVERFILL:
+    case MQTT_ROUTE_CMD_CHILD_LOCK:
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:
     case MQTT_ROUTE_CMD_SCHEDULE_TOGGLE:

@@ -138,6 +138,7 @@ APP_FILES      += $(APP_PATH_SRC)/time_config.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_config.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_json.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_mode.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_child_lock.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_overfill.c
 APP_FILES      += $(APP_PATH_SRC)/app_time_cli.c
 APP_FILES      += $(APP_PATH_SRC)/app_feed_cli.c

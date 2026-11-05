@@ -78,6 +78,9 @@ mqtt_route_kind_t mqtt_route_classify(const char *topic, const char *device_id)
     if (topic_matches_cmd(topic, device_id, "feed/overfill")) {
         return MQTT_ROUTE_CMD_FEED_OVERFILL;
     }
+    if (topic_matches_cmd(topic, device_id, "child_lock")) {
+        return MQTT_ROUTE_CMD_CHILD_LOCK;
+    }
     if (topic_matches_cmd(topic, device_id, "reboot")) {
         return MQTT_ROUTE_CMD_REBOOT;
     }
@@ -117,6 +120,8 @@ const char *mqtt_route_label(mqtt_route_kind_t route)
         return "feed_mode";
     case MQTT_ROUTE_CMD_FEED_OVERFILL:
         return "feed_overfill";
+    case MQTT_ROUTE_CMD_CHILD_LOCK:
+        return "child_lock";
     case MQTT_ROUTE_CMD_REBOOT:
         return "reboot";
     case MQTT_ROUTE_CMD_OTA:

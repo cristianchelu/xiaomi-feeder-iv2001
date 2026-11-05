@@ -20,6 +20,7 @@
 #include "config_port.h"
 #include "display_mqtt_indicator.h"
 #include "display_child_lock_indicator.h"
+#include "mqtt_child_lock.h"
 #include "display_bowl_error_indicator.h"
 #include "display_presentation.h"
 #include "mqtt_state.h"
@@ -418,6 +419,11 @@ static void app_child_lock_sync_display(bool locked)
     (void)display_presentation_icon_set(DISPLAY_ICON_CHILD_LOCK, locked);
 }
 
+void app_child_lock_refresh_display(void)
+{
+    app_child_lock_sync_display(feed_config_child_lock_is_active());
+}
+
 static void app_button_handle_gesture(const button_gesture_event_t *ev)
 {
     if (ev == NULL) {
@@ -431,6 +437,7 @@ static void app_button_handle_gesture(const button_gesture_event_t *ev)
         locked = feed_config_child_lock_toggle();
         app_child_lock_sync_display(locked);
         app_log_info("app", "child_lock %s", locked ? "on" : "off");
+        mqtt_child_lock_publish_snapshot();
         return;
     }
 

@@ -9,6 +9,8 @@
 #include "dispense.h"
 #include "mqtt_config.h"
 #include "mqtt_dispense_cmd.h"
+#include "app.h"
+#include "mqtt_child_lock.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
@@ -68,6 +70,16 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
     case MQTT_ROUTE_CMD_FEED_OVERFILL:
         return mqtt_feed_overfill_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_CHILD_LOCK: {
+        port_err_t err = mqtt_child_lock_handle(payload, len);
+
+        if (err == PORT_OK) {
+            app_child_lock_refresh_display();
+        }
+
+        return err;
+    }
 
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:
