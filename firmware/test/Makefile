@@ -59,6 +59,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/schedule_cmd.c \
              ../src/mqtt_schedule.c \
              ../src/app_cmd_dispatch.c \
+             ../src/reboot_request.c \
              ../src/web_api.c \
              ../src/web_ui.c \
              ../src/web_ui_gz.c \
@@ -144,6 +145,7 @@ HOST_SRCS :=              ../src/app_log.c \
              fakes/fake_adc_port.c \
              fakes/fake_config_port.c \
              fakes/fake_time_port.c \
+             fakes/fake_system_port.c \
              fakes/fake_boot_bank.c \
              fakes/fake_mqtt_port.c \
              fakes/fake_ota_port.c \

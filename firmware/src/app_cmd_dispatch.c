@@ -15,6 +15,7 @@
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
 #include "mqtt_schedule.h"
+#include "reboot_request.h"
 #include "schedule.h"
 #include "schedule_cmd.h"
 
@@ -80,6 +81,9 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
         return err;
     }
+
+    case MQTT_ROUTE_CMD_REBOOT:
+        return reboot_request_arm();
 
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:

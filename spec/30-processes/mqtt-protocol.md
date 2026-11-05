@@ -58,8 +58,22 @@ unchanged.
 | `.../cmd/feed/overfill` | `{"enabled":true}` and/or `{"threshold_g":40}` — see [Overfill protection](#overfill-protection) | 1 |
 | `.../cmd/child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../cmd/config` | `{"tz_rule":"...", "tz_label":"..."}` — **legacy** time slice only; see [Config snapshot](#config-snapshot) | 1 |
-| `.../cmd/reboot` | `{}` | 1 |
+| `.../cmd/reboot` | `{}` — restart the device ([Reboot command](#reboot-command)) | 1 |
 | `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional | 1 |
+
+### Reboot command
+
+`cmd/reboot` restarts the whole device. Payload is ignored (`{}`).
+
+| Condition | Result |
+|-----------|--------|
+| Dispense active | Rejected (`PORT_ERR_BUSY`), no reboot |
+| OTA active | Rejected (`PORT_ERR_BUSY`), no reboot |
+| Otherwise | Accepted; reboot happens `[tune]` 500 ms after the next display tick (lets the outbox flush and logs drain) |
+
+A second `cmd/reboot` while one is pending is accepted and does not extend
+the deadline. Configuration is untouched (this is not a factory reset).
+Not exposed on the web API (MQTT only, see [web-ui.md](web-ui.md)).
 
 ## Last Will and Testament (LWT)
 

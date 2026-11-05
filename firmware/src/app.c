@@ -52,6 +52,7 @@
 #include "hopper_level.h"
 #include "mqtt_hopper.h"
 #include "mqtt_ha_discovery.h"
+#include "reboot_request.h"
 #include "power_source_input.h"
 #include "power_source_port.h"
 #include "battery_monitor.h"
@@ -597,6 +598,7 @@ void app_dispatch(const app_event_t *ev)
         app_hopper_mqtt_sync();
         app_power_mqtt_sync();
         (void)mqtt_ha_discovery_pump();
+        reboot_request_poll(ev->u.display_tick.now_ms);
         break;
 
     case EVT_BUTTON_IRQ:
