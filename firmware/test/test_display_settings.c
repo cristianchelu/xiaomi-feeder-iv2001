@@ -67,3 +67,15 @@ void test_display_settings_mode_names_parse_and_format(void)
     TEST_ASSERT_FALSE(display_settings_mode_parse("", &m));
     TEST_ASSERT_FALSE(display_settings_mode_parse(NULL, &m));
 }
+
+void test_display_settings_battery_off_default_and_round_trip(void)
+{
+    setup();
+    TEST_ASSERT_EQUAL_UINT16(60u, display_settings_battery_off_s_get());
+    TEST_ASSERT_TRUE(display_settings_battery_off_s_set(0u));
+    TEST_ASSERT_EQUAL_UINT16(0u, display_settings_battery_off_s_get());
+    TEST_ASSERT_TRUE(display_settings_battery_off_s_set(600u));
+    TEST_ASSERT_EQUAL_UINT16(600u, display_settings_battery_off_s_get());
+    TEST_ASSERT_FALSE(display_settings_battery_off_s_set(601u));
+    TEST_ASSERT_EQUAL_UINT16(600u, display_settings_battery_off_s_get());
+}

@@ -140,6 +140,7 @@ APP_FILES      += $(APP_PATH_SRC)/mqtt_config.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_json.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_mode.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_child_lock.c
+APP_FILES      += $(APP_PATH_SRC)/display_idle.c
 APP_FILES      += $(APP_PATH_SRC)/eaten_today.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_eaten_today.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_calibrate.c

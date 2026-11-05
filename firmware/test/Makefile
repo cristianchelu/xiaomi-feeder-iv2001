@@ -43,6 +43,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/mqtt_feed_mode.c \
              ../src/mqtt_feed_overfill.c \
              ../src/mqtt_child_lock.c \
+             ../src/display_idle.c \
              ../src/eaten_today.c \
              ../src/mqtt_eaten_today.c \
              ../src/mqtt_calibrate.c \

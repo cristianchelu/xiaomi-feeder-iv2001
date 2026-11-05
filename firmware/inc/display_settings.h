@@ -18,6 +18,12 @@ typedef enum {
 #define DISPLAY_BRIGHTNESS_MAX      4u
 #define DISPLAY_BRIGHTNESS_DEFAULT  4u
 
+#define DISPLAY_BATTERY_OFF_S_MAX      600u
+#define DISPLAY_BATTERY_OFF_S_DEFAULT  60u
+
+uint16_t display_settings_battery_off_s_get(void);
+bool display_settings_battery_off_s_set(uint16_t seconds);
+
 display_mode_t display_settings_mode_get(void);
 bool display_settings_mode_set(display_mode_t mode);
 uint8_t display_settings_brightness_get(void);

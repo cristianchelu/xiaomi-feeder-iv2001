@@ -369,6 +369,22 @@ while blanked stores the level without powering the panel. `app` applies the
 persisted mode and brightness on boot (after `display_presentation_reset`) and
 after every successful `cmd/display`.
 
+## Idle blank on battery
+
+On battery the panel is the largest avoidable draw, so it blanks after
+inactivity (`display_idle`, pure logic over `display_presentation_set_blanked`):
+
+- Setting `display/battery_off_s` (0–600 s, default `[tune]` 60; **0 =
+  disabled**), set through `cmd/display` key `battery_off_s`.
+- Blank when the debounced power source is **battery** and no *activity* for
+  `battery_off_s` seconds. On mains the panel never idle-blanks.
+- *Activity* = any button edge, a dispense in progress, the OTA indicator,
+  a `cmd/display` change, or a power-source change. Any activity wakes the panel
+  within one display tick (50 ms).
+- Idle blank and mode `off` combine with OR: the panel is blanked when either
+  is true. Idle blank never changes the stored mode.
+- MQTT bowl state keeps publishing while blanked (same as mode `off`).
+
 ## Lock indicator
 
 When child lock blocks a physical button gesture, blank the digit area and

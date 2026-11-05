@@ -27,7 +27,7 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../feed/overfill` | `{"enabled":false,"threshold_g":50}` — see [Overfill protection](#overfill-protection) | 1 |
 | `.../child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../timezone` | Device timezone plain text — see [Device timezone](#device-timezone) | 1 |
-| `.../display` | `{"mode": "weight", "brightness": 4}` | 1 |
+| `.../display` | `{"mode": "weight", "brightness": 4, "battery_off_s": 60}` | 1 |
 | `.../eaten_today` | `85.3` — plain string, one decimal (0.1 g); see [Eaten today](#eaten-today) | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
 
@@ -726,7 +726,7 @@ from NVDM `display/mode` and `display/brightness` (see
 [display-presentation.md](display-presentation.md) § Display modes):
 
 ```json
-{"mode":"weight","brightness":4}
+{"mode":"weight","brightness":4,"battery_off_s":60}
 ```
 
 Command topic `.../cmd/display` takes a JSON object with either or both keys:
@@ -735,6 +735,7 @@ Command topic `.../cmd/display` takes a JSON object with either or both keys:
 |-----|--------|--------|
 | `mode` | `weight` \| `eaten_today` \| `off` | `off` blanks the panel and powers the TM1637 rail down; `weight` restores the bowl-weight scene |
 | `brightness` | integer 1–4 | TM1637 brightness; stored even while the panel is off |
+| `battery_off_s` | integer 0–600 | Seconds of inactivity before the panel blanks **on battery**; `0` disables ([display-presentation.md](display-presentation.md) § Idle blank on battery) |
 
 Rules:
 

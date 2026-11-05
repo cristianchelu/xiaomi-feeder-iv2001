@@ -15,7 +15,7 @@
 #include "port_err.h"
 
 static char s_display_topic[96];
-static char s_last_payload[48];
+static char s_last_payload[80];
 static bool s_last_payload_valid;
 
 bool mqtt_display_format_snapshot(char *buf, size_t len)
@@ -27,9 +27,10 @@ bool mqtt_display_format_snapshot(char *buf, size_t len)
     }
     written = snprintf(buf,
                        len,
-                       "{\"mode\":\"%s\",\"brightness\":%u}",
+                       "{\"mode\":\"%s\",\"brightness\":%u,\"battery_off_s\":%u}",
                        display_settings_mode_name(display_settings_mode_get()),
-                       (unsigned)display_settings_brightness_get());
+                       (unsigned)display_settings_brightness_get(),
+                       (unsigned)display_settings_battery_off_s_get());
     return written > 0 && (size_t)written < len;
 }
 
@@ -77,6 +78,8 @@ port_err_t mqtt_display_handle(const void *payload, size_t len)
     const char *json = payload;
     bool has_mode;
     bool has_brightness;
+    bool has_battery_off;
+    unsigned battery_off = 0u;
     display_mode_t mode = DISPLAY_MODE_WEIGHT;
     unsigned brightness = 0u;
     bool changed = false;
@@ -87,7 +90,8 @@ port_err_t mqtt_display_handle(const void *payload, size_t len)
 
     has_mode = mqtt_json_has_key(json, len, "mode");
     has_brightness = mqtt_json_has_key(json, len, "brightness");
-    if (!has_mode && !has_brightness) {
+    has_battery_off = mqtt_json_has_key(json, len, "battery_off_s");
+    if (!has_mode && !has_brightness && !has_battery_off) {
         return PORT_ERR_INVALID_ARG;
     }
 
@@ -106,6 +110,19 @@ port_err_t mqtt_display_handle(const void *payload, size_t len)
         }
     }
 
+    if (has_battery_off) {
+        if (!mqtt_json_find_uint(json, len, "battery_off_s", &battery_off) ||
+            battery_off > DISPLAY_BATTERY_OFF_S_MAX) {
+            return PORT_ERR_INVALID_ARG;
+        }
+    }
+
+    if (has_battery_off && display_settings_battery_off_s_get() != (uint16_t)battery_off) {
+        if (!display_settings_battery_off_s_set((uint16_t)battery_off)) {
+            return PORT_ERR_IO;
+        }
+        changed = true;
+    }
     if (has_mode && display_settings_mode_get() != mode) {
         if (!display_settings_mode_set(mode)) {
             return PORT_ERR_IO;

@@ -34,6 +34,7 @@
 #define CONFIG_GROUP_DISPLAY            "display"
 #define CONFIG_KEY_DISPLAY_MODE         "mode"
 #define CONFIG_KEY_DISPLAY_BRIGHTNESS   "brightness"
+#define CONFIG_KEY_DISPLAY_BATTERY_OFF_S "battery_off_s"
 
 #define CONFIG_GROUP_EATEN              "eaten"
 #define CONFIG_KEY_EATEN_DAY            "day"

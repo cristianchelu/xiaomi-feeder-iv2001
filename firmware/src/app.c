@@ -21,6 +21,7 @@
 #include "display_mqtt_indicator.h"
 #include "display_child_lock_indicator.h"
 #include "mqtt_child_lock.h"
+#include "display_idle.h"
 #include "display_settings.h"
 #include "eaten_today.h"
 #include "mqtt_eaten_today.h"
@@ -79,6 +80,10 @@ typedef enum {
 } weight_boot_phase_t;
 
 static app_display_mode_t s_display_mode = APP_DISPLAY_MODE_WEIGHT;
+static uint16_t s_battery_off_s = DISPLAY_BATTERY_OFF_S_DEFAULT;
+static bool s_idle_blank;
+static bool s_last_on_battery;
+static uint32_t s_last_tick_ms;
 static weight_boot_phase_t s_weight_boot = WEIGHT_BOOT_PENDING;
 static weight_dg_t s_bowl_dg;
 static bool s_bowl_valid;
@@ -184,16 +189,47 @@ void app_display_apply_settings(void)
 {
     display_mode_t mode = display_settings_mode_get();
 
+    s_battery_off_s = display_settings_battery_off_s_get();
+    s_idle_blank = false;
+    display_idle_note_activity(s_last_tick_ms);
+
     (void)display_presentation_set_brightness(display_settings_brightness_get());
-    if (mode == DISPLAY_MODE_OFF) {
+    switch (mode) {
+    case DISPLAY_MODE_OFF:
         s_display_mode = APP_DISPLAY_MODE_OFF;
-        (void)display_presentation_set_blanked(true);
+        break;
+    case DISPLAY_MODE_EATEN_TODAY:
+        s_display_mode = APP_DISPLAY_MODE_EATEN_TODAY;
+        break;
+    default:
+        s_display_mode = APP_DISPLAY_MODE_WEIGHT;
+        break;
+    }
+    (void)display_presentation_set_blanked(mode == DISPLAY_MODE_OFF);
+}
+
+/* Blank the panel after inactivity on battery — display-presentation.md. */
+static void app_display_idle_poll(uint32_t now_ms)
+{
+    bool on_battery = power_source_input_is_valid() &&
+                      power_source_input_get() == POWER_SOURCE_BATTERY;
+    bool wanted;
+
+    s_last_tick_ms = now_ms;
+    if (on_battery != s_last_on_battery ||
+        feeder_runtime_dispense_active() || feeder_runtime_ota_active()) {
+        display_idle_note_activity(now_ms);
+    }
+    s_last_on_battery = on_battery;
+
+    wanted = display_idle_blank_wanted(now_ms, on_battery, s_battery_off_s);
+    if (wanted == s_idle_blank) {
         return;
     }
-
-    s_display_mode = (mode == DISPLAY_MODE_EATEN_TODAY) ? APP_DISPLAY_MODE_EATEN_TODAY
-                                                        : APP_DISPLAY_MODE_WEIGHT;
-    (void)display_presentation_set_blanked(false);
+    s_idle_blank = wanted;
+    if (s_display_mode != APP_DISPLAY_MODE_OFF) {
+        (void)display_presentation_set_blanked(wanted);
+    }
 }
 
 static void app_weight_sample(bool idle_try)
@@ -516,6 +552,7 @@ static void app_button_apply_transitions(void)
     button_transition_t tr;
 
     while (button_input_pop_transition(&tr)) {
+        display_idle_note_activity(s_last_tick_ms);
         if (tr.edge == BUTTON_EDGE_DOWN) {
             app_button_log_press(tr.id);
         }
@@ -623,6 +660,7 @@ void app_dispatch(const app_event_t *ev)
             (void)display_presentation_refresh();
         }
         power_source_input_poll(ev->u.display_tick.now_ms);
+        app_display_idle_poll(ev->u.display_tick.now_ms);
         if (!feeder_runtime_ota_active()) {
             bool hopper_bg = power_source_input_is_valid() &&
                              power_source_input_get() == POWER_SOURCE_MAINS;
@@ -637,6 +675,7 @@ void app_dispatch(const app_event_t *ev)
         break;
 
     case EVT_BUTTON_IRQ:
+        s_last_tick_ms = ev->u.button_irq.now_ms;
         button_input_notify_irq(ev->u.button_irq.now_ms);
         power_source_input_notify_irq(ev->u.button_irq.now_ms);
         app_button_poll(ev->u.button_irq.now_ms);
@@ -760,6 +799,11 @@ void app_process_received_event(const app_event_t *ev)
 
 void app_test_reset(void)
 {
+    s_battery_off_s = DISPLAY_BATTERY_OFF_S_DEFAULT;
+    s_idle_blank = false;
+    s_last_on_battery = false;
+    s_last_tick_ms = 0u;
+    display_idle_reset(0u);
     s_display_mode = APP_DISPLAY_MODE_WEIGHT;
     s_weight_boot = WEIGHT_BOOT_PENDING;
     s_bowl_dg = 0;
