@@ -686,6 +686,37 @@ whether it came from the physical combo or from `cmd/child_lock`.
 Home Assistant discovery publishes a **switch** (`child_lock`) with
 `entity_category: config` — see [validation slice](#home-assistant-validation-slice).
 
+## Display
+
+Topic `.../display` (retained, QoS 1) reports the persisted display settings
+from NVDM `display/mode` and `display/brightness` (see
+[config-store.md](config-store.md) and
+[display-presentation.md](display-presentation.md) § Display modes):
+
+```json
+{"mode":"weight","brightness":4}
+```
+
+Command topic `.../cmd/display` takes a JSON object with either or both keys:
+
+| Key | Values | Effect |
+|-----|--------|--------|
+| `mode` | `weight` \| `off` (`eaten_today` once the consumption counter ships) | `off` blanks the panel and powers the TM1637 rail down; `weight` restores the bowl-weight scene |
+| `brightness` | integer 1–4 | TM1637 brightness; stored even while the panel is off |
+
+Rules:
+
+- Keys are validated **before** anything is applied: one invalid key rejects
+  the whole command (info log, no NVDM write, no publish).
+- A command that changes nothing succeeds without NVDM write or publish.
+- Unknown keys are ignored. An empty or non-JSON payload is rejected.
+- While the mode is `off` the panel stays dark for everything (child-lock
+  icon, Wi-Fi, dispensing, MQTT indicators) **except** the OTA indicator,
+  which always shows so a running update is visible; the panel blanks again
+  when the OTA indicator stops.
+- Publish the state on MQTT connect (snapshot) and after every change.
+- Not exposed on the web API.
+
 ## Device timezone
 
 Topic `.../timezone` (retained, QoS 1) reports the effective timezone string

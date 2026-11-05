@@ -184,7 +184,7 @@ void test_connect_subscribes_and_publishes_online(void)
     TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/connection", mqtt->last_publish_topic);
     TEST_ASSERT_EQUAL_STRING("online", mqtt->last_publish_payload);
     /* Discovery is paced: the connect burst leaves room in the ring. */
-    TEST_ASSERT_EQUAL_UINT(10, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(11, mqtt_outbox_pending());
     TEST_ASSERT_EQUAL_UINT(14, mqtt_ha_discovery_remaining());
     TEST_ASSERT_TRUE(mqtt->connected);
 
@@ -193,7 +193,7 @@ void test_connect_subscribes_and_publishes_online(void)
     TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/schedule/next", mqtt->last_publish_topic);
 
     TEST_ASSERT_EQUAL_UINT(14, drain_with_discovery(mqtt, 200u));
-    TEST_ASSERT_EQUAL_UINT(27, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_UINT(28, mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
     TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
 }
@@ -234,11 +234,11 @@ void test_connected_step_drains_enqueued_item(void)
     mqtt_client_step();
     app_step();
 
-    TEST_ASSERT_EQUAL_UINT(10, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(11, mqtt_outbox_pending());
     mqtt = fake_mqtt_port_state();
     mqtt_client_step();
     (void)drain_with_discovery(mqtt, 200u);
-    TEST_ASSERT_EQUAL_UINT(27, mqtt->publish_calls);
+    TEST_ASSERT_EQUAL_UINT(28, mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
 }
 

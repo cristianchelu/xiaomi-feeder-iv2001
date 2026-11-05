@@ -74,6 +74,7 @@ bool display_presentation_ota_active(void);
 
 port_err_t display_presentation_power_on(void);
 port_err_t display_presentation_power_off(void);
+port_err_t display_presentation_set_blanked(bool blanked);
 port_err_t display_presentation_refresh(void);
 uint32_t display_presentation_tick(uint32_t now_ms);
 

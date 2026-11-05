@@ -26,6 +26,7 @@
 #include "mqtt_bowl_weight.h"
 #include "mqtt_config.h"
 #include "mqtt_child_lock.h"
+#include "mqtt_display.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_battery.h"
@@ -338,6 +339,7 @@ static port_err_t mqtt_client_do_connect(void)
     mqtt_feed_mode_set_device_id(s_device_id);
     mqtt_feed_overfill_set_device_id(s_device_id);
     mqtt_child_lock_set_device_id(s_device_id);
+    mqtt_display_set_device_id(s_device_id);
     mqtt_timezone_set_device_id(s_device_id);
 
     {
@@ -604,6 +606,7 @@ void mqtt_client_test_set_device_id(const char *device_id)
     mqtt_feed_mode_set_device_id(s_device_id);
     mqtt_feed_overfill_set_device_id(s_device_id);
     mqtt_child_lock_set_device_id(s_device_id);
+    mqtt_display_set_device_id(s_device_id);
 }
 
 bool mqtt_client_test_is_suspended(void)

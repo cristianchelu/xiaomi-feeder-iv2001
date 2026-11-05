@@ -27,6 +27,8 @@ bool app_test_take_btn_log(char *buf, size_t len);
 void app_weight_notify_dispense_complete(void);
 /* Refresh the panel lock icon from the stored child-lock state (app task only). */
 void app_child_lock_refresh_display(void);
+/* Apply persisted display mode + brightness to the panel (app task only). */
+void app_display_apply_settings(void);
 
 #define APP_BOWL_GRAMS_BASELINE_FRESH_MS  2000u
 

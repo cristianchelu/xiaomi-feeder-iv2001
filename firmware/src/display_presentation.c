@@ -42,6 +42,7 @@ static struct {
     uint32_t steady_icons;
     uint8_t brightness;
     bool powered;
+    bool blanked;
 
     display_blink_slot_t blinks[DISPLAY_PRESENTATION_MAX_BLINKS];
     display_pattern_slot_t patterns[DISPLAY_PRESENTATION_MAX_PATTERNS];
@@ -308,6 +309,9 @@ port_err_t display_presentation_set_brightness(uint8_t level)
     }
 
     s_pres.brightness = level;
+    if (s_pres.blanked && !s_pres.ota_active) {
+        return PORT_OK;
+    }
     if (dp == NULL || dp->set_brightness == NULL) {
         return PORT_ERR_IO;
     }
@@ -555,6 +559,27 @@ port_err_t display_presentation_power_off(void)
     return err;
 }
 
+port_err_t display_presentation_set_blanked(bool blanked)
+{
+    const display_port_t *dp = display_port_get();
+    port_err_t err;
+
+    s_pres.blanked = blanked;
+    if (!blanked) {
+        presentation_mark_scene_dirty();
+        return display_presentation_refresh();
+    }
+
+    if (dp == NULL) {
+        return PORT_ERR_IO;
+    }
+    err = dp->power_off();
+    if (err == PORT_OK) {
+        s_pres.powered = false;
+    }
+    return err;
+}
+
 port_err_t display_presentation_refresh(void)
 {
     const display_port_t *dp = display_port_get();
@@ -563,6 +588,17 @@ port_err_t display_presentation_refresh(void)
 
     if (dp == NULL || dp->show_grids == NULL) {
         return PORT_ERR_IO;
+    }
+
+    if (s_pres.blanked && !s_pres.ota_active) {
+        if (s_pres.powered) {
+            err = dp->power_off();
+            if (err != PORT_OK) {
+                return err;
+            }
+            s_pres.powered = false;
+        }
+        return PORT_OK;
     }
 
     err = presentation_ensure_power();

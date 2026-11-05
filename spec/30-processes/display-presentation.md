@@ -335,7 +335,7 @@ on** all three digit grids (`0x40` OR'd into each grid byte). Grids 3–4 are
 
 | Mode | Content | When | Update rate |
 |------|---------|------|-------------|
-| **Weight** | Presented bowl mass when calibrated and sampled (auto-tare — see [auto-tare.md](auto-tare.md)): **whole grams rounded** from internal tenth-grams (e.g. 423 dg → `  42g`); uncalibrated → `---g`; calibrated bowl missing → `-  g`; calibrated, no sample yet → blank digits + `g` | Default idle (hardcoded in `app` until `cmd/display` lands) | `[tune]` 500 ms (2 Hz) |
+| **Weight** | Presented bowl mass when calibrated and sampled (auto-tare — see [auto-tare.md](auto-tare.md)): **whole grams rounded** from internal tenth-grams (e.g. 423 dg → `  42g`); uncalibrated → `---g`; calibrated bowl missing → `-  g`; calibrated, no sample yet → blank digits + `g` | Default idle mode (persisted `display/mode`) | `[tune]` 500 ms (2 Hz) |
 | **Eaten today** | Cumulative grams consumed since midnight (e.g. `  85g`) | User-selected idle alternative | `[tune]` 500 ms (2 Hz) |
 | **Off** | All segments blank | Sleep or user preference | — |
 
@@ -356,6 +356,18 @@ local midnight per [monitoring.md](../20-stories/monitoring.md).
   [display-driver.md](display-driver.md)).
 - Configurable via MQTT `cmd/display`; default `[tune]` level 4 `[probe]`.
 - Stored in NVDM `display/brightness`.
+
+## Blanked panel (mode `off`)
+
+`display_presentation_set_blanked(true)` powers the panel down and makes
+`display_presentation_refresh()` a no-op that keeps it dark; scene state
+(digits, icons, blinks) keeps updating in memory so `set_blanked(false)`
+restores the current scene immediately. Exception: while the OTA indicator is
+active the panel is powered and shown; when the OTA indicator stops, a blanked
+panel is powered down again on the next refresh. `display_presentation_set_brightness`
+while blanked stores the level without powering the panel. `app` applies the
+persisted mode and brightness on boot (after `display_presentation_reset`) and
+after every successful `cmd/display`.
 
 ## Lock indicator
 

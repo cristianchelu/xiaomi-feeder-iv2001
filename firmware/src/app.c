@@ -21,6 +21,7 @@
 #include "display_mqtt_indicator.h"
 #include "display_child_lock_indicator.h"
 #include "mqtt_child_lock.h"
+#include "display_settings.h"
 #include "display_bowl_error_indicator.h"
 #include "display_presentation.h"
 #include "mqtt_state.h"
@@ -65,6 +66,7 @@
 
 typedef enum {
     APP_DISPLAY_MODE_WEIGHT = 0,
+    APP_DISPLAY_MODE_OFF,
 } app_display_mode_t;
 
 typedef enum {
@@ -131,10 +133,8 @@ static void app_weight_sync_display_scene(bool force_mqtt_bowl_weight)
     uint16_t shown;
     bowl_display_digits_t digits;
 
-    if (s_display_mode != APP_DISPLAY_MODE_WEIGHT) {
-        return;
-    }
-
+    /* Runs in every display mode: MQTT bowl state must keep flowing while
+     * the panel is blanked (display_presentation_set_blanked). */
     cal = (wp != NULL && wp->get_cal_status != NULL) ? wp->get_cal_status()
                                                      : WEIGHT_CAL_UNCALIBRATED;
 
@@ -171,6 +171,21 @@ static void app_weight_sync_display_scene(bool force_mqtt_bowl_weight)
         (void)display_presentation_clear_digits();
         break;
     }
+}
+
+void app_display_apply_settings(void)
+{
+    display_mode_t mode = display_settings_mode_get();
+
+    (void)display_presentation_set_brightness(display_settings_brightness_get());
+    if (mode == DISPLAY_MODE_OFF) {
+        s_display_mode = APP_DISPLAY_MODE_OFF;
+        (void)display_presentation_set_blanked(true);
+        return;
+    }
+
+    s_display_mode = APP_DISPLAY_MODE_WEIGHT;
+    (void)display_presentation_set_blanked(false);
 }
 
 static void app_weight_sample(bool idle_try)
@@ -526,6 +541,7 @@ void app_dispatch(const app_event_t *ev)
     case EVT_APP_BOOT:
         s_display_mode = APP_DISPLAY_MODE_WEIGHT;
         display_presentation_reset();
+        app_display_apply_settings();
         app_child_lock_sync_display(feed_config_child_lock_is_active());
         auto_tare_init();
         feeder_runtime_init();

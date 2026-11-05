@@ -31,6 +31,10 @@
 #define CONFIG_KEY_OVERFILL_ENABLED     "overfill_enabled"
 #define CONFIG_KEY_OVERFILL_THRESHOLD_G "overfill_threshold_g"
 
+#define CONFIG_GROUP_DISPLAY            "display"
+#define CONFIG_KEY_DISPLAY_MODE         "mode"
+#define CONFIG_KEY_DISPLAY_BRIGHTNESS   "brightness"
+
 #define CONFIG_GROUP_POWER                 "power"
 #define CONFIG_KEY_POWER_BATT_SCALE_X1000  "batt_scale_x1000"
 

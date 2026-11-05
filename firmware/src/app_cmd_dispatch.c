@@ -11,6 +11,7 @@
 #include "mqtt_dispense_cmd.h"
 #include "app.h"
 #include "mqtt_child_lock.h"
+#include "mqtt_display.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
@@ -77,6 +78,16 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
         if (err == PORT_OK) {
             app_child_lock_refresh_display();
+        }
+
+        return err;
+    }
+
+    case MQTT_ROUTE_CMD_DISPLAY: {
+        port_err_t err = mqtt_display_handle(payload, len);
+
+        if (err == PORT_OK) {
+            app_display_apply_settings();
         }
 
         return err;
