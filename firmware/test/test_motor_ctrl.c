@@ -147,7 +147,7 @@ void test_motor_ctrl_session_faults_on_20s_cap_when_stop_fails(void)
 
 void test_motor_ctrl_burst_faults_after_index_timeout_retries(void)
 {
-    char log[2048];
+    char log[16384];
     FILE *saved;
     FILE *cap;
 

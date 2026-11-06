@@ -79,6 +79,11 @@ static uint8_t s_pulses;
 static bool s_prev_beam_open;
 /* When the beam last closed: a hole only counts after a real closed stretch. */
 static TickType_t s_beam_closed_tick;
+/* Field trace: once a second while running, beam/poll/current summary. */
+static uint16_t s_trace_ok;
+static uint16_t s_trace_busy;
+static uint16_t s_trace_err;
+static TickType_t s_trace_tick;
 static bool s_beam_closed_valid;
 static TickType_t s_en_start_tick;
 static TickType_t s_phase_end_tick;
@@ -535,6 +540,10 @@ static port_err_t motor_ctrl_begin_run(bool park)
     s_prev_beam_open = true;
     s_beam_closed_valid = false;
     s_beam_closed_tick = 0u;
+    s_trace_ok = 0u;
+    s_trace_busy = 0u;
+    s_trace_err = 0u;
+    s_trace_tick = motor_ctrl_tick_now();
     s_sustained_over_ms = 0u;
     s_instant_jam = false;
     s_io_fail_streak = 0u;
@@ -681,6 +690,25 @@ static void motor_ctrl_after_antijam_step(TickType_t now)
     motor_ctrl_begin_antijam(s_last_jam_reason);
 }
 
+static void motor_ctrl_trace(TickType_t now, bool beam_open)
+{
+    uint16_t ma = 0u;
+
+    if ((now - s_trace_tick) < pdMS_TO_TICKS(1000u)) {
+        return;
+    }
+    s_trace_tick = now;
+    (void)motor_ctrl_adc_sample(&ma);
+    app_log_info("motor", "run +%lu ms beam %s polls ok %u busy %u err %u load %u mA",
+                 (unsigned long)((now - s_en_start_tick) * portTICK_PERIOD_MS),
+                 beam_open ? "open" : "closed",
+                 (unsigned)s_trace_ok, (unsigned)s_trace_busy, (unsigned)s_trace_err,
+                 (unsigned)ma);
+    s_trace_ok = 0u;
+    s_trace_busy = 0u;
+    s_trace_err = 0u;
+}
+
 static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
 {
     bool beam_open;
@@ -695,13 +723,20 @@ static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
 
     err = motor_ctrl_poll_beam_open(&beam_open);
     if (err == PORT_ERR_BUSY) {
+        s_trace_busy++;
+        motor_ctrl_trace(now, s_prev_beam_open);
         return;
     }
 
     if (err != PORT_OK) {
+        s_trace_err++;
+        motor_ctrl_trace(now, s_prev_beam_open);
         motor_ctrl_note_io_failure();
         return;
     }
+
+    s_trace_ok++;
+    motor_ctrl_trace(now, beam_open);
 
     motor_ctrl_note_io_success();
     motor_ctrl_apply_beam_sample(beam_open, now);
