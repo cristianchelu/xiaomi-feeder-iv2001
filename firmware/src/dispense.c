@@ -3,6 +3,7 @@
  */
 
 #include "dispense.h"
+#include "portion_estimate.h"
 
 #include "app.h"
 #include "app_event.h"
@@ -38,6 +39,7 @@ static dispense_outcome_t s_outcome;
 static dispense_source_t s_source;
 static uint8_t s_portions;
 static uint8_t s_total_portions;
+static uint8_t s_batch_portions;   /* portions of the batch being weighed */
 static uint16_t s_target_grams;
 static weight_dg_t s_target_dg;
 static bool s_gram_job;
@@ -302,8 +304,13 @@ static void dispense_after_settle(uint32_t now_ms)
             raw_delta_dg = 0;
             batch_delta_dg = 0;
         }
-        dg_delivered = (weight_dg_t)s_total_portions * (weight_dg_t)DISPENSE_GRAMS_PER_PORTION_DG;
-        event_grams = (int32_t)s_total_portions * (int32_t)DISPENSE_GRAMS_PER_PORTION;
+        dg_delivered = (weight_dg_t)s_total_portions * portion_estimate_dg();
+        event_grams = WEIGHT_DG_TO_G_ROUND(dg_delivered);
+    }
+
+    if (measured && dg_delivered > 0) {
+        /* Learn from the batch just weighed (portions of this batch only). */
+        portion_estimate_learn(batch_delta_dg, s_batch_portions);
     }
 
     app_log_info("dispense", "settle: base %ld post %ld dg (valid %d/%d) measured %d portions %u batch %u",
@@ -349,7 +356,7 @@ static void dispense_after_settle(uint32_t now_ms)
         uint8_t extra;
         port_err_t err;
 
-        extra = (uint8_t)(deficit_dg / (weight_dg_t)DISPENSE_GRAMS_PER_PORTION_DG);
+        extra = portion_estimate_portions_for_dg(deficit_dg, DISPENSE_PORTIONS_MAX);
         if (extra < 1u) {
             extra = 1u;
         }
@@ -365,6 +372,7 @@ static void dispense_after_settle(uint32_t now_ms)
         }
 
         s_total_portions = (uint8_t)(s_total_portions + extra);
+        s_batch_portions = extra;
         s_batch_count++;
         s_phase = DISPENSE_PHASE_MOTOR;
         s_settle_start_ms = 0u;
@@ -483,8 +491,7 @@ void dispense_start_from_request(const app_dispense_request_t *req)
             return;
         }
 
-        portions = (uint8_t)((grams + DISPENSE_GRAMS_PER_PORTION - 1u) /
-                             DISPENSE_GRAMS_PER_PORTION);
+        portions = portion_estimate_portions_for_dg(WEIGHT_G_TO_DG(grams), DISPENSE_PORTIONS_MAX);
         if (portions < DISPENSE_PORTIONS_MIN) {
             portions = DISPENSE_PORTIONS_MIN;
         }
@@ -497,6 +504,7 @@ void dispense_start_from_request(const app_dispense_request_t *req)
         s_gram_job = true;
         s_portions = portions;
         s_total_portions = portions;
+        s_batch_portions = portions;
         s_source = req->source;
         s_mode = dispense_resolve_mode(req);
         s_batch_count = 1u;
@@ -548,8 +556,9 @@ void dispense_start_from_request(const app_dispense_request_t *req)
     s_gram_job = false;
     s_portions = portions;
     s_total_portions = portions;
-    s_target_grams = (uint16_t)portions * DISPENSE_GRAMS_PER_PORTION;
-    s_target_dg = WEIGHT_G_TO_DG(s_target_grams);
+    s_batch_portions = portions;
+    s_target_dg = (weight_dg_t)portions * portion_estimate_dg();
+    s_target_grams = (uint16_t)WEIGHT_DG_TO_G_ROUND(s_target_dg);
     s_source = req->source;
     s_mode = dispense_resolve_mode(req);
     s_batch_count = 1u;
@@ -620,12 +629,14 @@ uint8_t dispense_test_zero_delta_streak(void)
 
 void dispense_test_reset(void)
 {
+    portion_estimate_test_reset();
     s_job_pending = false;
     s_phase = DISPENSE_PHASE_NONE;
     s_outcome = DISPENSE_OUTCOME_SUCCESS;
     s_source = DISPENSE_SOURCE_MQTT;
     s_portions = 0u;
     s_total_portions = 0u;
+    s_batch_portions = 0u;
     s_gram_job = false;
     s_mode = DISPENSE_MODE_OPEN_LOOP;
     s_batch_count = 0u;

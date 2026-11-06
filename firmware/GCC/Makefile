@@ -147,6 +147,7 @@ APP_FILES      += $(APP_PATH_SRC)/mqtt_calibrate.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_display.c
 APP_FILES      += $(APP_PATH_SRC)/ota_base.c
 APP_FILES      += $(APP_PATH_SRC)/power_policy.c
+APP_FILES      += $(APP_PATH_SRC)/portion_estimate.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_power.c
 APP_FILES      += $(APP_PATH_SRC)/display_settings.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_overfill.c

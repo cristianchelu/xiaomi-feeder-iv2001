@@ -198,3 +198,16 @@ Open-loop and compensated jobs use the same outcome rules. Compensation adds
 
 Completion is reported via `.../dispense/event` only — no retained
 `dispense/status` or in-progress `dispense/progress` topics.
+
+## Portion size
+
+The mass per index hole depends on the kibble (reference unit: ~8.5 g per hole
+measured, vs the historic 10 g constant). `portion_estimate` keeps a learned
+value in NVDM `feed/portion_dg` (default 100 dg, clamped 3–20 g):
+
+- Gram targets become the **nearest** whole number of portions (at least 1).
+- Compensated top-ups use the same estimate for the deficit.
+- Open-loop events without a trusted scale report `portions × estimate`.
+- After every measured batch, `batch delta / batch portions` updates the
+  estimate (EMA ¼, rounded, at least 1 dg toward the sample); samples outside
+  2–30 g per portion are ignored (bowl knocked, nothing fell, jam retries).

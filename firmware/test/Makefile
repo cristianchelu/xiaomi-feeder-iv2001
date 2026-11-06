@@ -50,6 +50,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/mqtt_display.c \
              ../src/ota_base.c \
              ../src/power_policy.c \
+             ../src/portion_estimate.c \
              ../src/mqtt_power.c \
              ../src/display_settings.c \
              ../src/mqtt_backoff.c \
