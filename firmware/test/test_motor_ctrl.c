@@ -268,3 +268,32 @@ void test_motor_ctrl_park_survives_burst_index_timeout(void)
     TEST_ASSERT_TRUE(app_event_pending_type(EVT_PARK_DONE));
 }
 
+
+/* The auger rests parked with the index hole aligned (beam open). If the
+ * initial beam read at burst start fails (expander busy), the first sample
+ * must not be taken as a hole edge: a 1-portion burst would stop at once. */
+void test_motor_ctrl_burst_from_parked_hole_needs_a_real_edge(void)
+{
+    uint32_t i;
+
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(true);          /* parked in the hole */
+    fake_motor_index_port_set_poll_busy_remaining(1u);  /* first read fails */
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(1u, 8000u));
+
+    for (i = 0u; i < 20u; i++) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_TRUE(motor_ctrl_is_active());           /* still turning */
+
+    fake_motor_index_port_set_beam_open(false);         /* leaves the hole */
+    fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+    motor_ctrl_test_poll();
+    fake_motor_index_port_set_beam_open(true);          /* next hole: 1 portion */
+    for (i = 0u; i < 5u && motor_ctrl_is_active(); i++) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_FALSE(motor_ctrl_is_active());
+}

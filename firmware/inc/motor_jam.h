@@ -21,6 +21,11 @@
 #define MOTOR_CTRL_LOOP_SLICE_MS           10u
 #define MOTOR_INDEX_IRQ_DEBOUNCE_MS        50u
 #define MOTOR_BURST_BEAM_POLL_MS           50u
+/* Burst/park start: IR LED settle before the baseline beam read, and retries
+ * while the GPIO expander is busy (weight / hopper reads share it). */
+#define MOTOR_INDEX_LED_SETTLE_MS          5u
+#define MOTOR_INDEX_BASELINE_TRIES         5u
+#define MOTOR_INDEX_BASELINE_RETRY_MS      10u
 #define MOTOR_PARK_BEAM_POLL_MS           200u
 
 #endif /* MOTOR_JAM_H */

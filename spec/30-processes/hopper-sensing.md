@@ -46,7 +46,7 @@ transitioning IR level from `normal` to `low`.
 
 | Power source | Sampling |
 |--------------|----------|
-| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **10 s** |
+| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **10 s**; never while a dispense job is active (the hopper read loans the GPIO expander shared with the motor index detector) |
 | **Battery** | Post-dispense only — no periodic background |
 
 Active debounce intervals (1 s between streak readings while a transition is

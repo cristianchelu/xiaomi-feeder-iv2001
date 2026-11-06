@@ -12,6 +12,8 @@
 #include "fake_config_port.h"
 #include "fake_display_port.h"
 #include "fake_power_source_port.h"
+#include "fake_hopper_ir_port.h"
+#include "feeder_runtime.h"
 #include "mqtt_client.h"
 #include "power_source_input.h"
 #include "wifi_sta.h"
@@ -89,4 +91,19 @@ void test_app_policy_mains_keeps_wifi_even_when_off_on_battery(void)
     setup(true, "off");
     run_until(200u, 62000u);
     TEST_ASSERT_EQUAL(WIFI_STA_IDLE, wifi_sta_busy());
+}
+
+void test_app_hopper_not_sampled_while_dispensing(void)
+{
+    uint32_t before;
+
+    setup(true, "on");
+    fake_hopper_ir_port_reset();
+    feeder_runtime_set_dispense_active(true);
+    before = fake_hopper_ir_port_sense_count();
+    run_until(200u, 30000u);   /* three background periods on mains */
+    TEST_ASSERT_EQUAL_UINT32(before, fake_hopper_ir_port_sense_count());
+    feeder_runtime_set_dispense_active(false);
+    run_until(30500u, 45000u);
+    TEST_ASSERT_GREATER_THAN_UINT32(before, fake_hopper_ir_port_sense_count());
 }

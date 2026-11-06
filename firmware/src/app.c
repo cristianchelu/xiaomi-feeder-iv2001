@@ -816,7 +816,10 @@ void app_dispatch(const app_event_t *ev)
         }
         power_source_input_poll(ev->u.display_tick.now_ms);
         app_display_idle_poll(ev->u.display_tick.now_ms);
-        if (!feeder_runtime_ota_active()) {
+        /* The hopper IR read loans the GPIO expander that the motor index
+         * detector shares: never during OTA, nor while a dispense runs (the
+         * forced post-dispense sample follows the job). */
+        if (!feeder_runtime_ota_active() && !feeder_runtime_dispense_active()) {
             bool hopper_bg = power_source_input_is_valid() &&
                              power_source_input_get() == POWER_SOURCE_MAINS;
 

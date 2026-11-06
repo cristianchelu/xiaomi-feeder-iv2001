@@ -497,7 +497,10 @@ static port_err_t motor_ctrl_begin_run(bool park)
 
     motor_ctrl_driver_ensure();
     s_pulses = 0u;
-    s_prev_beam_open = false;
+    /* The auger parks with the index hole in the beam (beam open). Assume that
+     * until a read says otherwise, so a failed initial read never turns the
+     * parked hole into a counted edge (a 1-portion burst stopped at once). */
+    s_prev_beam_open = true;
     s_sustained_over_ms = 0u;
     s_instant_jam = false;
     s_io_fail_streak = 0u;
@@ -515,10 +518,24 @@ static port_err_t motor_ctrl_begin_run(bool park)
         }
 
         if (idx->poll != NULL) {
-            bool beam_open = false;
+            bool beam_open = true;
+            bool known = false;
+            uint8_t tries;
 
-            if (idx->poll(&beam_open) == PORT_OK) {
+            /* Baseline read: let the IR LED settle, retry a busy expander,
+             * and only then fall back to the parked assumption above. */
+            motor_hal_delay_ms(MOTOR_INDEX_LED_SETTLE_MS);
+            for (tries = 0u; tries < MOTOR_INDEX_BASELINE_TRIES && !known; tries++) {
+                if (idx->poll(&beam_open) == PORT_OK) {
+                    known = true;
+                } else {
+                    motor_hal_delay_ms(MOTOR_INDEX_BASELINE_RETRY_MS);
+                }
+            }
+            if (known) {
                 s_prev_beam_open = beam_open;
+            } else {
+                app_log_info("motor", "index baseline unread: assuming parked (beam open)");
             }
         }
     }
