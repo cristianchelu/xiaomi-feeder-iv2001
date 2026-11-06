@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "app_cmd_dispatch.h"
+#include "app_lock.h"
 #include "app_log.h"
 #include "dispense.h"
 #include "feed_config.h"
@@ -22,7 +23,9 @@
 #include "mqtt_config.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_hopper.h"
+#include "mqtt_portion.h"
 #include "mqtt_power.h"
+#include "weight_port.h"
 #include "mqtt_mains.h"
 #include "mqtt_route.h"
 #include "mqtt_state.h"
@@ -68,6 +71,8 @@ static mqtt_route_kind_t web_api_post_route_to_mqtt(web_api_route_t route)
         return MQTT_ROUTE_CMD_CHILD_LOCK;
     case WEB_API_POST_POWER:
         return MQTT_ROUTE_CMD_POWER;
+    case WEB_API_POST_PORTION_CAL:
+        return MQTT_ROUTE_CMD_PORTION_CAL;
     default:
         return MQTT_ROUTE_UNKNOWN;
     }
@@ -193,6 +198,31 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
             if (off < 0) {
                 return -1;
             }
+        }
+    }
+
+    {
+        char po[64];
+        const weight_port_t *wp = weight_port_get();
+        weight_cal_status_t cal = (wp != NULL && wp->get_cal_status != NULL)
+                                      ? wp->get_cal_status()
+                                      : WEIGHT_CAL_UNCALIBRATED;
+        const char *scale = "uncalibrated";
+
+        if (mqtt_portion_format_snapshot(po, sizeof(po))) {
+            off = web_api_append(buf, len, off, ",\"portion\":%s", po);
+            if (off < 0) {
+                return -1;
+            }
+        }
+        if (cal == WEIGHT_CAL_SUCCESS) {
+            scale = "calibrated";
+        } else if (cal == WEIGHT_CAL_CAPTURING_SPAN) {
+            scale = "zero_only";
+        }
+        off = web_api_append(buf, len, off, ",\"scale\":\"%s\"", scale);
+        if (off < 0) {
+            return -1;
         }
     }
 
@@ -381,6 +411,9 @@ web_api_route_t web_api_classify(const char *method, const char *path)
     if (strcmp(path, "/api/power") == 0) {
         return WEB_API_POST_POWER;
     }
+    if (strcmp(path, "/api/portion_cal") == 0) {
+        return WEB_API_POST_PORTION_CAL;
+    }
 
     return WEB_API_ROUTE_UNKNOWN;
 }
@@ -466,7 +499,12 @@ int web_api_handle_post(web_api_route_t route,
         return web_api_write_error(resp, resp_len, "unknown_route");
     }
 
+    /* Web server task: serialise with the app task (shared feeder state). */
+    if (!app_lock_take(3000u)) {
+        return web_api_write_error(resp, resp_len, "busy");
+    }
     err = app_cmd_dispatch(mqtt_route, body, body_len, "web");
+    app_lock_give();
     if (err == PORT_OK) {
         return web_api_write_ok(resp, resp_len);
     }

@@ -952,6 +952,15 @@ MQTT_HA_GENERIC(mqtt_ha_format_eaten_reset_config,
     "Reset eaten today", "eaten_reset", NULL, "cmd/eaten_reset",
     "\"payload_press\":\"{}\",\"entity_category\":\"config\"")
 
+MQTT_HA_GENERIC(mqtt_ha_format_portion_size_config,
+    "Portion size", "portion_size", "portion", NULL,
+    "\"value_template\":\"{{ value_json.g }}\",\"unit_of_measurement\":\"g\","
+    "\"icon\":\"mdi:scale\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_portion_cal_config,
+    "Calibrate portion", "portion_cal", NULL, "cmd/portion_cal",
+    "\"payload_press\":\"{}\",\"icon\":\"mdi:scale-balance\",\"entity_category\":\"config\"")
+
 MQTT_HA_GENERIC(mqtt_ha_format_battery_wifi_config,
     "Wi-Fi on battery", "battery_wifi", "power", "cmd/power",
     "\"value_template\":\"{{ value_json.battery_wifi }}\","
@@ -1096,6 +1105,16 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .component = "button",
         .object_id = "reboot",
         .format_config = mqtt_ha_format_reboot_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "portion_size",
+        .format_config = mqtt_ha_format_portion_size_config,
+    },
+    {
+        .component = "button",
+        .object_id = "portion_cal",
+        .format_config = mqtt_ha_format_portion_cal_config,
     },
     {
         .component = "select",

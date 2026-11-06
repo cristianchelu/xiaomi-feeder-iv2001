@@ -34,6 +34,7 @@ typedef enum {
     WEB_API_POST_REBOOT,
     WEB_API_POST_CHILD_LOCK,
     WEB_API_POST_POWER,
+    WEB_API_POST_PORTION_CAL,
 } web_api_route_t;
 
 web_api_route_t web_api_classify(const char *method, const char *path);

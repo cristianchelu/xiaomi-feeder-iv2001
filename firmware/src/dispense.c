@@ -3,6 +3,7 @@
  */
 
 #include "dispense.h"
+#include "mqtt_portion.h"
 #include "portion_estimate.h"
 
 #include "app.h"
@@ -40,6 +41,8 @@ static dispense_source_t s_source;
 static uint8_t s_portions;
 static uint8_t s_total_portions;
 static uint8_t s_batch_portions;   /* portions of the batch being weighed */
+static bool s_cal_requested;       /* next portions job is a portion calibration */
+static bool s_portion_cal;         /* current job is a portion calibration */
 static uint16_t s_target_grams;
 static weight_dg_t s_target_dg;
 static bool s_gram_job;
@@ -186,6 +189,18 @@ static void dispense_publish_terminal(uint32_t now_ms,
                                                   measured,
                                                   now_ms);
 
+    if (s_portion_cal) {
+        if (measured && raw_delta > 0 && s_outcome == DISPENSE_OUTCOME_SUCCESS) {
+            (void)portion_estimate_calibrate((weight_dg_t)raw_delta, s_total_portions);
+        } else {
+            app_log_info("dispense", "portion calibration failed (measured %d delta %ld outcome %d)",
+                         (int)measured, (long)raw_delta, (int)s_outcome);
+            portion_estimate_calibration_failed();
+        }
+        s_portion_cal = false;
+        mqtt_portion_sync();
+    }
+
     completion.grams = event_grams;
     completion.grams_estimated = !measured;
     completion.target_g = s_target_grams;
@@ -308,11 +323,6 @@ static void dispense_after_settle(uint32_t now_ms)
         event_grams = WEIGHT_DG_TO_G_ROUND(dg_delivered);
     }
 
-    if (measured && dg_delivered > 0) {
-        /* Learn from the batch just weighed (portions of this batch only). */
-        portion_estimate_learn(batch_delta_dg, s_batch_portions);
-    }
-
     app_log_info("dispense", "settle: base %ld post %ld dg (valid %d/%d) measured %d portions %u batch %u",
                  (long)s_baseline_dg, (long)post_dg, (int)s_baseline_valid, (int)post_valid,
                  (int)measured, (unsigned)s_total_portions, (unsigned)s_batch_count);
@@ -378,6 +388,18 @@ static void dispense_after_settle(uint32_t now_ms)
         s_settle_start_ms = 0u;
         dispense_sync_runtime_active();
     }
+}
+
+dispense_submit_result_t dispense_submit_portion_cal(dispense_source_t source)
+{
+    dispense_submit_result_t r;
+
+    s_cal_requested = true;
+    r = dispense_submit_portions(PORTION_CAL_PORTIONS, source);
+    if (r != DISPENSE_SUBMIT_OK) {
+        s_cal_requested = false;
+    }
+    return r;
 }
 
 dispense_submit_result_t dispense_submit_portions(uint8_t portions,
@@ -561,6 +583,12 @@ void dispense_start_from_request(const app_dispense_request_t *req)
     s_target_grams = (uint16_t)WEIGHT_DG_TO_G_ROUND(s_target_dg);
     s_source = req->source;
     s_mode = dispense_resolve_mode(req);
+    s_portion_cal = s_cal_requested;
+    s_cal_requested = false;
+    if (s_portion_cal) {
+        s_mode = DISPENSE_MODE_OPEN_LOOP;   /* weigh exactly the holes turned */
+        app_log_info("dispense", "portion calibration: %u portions", (unsigned)portions);
+    }
     s_batch_count = 1u;
     s_zero_delta_streak = 0u;
     s_phase = DISPENSE_PHASE_MOTOR;
@@ -630,6 +658,8 @@ uint8_t dispense_test_zero_delta_streak(void)
 void dispense_test_reset(void)
 {
     portion_estimate_test_reset();
+    s_cal_requested = false;
+    s_portion_cal = false;
     s_job_pending = false;
     s_phase = DISPENSE_PHASE_NONE;
     s_outcome = DISPENSE_OUTCOME_SUCCESS;

@@ -159,6 +159,8 @@ function statusPayload(state) {
     }
     body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60 };
     body.power = state.power || { battery_wifi: 'on' };
+    body.portion = { g: '10.0', status: 'default' };
+    body.scale = 'calibrated';
     body.child_lock = !!state.child_lock;
     body.eaten_today = state.eaten_today || '0.0';
     body.hopper_ir = state.hopper === 'normal' ? 1 : 0;
@@ -263,6 +265,9 @@ export function createMockApiHandler(getState, setState) {
             if (body.brightness !== undefined) d.brightness = body.brightness;
             if (body.battery_off_s !== undefined) d.battery_off_s = body.battery_off_s;
             setState({ ...state, display: d });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/portion_cal') {
             return json(res, 200, { ok: true });
         }
         if (path === '/api/power') {

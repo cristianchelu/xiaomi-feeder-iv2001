@@ -33,5 +33,9 @@
  * not "already closed"), anything under 1.5 s is that spring-back, not a turn. */
 #define MOTOR_INDEX_MIN_CLOSED_MS       1500u
 #define MOTOR_PARK_BEAM_POLL_MS           200u
+/* Stall: load at/above this for this long during a burst = forcing without
+ * turning (field: ~280 mA stalled vs 70-150 mA turning). */
+#define MOTOR_STALL_MA                    220u
+#define MOTOR_STALL_MS                   2000u
 
 #endif /* MOTOR_JAM_H */

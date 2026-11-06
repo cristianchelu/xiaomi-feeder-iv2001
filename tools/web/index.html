@@ -928,7 +928,17 @@ button {
 </div>
 </div>
 <div class="set-block">
-<p class="hint">Scale: remove the bowl, press Zero; put the empty 350 g bowl back, press Span.</p>
+<div class="row between">
+<span>Portion size: <b id="portionG">—</b> g <small id="portionSt"></small></span>
+</div>
+<p class="hint">Calibrate: turns 3 portions (~25 g) into the bowl and weighs them.</p>
+<div class="row between">
+<button id="portionCal" class="sm">Calibrate portion</button>
+<button id="portionReset" class="sm">Reset to 10 g</button>
+</div>
+</div>
+<div class="set-block">
+<p class="hint">Scale (<b id="scaleSt">—</b>): remove the bowl, press Zero; put the empty 350 g bowl back, press Span.</p>
 <div class="row between">
 <button id="calZero" class="sm">Zero (bowl removed)</button>
 <button id="calSpan" class="sm">Span (empty bowl)</button>
@@ -1113,6 +1123,11 @@ function renderSettings(st) {
     if (act !== $('dispOff')) $('dispOff').value = d.battery_off_s;
   }
   if (st.power && act !== $('battWifi')) $('battWifi').value = st.power.battery_wifi;
+  if (st.portion) {
+    $('portionG').textContent = st.portion.g;
+    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'failed' ? '(last calibration failed)' : '(default)';
+  }
+  if (st.scale) $('scaleSt').textContent = st.scale === 'calibrated' ? 'calibrated' : st.scale === 'zero_only' ? 'zero done, span missing' : 'not calibrated';
   $('childLock').checked = !!st.child_lock;
   $('eatenVal').textContent = st.eaten_today !== undefined && st.eaten_today !== '' ? st.eaten_today : '—';
   $('hopperIr').textContent = st.hopper_ir === 1 ? 'blocked' : st.hopper_ir === 0 ? 'clear' : '—';
@@ -1238,6 +1253,8 @@ $('saveDisp').onclick = () => postSave('/api/display', {
   battery_off_s: Number($('dispOff').value),
 }, 'Display saved').then(loadStatus);
 $('saveBattWifi').onclick = () => postSave('/api/power', {battery_wifi: $('battWifi').value}, 'Saved').then(loadStatus);
+$('portionCal').onclick = () => confirm('Dispense 3 portions (~25 g) into the bowl to measure them?') && postSave('/api/portion_cal', '{}', 'Calibrating… (~25 s)');
+$('portionReset').onclick = () => confirm('Reset portion size to 10 g?') && postSave('/api/portion_cal', {action: 'reset'}, 'Portion size reset').then(loadStatus);
 $('childLock').onchange = () => postSave('/api/child_lock', $('childLock').checked ? 'ON' : 'OFF', 'Child lock saved').then(loadStatus);
 $('eatenReset').onclick = () => confirm('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
 $('calZero').onclick = () => confirm('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');

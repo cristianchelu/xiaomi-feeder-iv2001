@@ -2,7 +2,8 @@
  * Learned grams per portion — spec/30-processes/dispense-cycle.md § Portion size
  *
  * The auger delivers a kibble-dependent mass per index hole (~8.5 g measured
- * on the reference unit vs the 10 g default). Measured dispenses refine it.
+ * on the reference unit vs the 10 g default). Set only by an explicit
+ * calibration run (cmd/portion_cal, HA button, web page).
  */
 
 #include "portion_estimate.h"
@@ -18,6 +19,7 @@
 
 static weight_dg_t s_est_dg;
 static int s_loaded;
+static portion_cal_status_t s_status;
 
 static void portion_estimate_load(void)
 {
@@ -34,6 +36,9 @@ static void portion_estimate_load(void)
 
         if (v >= PORTION_ESTIMATE_MIN_DG && v <= PORTION_ESTIMATE_MAX_DG) {
             s_est_dg = (weight_dg_t)v;
+            if (s_est_dg != PORTION_ESTIMATE_DEFAULT_DG) {
+                s_status = PORTION_CAL_OK;
+            }
         }
     }
 }
@@ -62,50 +67,68 @@ uint8_t portion_estimate_portions_for_dg(weight_dg_t target_dg, uint8_t max_port
     return (uint8_t)n;
 }
 
-void portion_estimate_learn(weight_dg_t delivered_dg, uint8_t portions)
+static void portion_estimate_store(weight_dg_t dg)
 {
     const config_port_t *cfg = config_port_get();
-    weight_dg_t sample;
-    weight_dg_t next;
     char buf[12];
 
-    if (portions == 0u || delivered_dg <= 0) {
-        return;
-    }
-    sample = (weight_dg_t)(delivered_dg / (weight_dg_t)portions);
-    if (sample < PORTION_SAMPLE_MIN_DG || sample > PORTION_SAMPLE_MAX_DG) {
-        return;
-    }
-
-    portion_estimate_load();
-    {
-        weight_dg_t diff = sample - s_est_dg;
-        weight_dg_t step = (diff + (diff > 0 ? 2 : -2)) / 4;   /* EMA 1/4, rounded */
-
-        if (step == 0 && diff != 0) {
-            step = diff > 0 ? 1 : -1;
-        }
-        next = s_est_dg + step;
-    }
-    if (next < PORTION_ESTIMATE_MIN_DG) {
-        next = PORTION_ESTIMATE_MIN_DG;
-    }
-    if (next > PORTION_ESTIMATE_MAX_DG) {
-        next = PORTION_ESTIMATE_MAX_DG;
-    }
-    if (next == s_est_dg) {
-        return;
-    }
-    s_est_dg = next;
-    app_log_info("dispense", "portion size %ld dg (sample %ld dg)", (long)next, (long)sample);
+    s_est_dg = dg;
     if (cfg != NULL) {
-        (void)snprintf(buf, sizeof(buf), "%ld", (long)next);
+        (void)snprintf(buf, sizeof(buf), "%ld", (long)dg);
         (void)cfg->write(CONFIG_GROUP_FEED, PORTION_KEY, buf);
     }
 }
 
+bool portion_estimate_calibrate(weight_dg_t delivered_dg, uint8_t portions)
+{
+    weight_dg_t sample;
+
+    portion_estimate_load();
+    if (portions == 0u || delivered_dg <= 0) {
+        portion_estimate_calibration_failed();
+        return false;
+    }
+    sample = (weight_dg_t)((delivered_dg + (weight_dg_t)portions / 2) / (weight_dg_t)portions);
+    if (sample < PORTION_ESTIMATE_MIN_DG || sample > PORTION_ESTIMATE_MAX_DG) {
+        app_log_info("dispense", "portion calibration rejected: %ld dg over %u portions",
+                     (long)delivered_dg, (unsigned)portions);
+        portion_estimate_calibration_failed();
+        return false;
+    }
+    portion_estimate_store(sample);
+    s_status = PORTION_CAL_OK;
+    app_log_info("dispense", "portion calibrated: %ld dg (%ld dg over %u portions)",
+                 (long)sample, (long)delivered_dg, (unsigned)portions);
+    return true;
+}
+
+void portion_estimate_calibration_failed(void)
+{
+    s_status = PORTION_CAL_FAILED;
+}
+
+void portion_estimate_reset(void)
+{
+    portion_estimate_load();
+    portion_estimate_store(PORTION_ESTIMATE_DEFAULT_DG);
+    s_status = PORTION_CAL_NONE;
+    app_log_info("dispense", "portion size reset to default");
+}
+
+portion_cal_status_t portion_estimate_status(void)
+{
+    portion_estimate_load();
+    return s_status;
+}
+
+bool portion_estimate_is_calibrated(void)
+{
+    return portion_estimate_dg() != PORTION_ESTIMATE_DEFAULT_DG;
+}
+
 void portion_estimate_test_reset(void)
 {
+    s_status = PORTION_CAL_NONE;
     s_loaded = 0;
     s_est_dg = PORTION_ESTIMATE_DEFAULT_DG;
 }

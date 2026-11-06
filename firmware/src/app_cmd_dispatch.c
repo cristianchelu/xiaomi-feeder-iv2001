@@ -18,6 +18,7 @@
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
+#include "mqtt_portion.h"
 #include "mqtt_power.h"
 #include "ota_base.h"
 #include "mqtt_schedule.h"
@@ -110,6 +111,9 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
     case MQTT_ROUTE_CMD_POWER:
         return mqtt_power_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_PORTION_CAL:
+        return mqtt_portion_handle(payload, len);
 
     case MQTT_ROUTE_CMD_OTA_BASE:
         return ota_base_handle(payload, len);

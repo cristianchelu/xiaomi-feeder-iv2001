@@ -25,6 +25,7 @@ typedef enum {
     MQTT_ROUTE_CMD_EATEN_RESET,
     MQTT_ROUTE_CMD_OTA_BASE,
     MQTT_ROUTE_CMD_POWER,
+    MQTT_ROUTE_CMD_PORTION_CAL,
     MQTT_ROUTE_CMD_OTA,
 } mqtt_route_kind_t;
 

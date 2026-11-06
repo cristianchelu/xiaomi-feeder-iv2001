@@ -133,6 +133,7 @@ static void app_task_fn(void *param)
 
 void app_start(void)
 {
+    app_lock_init();
     app_event_port_init();
     wdt_adapter_log_reset_reason();
     time_sync_init();

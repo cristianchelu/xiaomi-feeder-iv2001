@@ -5,6 +5,7 @@
 #ifndef PORTION_ESTIMATE_H
 #define PORTION_ESTIMATE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "weight_driver.h"
@@ -20,8 +21,23 @@
 weight_dg_t portion_estimate_dg(void);
 /* Nearest whole number of portions for a gram target (at least 1). */
 uint8_t portion_estimate_portions_for_dg(weight_dg_t target_dg, uint8_t max_portions);
-/* Learn from a measured dispense: EMA (1/4) of delivered/portions, persisted. */
-void portion_estimate_learn(weight_dg_t delivered_dg, uint8_t portions);
+/* Portions turned by a calibration run (one weighing over several holes). */
+#define PORTION_CAL_PORTIONS          3u
+
+typedef enum {
+    PORTION_CAL_NONE = 0,   /* default 10 g, never calibrated */
+    PORTION_CAL_OK,
+    PORTION_CAL_FAILED,     /* last run could not be weighed / was implausible */
+} portion_cal_status_t;
+
+/* Result of a calibration run: delivered mass over the portions turned.
+ * Sets the estimate directly (no averaging with the old value). */
+bool portion_estimate_calibrate(weight_dg_t delivered_dg, uint8_t portions);
+void portion_estimate_calibration_failed(void);
+/* Back to the 10 g default. */
+void portion_estimate_reset(void);
+portion_cal_status_t portion_estimate_status(void);
+bool portion_estimate_is_calibrated(void);
 
 void portion_estimate_test_reset(void);
 

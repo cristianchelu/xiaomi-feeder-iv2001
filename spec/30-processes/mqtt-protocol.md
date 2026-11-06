@@ -64,6 +64,7 @@ unchanged.
 | `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional; or `{"install":true}` ([One-button install](ota-flow.md#one-button-install)) | 1 |
 | `.../cmd/ota_base` | Plain-text `http(s)://host[:port]/dir` firmware folder; stored in NVDM `system/ota_base`, retained on `.../ota/base` | 1 |
 | `.../cmd/eaten_reset` | `{}` — zero today's eaten total | 1 |
+| `.../cmd/portion_cal` | `{}` — turn 3 portions open-loop, weigh once, set grams per portion; `{"action":"reset"}` → 10 g. Result retained on `.../portion` `{"g":"8.5","status":"ok"\|"failed"\|"default"}` | 1 |
 | `.../cmd/power` | `{"battery_wifi":"on"\|"off"\|"scheduled_only"}`; retained on `.../power` | 1 |
 
 ### Reboot command
@@ -174,6 +175,8 @@ clear the config topic (empty retained payload) and republish, or use
 | button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
 | button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
 | button | eaten_reset | — | `config` | `cmd/eaten_reset` |
+| sensor | portion_size | — | — | Grams per portion (`.../portion`, `value_json.g`) |
+| button | portion_cal | — | `config` | `cmd/portion_cal {}` |
 | select | battery_wifi | — | `config` | Options: on, off, scheduled_only (`power/battery_wifi`) |
 | text | ota_base | — | `config` | Firmware folder URL (≤ 120 chars) |
 | button | ota_install | `update` | `config` | `cmd/ota {"install":true}` |

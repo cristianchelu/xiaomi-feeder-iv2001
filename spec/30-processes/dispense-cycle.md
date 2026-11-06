@@ -202,12 +202,16 @@ Completion is reported via `.../dispense/event` only — no retained
 ## Portion size
 
 The mass per index hole depends on the kibble (reference unit: ~8.5 g per hole
-measured, vs the historic 10 g constant). `portion_estimate` keeps a learned
-value in NVDM `feed/portion_dg` (default 100 dg, clamped 3–20 g):
+measured, vs the historic 10 g constant). NVDM `feed/portion_dg` holds the
+grams-per-portion estimate (default 100 dg, clamped 3–20 g). It changes **only
+on request** — no automatic learning:
 
-- Gram targets become the **nearest** whole number of portions (at least 1).
-- Compensated top-ups use the same estimate for the deficit.
-- Open-loop events without a trusted scale report `portions × estimate`.
-- After every measured batch, `batch delta / batch portions` updates the
-  estimate (EMA ¼, rounded, at least 1 dg toward the sample); samples outside
-  2–30 g per portion are ignored (bowl knocked, nothing fell, jam retries).
+- `cmd/portion_cal {}` (HA *Calibrate portion*, web *Calibrate portion*) runs a
+  3-portion open-loop job, weighs once after the settle and sets
+  `estimate = delivered / portions` (one weighing over 3 holes: ±0.3 g per
+  portion at the scale's 1 g resolution). Implausible or unweighed runs leave
+  the value unchanged with status `failed`.
+- `{"action":"reset"}` restores 10 g.
+- Gram targets use the **nearest** whole number of portions (at least 1);
+  compensated top-ups and open-loop estimates use the same value.
+- Result: retained `.../portion`, HA sensor *Portion size*, web page.

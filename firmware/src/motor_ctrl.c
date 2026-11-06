@@ -57,6 +57,7 @@ typedef enum {
     MOTOR_JAM_ADC_SUSTAINED,
     MOTOR_JAM_INDEX_TIMEOUT,
     MOTOR_JAM_SESSION_TIMEOUT,
+    MOTOR_JAM_STALL,
 } motor_jam_reason_t;
 
 typedef enum {
@@ -81,6 +82,11 @@ static bool s_prev_beam_open;
 static TickType_t s_beam_closed_tick;
 /* Last counted pulse (or motor start): index timeout is per gap, not only 0 pulses. */
 static TickType_t s_last_pulse_tick;
+/* Forcing-without-turning timer (load above the stall level, burst only). */
+static TickType_t s_stall_start_tick;
+static bool s_stall_active;
+/* Anti-jam resume continues the same burst: pulses already delivered count. */
+static bool s_resume_keep_pulses;
 /* Field trace: once a second while running, beam/poll/current summary. */
 static uint16_t s_trace_ok;
 static uint16_t s_trace_busy;
@@ -125,6 +131,8 @@ static const char *motor_ctrl_jam_reason_label(motor_jam_reason_t reason)
         return "index timeout";
     case MOTOR_JAM_SESSION_TIMEOUT:
         return "session timeout";
+    case MOTOR_JAM_STALL:
+        return "stall";
     default:
         return "unknown";
     }
@@ -154,6 +162,10 @@ static void motor_ctrl_log_jam(motor_jam_reason_t reason)
                      (unsigned)s_jam_ma,
                      (unsigned long)s_jam_sustained_ms,
                      MOTOR_JAM_SUSTAINED_MA);
+        break;
+    case MOTOR_JAM_STALL:
+        app_log_info("motor", "jam: stall %u mA for %u ms without turning (>= %u mA)",
+                     (unsigned)s_jam_ma, (unsigned)MOTOR_STALL_MS, (unsigned)MOTOR_STALL_MA);
         break;
     case MOTOR_JAM_INDEX_TIMEOUT:
         app_log_info("motor",
@@ -500,6 +512,22 @@ static motor_jam_reason_t motor_ctrl_detect_jam(TickType_t now)
             return MOTOR_JAM_ADC_INSTANT;
         }
 
+        /* Field trace: a stalled auger draws ~280 mA without moving; normal
+         * rotation is 70-150 mA. Back off after 2 s instead of waiting for the
+         * 8 s index timeout. */
+        if (s_phase == MOTOR_PHASE_RUN_BURST && ma >= MOTOR_STALL_MA &&
+            ma <= MOTOR_JAM_SUSTAINED_MA) {
+            if (!s_stall_active) {
+                s_stall_active = true;
+                s_stall_start_tick = motor_ctrl_tick_now();
+            } else if (motor_ctrl_tick_elapsed(s_stall_start_tick, MOTOR_STALL_MS)) {
+                s_stall_active = false;
+                return MOTOR_JAM_STALL;
+            }
+        } else {
+            s_stall_active = false;
+        }
+
         if (ma > MOTOR_JAM_SUSTAINED_MA) {
             s_sustained_over_ms += MOTOR_CTRL_LOOP_SLICE_MS;
             if (s_sustained_over_ms >= MOTOR_JAM_SUSTAINED_MS) {
@@ -550,7 +578,11 @@ static port_err_t motor_ctrl_begin_run(bool park)
     port_err_t err;
 
     motor_ctrl_driver_ensure();
-    s_pulses = 0u;
+    if (!s_resume_keep_pulses) {
+        s_pulses = 0u;
+    }
+    s_resume_keep_pulses = false;
+    s_stall_active = false;
     /* The auger parks with the index hole in the beam (beam open). Assume that
      * until a read says otherwise, so a failed initial read never turns the
      * parked hole into a counted edge (a 1-portion burst stopped at once). */
@@ -656,6 +688,9 @@ static void motor_ctrl_poll_bench(TickType_t now)
 
 static void motor_ctrl_retry_active_cmd(void)
 {
+    /* Same job after an anti-jam reverse: holes already counted stay counted,
+     * otherwise every jam added extra portions. */
+    s_resume_keep_pulses = true;
     if (s_active_cmd.kind == MOTOR_CMD_PARK) {
         (void)motor_ctrl_begin_run(true);
     } else {
@@ -717,7 +752,7 @@ static void motor_ctrl_trace(TickType_t now, bool beam_open)
     }
     s_trace_tick = now;
     (void)motor_ctrl_adc_sample(&ma);
-    app_log_info("motor", "run +%lu ms beam %s polls ok %u busy %u err %u load %u mA",
+    app_log_debug("motor", "run +%lu ms beam %s polls ok %u busy %u err %u load %u mA",
                  (unsigned long)((now - s_en_start_tick) * portTICK_PERIOD_MS),
                  beam_open ? "open" : "closed",
                  (unsigned)s_trace_ok, (unsigned)s_trace_busy, (unsigned)s_trace_err,

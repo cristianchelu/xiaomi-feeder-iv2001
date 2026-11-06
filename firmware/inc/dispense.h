@@ -77,6 +77,9 @@ dispense_submit_result_t dispense_submit_portions(uint8_t portions,
                                                   dispense_source_t source);
 dispense_submit_result_t dispense_submit_grams(uint8_t grams,
                                                dispense_source_t source);
+/* Portion calibration: turn PORTION_CAL_PORTIONS holes open-loop, weigh once,
+ * set the grams-per-portion estimate (see portion_estimate.h). */
+dispense_submit_result_t dispense_submit_portion_cal(dispense_source_t source);
 bool dispense_is_active(void);
 void dispense_start_from_request(const app_dispense_request_t *req);
 bool dispense_on_burst_done(void);

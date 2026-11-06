@@ -59,6 +59,7 @@
 #include "reboot_request.h"
 #include "power_source_input.h"
 #include "power_source_port.h"
+#include "app_lock.h"
 #include "battery_monitor.h"
 #include "mqtt_power.h"
 #include "power_policy.h"
@@ -104,6 +105,8 @@ static bool s_dispense_seen;
 static uint32_t s_policy_last_ms;
 
 #define APP_POLICY_PERIOD_MS      1000u
+/* A web command holds the lock for at most a calibration capture (~1 s). */
+#define APP_LOCK_EVENT_WAIT_MS    5000u
 #define APP_POLICY_BOOT_GRACE_MS  60000u
 
 bool app_is_asleep(void)
@@ -903,7 +906,9 @@ static void app_dispatch_event_batch(app_event_t *batch, size_t count)
 
     for (i = 0u; i < count; i++) {
         if (!app_event_defer_display_tick(batch[i].type)) {
+            (void)app_lock_take(APP_LOCK_EVENT_WAIT_MS);
             app_dispatch(&batch[i]);
+            app_lock_give();
             app_event_release(&batch[i]);
         }
     }
