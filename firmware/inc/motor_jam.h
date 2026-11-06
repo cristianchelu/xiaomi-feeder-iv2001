@@ -26,9 +26,12 @@
 #define MOTOR_INDEX_LED_SETTLE_MS          5u
 #define MOTOR_INDEX_BASELINE_TRIES         5u
 #define MOTOR_INDEX_BASELINE_RETRY_MS      10u
-/* Minimum closed stretch before a hole counts as an index pulse. A half turn
- * keeps the beam closed for most of 180°; edge flicker lasts a few ms. */
-#define MOTOR_INDEX_MIN_CLOSED_MS        150u
+/* Minimum closed stretch before a hole counts as an index pulse, measured on
+ * the device (mains): one hole every ~6.4 s, beam open ~0.2 s. When the motor
+ * stops, the loaded auger springs back out of the hole; on the next start it
+ * re-enters it within ~160 ms. Counting from motor start (a closed baseline is
+ * not "already closed"), anything under 1.5 s is that spring-back, not a turn. */
+#define MOTOR_INDEX_MIN_CLOSED_MS       1500u
 #define MOTOR_PARK_BEAM_POLL_MS           200u
 
 #endif /* MOTOR_JAM_H */

@@ -288,7 +288,7 @@ void test_motor_ctrl_burst_from_parked_hole_needs_a_real_edge(void)
     TEST_ASSERT_TRUE(motor_ctrl_is_active());           /* still turning */
 
     fake_motor_index_port_set_beam_open(false);         /* leaves the hole */
-    for (i = 0u; i < 6u; i++) {                         /* ~300 ms between holes */
+    for (i = 0u; i < 32u; i++) {                        /* > MIN_CLOSED between holes */
         fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
         motor_ctrl_test_poll();
     }
@@ -323,7 +323,7 @@ void test_motor_ctrl_start_jolt_flicker_is_not_a_portion(void)
     TEST_ASSERT_TRUE(motor_ctrl_is_active());
 
     fake_motor_index_port_set_beam_open(false);         /* real closed stretch */
-    for (i = 0u; i < 6u; i++) {
+    for (i = 0u; i < 32u; i++) {
         fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
         motor_ctrl_test_poll();
     }
@@ -331,6 +331,86 @@ void test_motor_ctrl_start_jolt_flicker_is_not_a_portion(void)
     for (i = 0u; i < 5u && motor_ctrl_is_active(); i++) {
         fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
         motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_FALSE(motor_ctrl_is_active());
+}
+
+/* Field-measured timings (mains): hole every ~6400 ms, open ~200 ms. */
+static void step_ms(uint32_t ms)
+{
+    uint32_t t;
+
+    for (t = 0u; t < ms; t += MOTOR_BURST_BEAM_POLL_MS + 1u) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+}
+
+/* Device log: "baseline closed", "beam open +168 ms", "pulse 1", burst done,
+ * bowl unchanged. The loaded auger sprang back out of the hole it stopped in;
+ * re-entering it is not a portion. */
+void test_motor_ctrl_springback_reentry_is_not_a_portion(void)
+{
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(false);
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(1u, MOTOR_BURST_TIMEOUT_MS));
+    motor_ctrl_test_poll();
+
+    step_ms(160u);
+    fake_motor_index_port_set_beam_open(true);   /* same hole again */
+    step_ms(200u);
+    fake_motor_index_port_set_beam_open(false);
+    TEST_ASSERT_TRUE(motor_ctrl_is_active());
+
+    step_ms(6000u);
+    fake_motor_index_port_set_beam_open(true);   /* next hole, half a turn later */
+    step_ms(120u);
+    TEST_ASSERT_FALSE(motor_ctrl_is_active());
+}
+
+/* Device log: pulse 1 then no hole for 19.5 s until the 20 s session limit.
+ * A stall after the first pulse must trip the per-gap index timeout. */
+void test_motor_ctrl_stall_after_first_pulse_trips_index_timeout(void)
+{
+    char log[16384];
+    FILE *saved;
+    FILE *cap;
+
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(false);
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(3u, MOTOR_BURST_TIMEOUT_MS));
+    motor_ctrl_test_poll();
+    step_ms(6000u);
+    fake_motor_index_port_set_beam_open(true);   /* pulse 1 */
+    step_ms(200u);
+    fake_motor_index_port_set_beam_open(false);  /* then stalls */
+
+    capture_stdout_begin(&saved, &cap);
+    step_ms(MOTOR_BURST_TIMEOUT_MS + 300u);
+    capture_stdout_end(saved, cap, log, sizeof(log));
+
+    TEST_ASSERT_NOT_NULL(strstr(log, "jam: index timeout"));
+    TEST_ASSERT_NULL(strstr(log, "session timeout"));
+}
+
+/* 50 g = 5 portions at ~6.4 s per hole is ~32 s of normal rotation: it must
+ * not hit the 20 s session limit. */
+void test_motor_ctrl_five_portions_at_field_speed_complete(void)
+{
+    unsigned i;
+
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(false);
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(5u, MOTOR_BURST_TIMEOUT_MS));
+    motor_ctrl_test_poll();
+    for (i = 0u; i < 5u; i++) {
+        step_ms(6200u);
+        fake_motor_index_port_set_beam_open(true);
+        step_ms(200u);
+        if (i < 4u) {
+            TEST_ASSERT_TRUE(motor_ctrl_is_active());
+        }
+        fake_motor_index_port_set_beam_open(false);
     }
     TEST_ASSERT_FALSE(motor_ctrl_is_active());
 }

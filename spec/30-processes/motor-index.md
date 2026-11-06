@@ -61,11 +61,16 @@ Handled inside `motor_index_port` (adapter owns P0.6 / P0.7 sequencing):
   never counted as the first portion (previous behaviour: a failed baseline read
   defaulted to "closed" and a 1-portion burst stopped almost at once).
 - **Minimum closed stretch:** an open edge counts only if the beam stayed closed
-  for at least `[tune]` 150 ms before it (a burst that starts between holes
-  counts as already closed). The auger parks at the hole edge and the start-up
-  jolt flickers the beam for a few ms; counting that flicker stopped 1-portion
-  bursts after a twitch with nothing delivered, and left every N-portion job one
-  portion short.
+  for at least `[tune]` 1500 ms before it, timed from motor start when the
+  baseline is closed. Field trace (mains): one hole every ~6.4 s, beam open
+  ~0.2 s, ~9 g per hole. When the motor stops, the loaded auger springs back out
+  of the hole; on the next start it re-enters it within ~160 ms. Counting that
+  re-entry stopped 1-portion bursts with nothing delivered (10 g, the dispense
+  button).
+- **Index timeout per gap:** no counted hole within the burst timeout since the
+  last pulse (or start) is a jam (anti-jam reverse), not only "0 pulses".
+- **Session limit for bursts:** `pulse_target × burst timeout + 2 s` (at least
+  the 20 s motor maximum), so 5 portions at field speed (~32 s) complete.
 
 ### Jam timeout detection
 

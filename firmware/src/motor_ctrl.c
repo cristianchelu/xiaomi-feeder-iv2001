@@ -79,6 +79,8 @@ static uint8_t s_pulses;
 static bool s_prev_beam_open;
 /* When the beam last closed: a hole only counts after a real closed stretch. */
 static TickType_t s_beam_closed_tick;
+/* Last counted pulse (or motor start): index timeout is per gap, not only 0 pulses. */
+static TickType_t s_last_pulse_tick;
 /* Field trace: once a second while running, beam/poll/current summary. */
 static uint16_t s_trace_ok;
 static uint16_t s_trace_busy;
@@ -155,8 +157,8 @@ static void motor_ctrl_log_jam(motor_jam_reason_t reason)
         break;
     case MOTOR_JAM_INDEX_TIMEOUT:
         app_log_info("motor",
-                     "jam: index timeout (0 pulses in %u ms, burst)",
-                     (unsigned)s_active_cmd.timeout_ms);
+                     "jam: index timeout (no hole in %u ms, %u pulse(s), burst)",
+                     (unsigned)s_active_cmd.timeout_ms, (unsigned)s_pulses);
         break;
     case MOTOR_JAM_SESSION_TIMEOUT:
         app_log_info("motor", "jam: session timeout (%u ms)",
@@ -207,6 +209,17 @@ static bool motor_ctrl_session_timed_out(TickType_t now)
 
     if (s_phase == MOTOR_PHASE_IDLE) {
         return false;
+    }
+
+    /* A burst may legitimately need one index period per pulse (~6.4 s
+     * measured); stalls are caught per gap by the index timeout. */
+    if (s_phase == MOTOR_PHASE_RUN_BURST && s_active_cmd.timeout_ms > 0u) {
+        uint32_t limit = (uint32_t)s_active_cmd.pulse_target * s_active_cmd.timeout_ms + 2000u;
+
+        if (limit < MOTOR_RUN_MS_MAX) {
+            limit = MOTOR_RUN_MS_MAX;
+        }
+        return motor_ctrl_tick_elapsed(s_en_start_tick, limit);
     }
 
     return motor_ctrl_tick_elapsed(s_en_start_tick, MOTOR_RUN_MS_MAX);
@@ -396,6 +409,7 @@ static void motor_ctrl_apply_beam_sample(bool beam_open, TickType_t now)
         if (s_beam_closed_valid &&
             (now - s_beam_closed_tick) >= pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS)) {
             s_pulses++;
+            s_last_pulse_tick = now;
             app_log_info("motor", "pulse %u", (unsigned)s_pulses);
         } else {
             app_log_info("motor", "edge ignored (closed %lu ms)",
@@ -497,9 +511,12 @@ static motor_jam_reason_t motor_ctrl_detect_jam(TickType_t now)
         }
     }
 
-    if (s_phase == MOTOR_PHASE_RUN_BURST && s_pulses == 0u &&
+    /* No new hole within the timeout since the last pulse (or start): the
+     * auger stalled. Checking only "0 pulses" let a stall after the first
+     * pulse run until the session limit with nothing delivered. */
+    if (s_phase == MOTOR_PHASE_RUN_BURST &&
         s_active_cmd.timeout_ms > 0u &&
-        motor_ctrl_tick_elapsed(s_en_start_tick, s_active_cmd.timeout_ms)) {
+        motor_ctrl_tick_elapsed(s_last_pulse_tick, s_active_cmd.timeout_ms)) {
         return MOTOR_JAM_INDEX_TIMEOUT;
     }
 
@@ -550,6 +567,7 @@ static port_err_t motor_ctrl_begin_run(bool park)
     s_last_beam_poll_tick = 0u;
     s_index_sample_after_tick = 0u;
     s_en_start_tick = motor_ctrl_tick_now();
+    s_last_pulse_tick = s_en_start_tick;
 
     {
         const motor_index_port_t *idx = motor_index_port_get();
@@ -582,9 +600,9 @@ static port_err_t motor_ctrl_begin_run(bool park)
             if (known) {
                 s_prev_beam_open = beam_open;
                 if (!beam_open) {
-                    /* Starting between holes: the closed stretch is real. */
-                    s_beam_closed_tick = motor_ctrl_tick_now() -
-                                         pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS);
+                    /* Closed at start: time it from now. The auger may have
+                     * sprung back just out of the hole it stopped in. */
+                    s_beam_closed_tick = motor_ctrl_tick_now();
                     s_beam_closed_valid = true;
                 }
             } else {

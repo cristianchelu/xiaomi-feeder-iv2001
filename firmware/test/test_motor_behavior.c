@@ -87,6 +87,18 @@ static bool motor_behavior_take_event(app_event_type_t expect)
     return true;
 }
 
+/* Real auger: one hole every ~6.4 s; a hole only counts after the beam stayed
+ * closed >= MOTOR_INDEX_MIN_CLOSED_MS. Travel that closed stretch. */
+static void motor_behavior_travel_between_holes(void)
+{
+    uint32_t t;
+
+    for (t = 0u; t <= MOTOR_INDEX_MIN_CLOSED_MS + 100u; t += MOTOR_BURST_BEAM_POLL_MS + 1u) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+}
+
 static void motor_behavior_simulate_index_hole(void)
 {
     fake_gpio_expander_set_index_beam_open(true);
@@ -100,6 +112,8 @@ void test_motor_burst_completes_on_index_transition_without_irq(void)
 
     motor_ctrl_test_poll();
     TEST_ASSERT_TRUE(motor_ctrl_is_active());
+
+    motor_behavior_travel_between_holes();
 
     fake_motor_index_port_set_beam_open(true);
     fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
@@ -122,6 +136,8 @@ void test_motor_burst_survives_wfci_busy_then_counts_pulse(void)
     motor_ctrl_test_poll();
     TEST_ASSERT_TRUE(motor_ctrl_is_active());
 
+    motor_behavior_travel_between_holes();
+
     motor_behavior_simulate_index_hole();
     fake_time_advance_ms(MOTOR_BURST_TIMEOUT_MS / 4u);
     motor_ctrl_test_poll();
@@ -131,7 +147,7 @@ void test_motor_burst_survives_wfci_busy_then_counts_pulse(void)
     /* Baseline was unreadable (bus busy), so the controller assumed the parked
      * hole: it needs to see the beam close, then the next hole. */
     fake_gpio_expander_set_index_beam_open(false);
-    for (int i = 0; i < 6; i++) {   /* ~300 ms between holes */
+    for (int i = 0; i < 32; i++) {  /* > MIN_CLOSED between holes */
         fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
         motor_ctrl_test_poll();
     }
@@ -154,6 +170,7 @@ void test_motor_burst_retries_index_sample_after_poll_busy(void)
     fake_motor_index_port_set_poll_busy_remaining(2u);
     motor_ctrl_test_notify(MOTOR_CTRL_NOTIFY_INDEX);
     fake_time_advance_ms(MOTOR_INDEX_IRQ_DEBOUNCE_MS + 1u);
+    motor_behavior_travel_between_holes();
     fake_motor_index_port_set_beam_open(true);
     motor_behavior_run_motor_until_idle(50u);
 
@@ -174,6 +191,8 @@ void test_dispense_completes_when_index_pulse_seen_e2e(void)
     TEST_ASSERT_TRUE(app_step());
     motor_ctrl_test_poll();
     TEST_ASSERT_TRUE(motor_ctrl_is_active());
+
+    motor_behavior_travel_between_holes();
 
     motor_behavior_simulate_index_hole();
     fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
@@ -203,6 +222,8 @@ void test_dispense_does_not_park_after_burst_pulse(void)
     (void)dispense_cli_handle_default(0u, NULL);
     (void)app_step();
     motor_ctrl_test_poll();
+
+    motor_behavior_travel_between_holes();
 
     motor_behavior_simulate_index_hole();
     fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
