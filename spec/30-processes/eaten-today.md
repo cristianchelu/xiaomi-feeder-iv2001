@@ -29,15 +29,17 @@ calibrated, a sample is valid, `bowl_error` is clear, and auto-tare is anchored
    total keeps accumulating; the stored key is adopted once the clock is known
    if it was 0, otherwise a mismatch resets.
 2. Not `usable` → `ref_valid = false`; nothing counted.
-3. First usable sample → `ref_dg = presented`, `ref_valid = true`.
-4. **Settle:** a sample is settled after `[tune]` 6 consecutive samples whose
-   presented mass stays within `[tune]` 2 dg (0.2 g) of the previous sample.
-5. Settled and `presented > ref_dg` → `ref_dg = presented` (food added or
+3. **Settle:** keep the last `[tune]` 6 presented samples (3 s). The level is
+   settled when `max − min ≤ [tune]` 10 dg (the CS1270 reads whole grams and
+   flickers by one count); the settled **level** is the window mean.
+4. First settled level after a rebase → `ref_dg = level`, `ref_valid = true`
+   (a bouncing bowl never becomes the reference).
+5. Settled and `level > ref_dg + 10 dg` → `ref_dg = level` (food added or
    drift up; never counted).
-6. Settled and `ref_dg − presented ≥ [tune]` 10 dg (1 g) → `total_dg +=
-   ref_dg − presented`, `ref_dg = presented`, persist.
-7. Smaller drops are not counted until they accumulate past 1 g against
-   `ref_dg`.
+6. Settled and `ref_dg − level ≥ [tune]` 30 dg (3 g) → `total_dg +=
+   ref_dg − level`, `ref_dg = level`, persist.
+7. Smaller drops are not counted until they accumulate past 3 g against
+   `ref_dg`; one-count flicker alone never counts.
 
 Dispense completion and bowl removal call `eaten_today_invalidate()` so the
 next usable settled sample becomes the new `ref_dg` (food added by the feeder

@@ -184,8 +184,13 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
 
     if (mqtt_json_has_key(payload_buf, len, "install")) {
         /* One-button install: <base>/petfeeder_<inactive bank>.bin. */
+        bool install = false;
         char inactive = (ota_client_active_bank_letter() == 'A') ? 'b' : 'a';
 
+        if (!mqtt_json_find_bool(payload_buf, len, "install", &install) || !install) {
+            app_log_info("ota", "install ignored (not true)");
+            return;
+        }
         has_sha512 = false;
         if (!ota_base_build_url(inactive, url, sizeof(url))) {
             ota_client_publish_status("error", 0, "no_base_url");

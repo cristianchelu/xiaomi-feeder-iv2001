@@ -184,3 +184,15 @@ void test_battery_monitor_skips_when_power_source_invalid(void)
 
     TEST_ASSERT_EQUAL_UINT(0, fake_mqtt_port_state()->publish_calls);
 }
+
+void test_battery_monitor_floating_holder_reads_unknown_not_zero_percent(void)
+{
+    setup_battery_monitor(false);
+    fake_adc_port_set_battery_mv(120u);   /* ADC noise, no cells fitted */
+
+    battery_monitor_poll(0u);
+    drain_outbox();
+
+    TEST_ASSERT_EQUAL_STRING("unknown", fake_mqtt_port_state()->last_publish_payload);
+    TEST_ASSERT_EQUAL_UINT8(BATTERY_MONITOR_PCT_UNKNOWN, battery_monitor_pct());
+}

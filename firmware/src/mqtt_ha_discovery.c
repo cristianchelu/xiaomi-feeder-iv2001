@@ -845,7 +845,7 @@ int mqtt_ha_format_overfill_threshold_g_config(char *buf, size_t len, const char
                        "\"command_topic\":\"%s\","
                        "\"command_template\":\"{\\\"threshold_g\\\": {{ value }}}\","
                        "\"min\":30,"
-                       "\"max\":100,"
+                       "\"max\":500,"
                        "\"step\":1,"
                        "\"unit_of_measurement\":\"g\","
                        "\"mode\":\"box\","

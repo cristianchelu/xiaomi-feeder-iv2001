@@ -62,6 +62,7 @@
 #include "battery_monitor.h"
 #include "mqtt_power.h"
 #include "power_policy.h"
+#include "provision.h"
 #include "provision_reset.h"
 #include "wifi_sta.h"
 #ifndef HOST_TEST
@@ -146,8 +147,9 @@ static void app_power_policy_poll(uint32_t now_ms)
                           (now_ms - s_last_dispense_ms) < POWER_POLICY_DISPENSE_HOLD_MS);
 
     wanted = power_policy_wifi_wanted(&in);
-    if (wanted == s_wifi_up || feeder_runtime_ota_active() || wifi_sta_busy() != WIFI_STA_IDLE) {
-        return;
+    if (wanted == s_wifi_up || feeder_runtime_ota_active() || provision_is_active() ||
+        wifi_sta_busy() != WIFI_STA_IDLE) {
+        return;  /* never touch the radio while the captive portal (AP) runs */
     }
     if (!wanted && !s_asleep && now_ms < APP_POLICY_BOOT_GRACE_MS) {
         return;  /* let the first connection and time sync finish */
@@ -156,6 +158,13 @@ static void app_power_policy_poll(uint32_t now_ms)
     if (wanted ? wifi_sta_request_connect() : wifi_sta_request_disconnect()) {
         s_wifi_up = wanted;
         app_log_info("app", wanted ? "wifi policy: connect" : "wifi policy: disconnect");
+        if (!wanted) {
+            /* No STA event follows a requested disconnect: stop MQTT retries
+             * and show the radio as off. EVT_WIFI_STA_READY restores both. */
+            mqtt_client_notify_wifi_down();
+            display_wifi_indicator_off();
+            display_mqtt_indicator_off();
+        }
     }
 }
 
@@ -191,7 +200,10 @@ static void app_health_apply(void)
 {
     uint8_t pct = battery_monitor_pct();
 
-    s_health_battery = pct != BATTERY_MONITOR_PCT_UNKNOWN && pct < BATTERY_MONITOR_LOW_PCT;
+    /* Low pack only matters when it is powering the feeder. */
+    s_health_battery = power_source_input_is_valid() &&
+                       power_source_input_get() == POWER_SOURCE_BATTERY &&
+                       pct != BATTERY_MONITOR_PCT_UNKNOWN && pct < POWER_POLICY_LOW_BATTERY_PCT;
     display_mqtt_indicator_set_problem(s_health_bowl || s_health_hopper || s_health_battery);
 }
 static bool s_bowl_valid;
@@ -315,7 +327,7 @@ void app_display_apply_settings(void)
         s_display_mode = APP_DISPLAY_MODE_WEIGHT;
         break;
     }
-    (void)display_presentation_set_blanked(s_panel_off);
+    (void)display_presentation_set_blanked(s_panel_off || s_asleep);
 }
 
 /* Blank the panel after inactivity on battery — display-presentation.md. */

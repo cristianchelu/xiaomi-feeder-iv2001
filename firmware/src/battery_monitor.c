@@ -93,7 +93,7 @@ bool battery_monitor_poll(uint32_t now_ms)
 
     mqtt_battery_voltage_sync(pack_mv, force);
 
-    if (pack_mv == 0u) {
+    if (pack_mv < BATTERY_MONITOR_ABSENT_MV) {
         s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
         mqtt_battery_sync(false, 0u, force);
     } else {

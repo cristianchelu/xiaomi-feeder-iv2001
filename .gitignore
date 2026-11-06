@@ -47,3 +47,5 @@ firmware/src/web_ui_gz.c
 tools/web/.web_ui_bundle.gz
 tools/web/.web_ui_bundle.html
 tools/web/.logic.inline.js
+__pycache__/
+*.pyc

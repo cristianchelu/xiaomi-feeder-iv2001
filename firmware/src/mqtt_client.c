@@ -693,6 +693,12 @@ void mqtt_client_notify_wifi_ready(void)
     s_wifi_ready = true;
 }
 
+void mqtt_client_notify_wifi_down(void)
+{
+    mqtt_client_stop();
+    s_wifi_ready = false;
+}
+
 const char *mqtt_client_device_id(void)
 {
     return s_device_id;

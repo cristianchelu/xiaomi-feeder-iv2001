@@ -338,3 +338,16 @@ void test_ota_install_without_base_reports_error(void)
     TEST_ASSERT_EQUAL_UINT(0, ota->start_calls);
     TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "no_base_url"));
 }
+
+void test_ota_install_false_does_nothing(void)
+{
+    const char *topic = "petfeeder/ddeeff/cmd/ota";
+    const char *payload = "{\"install\":false}";
+    const char *base = "http://10.20.10.5:8123/local/feeder";
+
+    setup_ota_client_connected();
+    TEST_ASSERT_EQUAL(PORT_OK, ota_base_handle(base, strlen(base)));
+    ota_client_on_mqtt_message(topic, payload, strlen(payload));
+    drain_ota_outbox();
+    TEST_ASSERT_EQUAL_UINT(0, fake_ota_port_state()->start_calls);
+}

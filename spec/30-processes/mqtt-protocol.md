@@ -165,7 +165,7 @@ clear the config topic (empty retained payload) and republish, or use
 | switch | feeding_schedule | — | `config` | On = global schedule enabled |
 | switch | weight_compensation | — | `config` | On = compensated dispense mode |
 | switch | overfill_protection | — | `config` | On = skip scheduled feeds when bowl ≥ threshold |
-| number | overfill_threshold_g | — | `config` | Range: 30–100 g |
+| number | overfill_threshold_g | — | `config` | Range: 30–500 g |
 | switch | child_lock | — | `config` | On/off |
 | select | display_mode | — | `config` | Options: weight, eaten_today |
 | number | display_brightness | — | `config` | Range: 0–4 (0 = panel off) |
@@ -662,7 +662,7 @@ NVDM `feed/overfill_enabled` and `feed/overfill_threshold_g` (see
 | Field | Type | Range |
 |-------|------|-------|
 | `enabled` | bool | — |
-| `threshold_g` | uint8 | 30–100 |
+| `threshold_g` | uint16 | 30–500 (out of range rejected, never truncated) |
 
 Command topic `.../cmd/feed/overfill` accepts a JSON object with either or
 both fields (partial update). Invalid `threshold_g` is rejected with no NVDM

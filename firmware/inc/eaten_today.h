@@ -10,9 +10,10 @@
 
 #include "weight_units.h"
 
-#define EATEN_TODAY_SETTLE_SAMPLES  6u   /* [tune] */
-#define EATEN_TODAY_SETTLE_BAND_DG  2    /* [tune] */
-#define EATEN_TODAY_MIN_EATEN_DG    10   /* [tune] */
+/* The CS1270 reads whole grams (1 count = 10 dg) and flickers by one count. */
+#define EATEN_TODAY_SETTLE_SAMPLES  6u   /* [tune] window, 3 s at 500 ms */
+#define EATEN_TODAY_SETTLE_BAND_DG  10   /* [tune] max-min inside the window */
+#define EATEN_TODAY_MIN_EATEN_DG    30   /* [tune] counted once 3 g below the reference */
 
 /* Restore from NVDM. day_key = local YYYYMMDD, 0 when the clock is unknown. */
 void eaten_today_init(uint32_t day_key);

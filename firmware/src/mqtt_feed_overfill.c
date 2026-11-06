@@ -70,7 +70,7 @@ static bool mqtt_feed_overfill_publish(void)
 static port_err_t mqtt_feed_overfill_apply(bool has_enabled,
                                            bool enabled,
                                            bool has_threshold,
-                                           uint8_t threshold_g)
+                                           unsigned threshold_g)
 {
     bool changed = false;
 
@@ -95,7 +95,7 @@ static port_err_t mqtt_feed_overfill_apply(bool has_enabled,
         }
 
         if (feed_config_overfill_threshold_g_get() != threshold_g) {
-            if (!feed_config_overfill_threshold_g_set(threshold_g)) {
+            if (!feed_config_overfill_threshold_g_set((uint16_t)threshold_g)) {
                 return PORT_ERR_IO;
             }
 
@@ -163,7 +163,7 @@ port_err_t mqtt_feed_overfill_handle(const void *payload, size_t len)
     return mqtt_feed_overfill_apply(has_enabled,
                                     enabled,
                                     has_threshold,
-                                    (uint8_t)threshold_g);
+                                    threshold_g);
 }
 
 void mqtt_feed_overfill_test_reset(void)

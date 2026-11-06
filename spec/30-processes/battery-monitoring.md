@@ -96,7 +96,7 @@ Power source from debounced `power_source_input` ([power-state-machine.md](power
 
 | Topic | Payload | When |
 |-------|---------|------|
-| `.../battery` | Plain integer `0`–`100`, or `unknown` when pack ADC is 0 mV | After ADC sample when % changes ≥ 1 pt, known ↔ unknown transition, connect snapshot, or forced resample |
+| `.../battery` | Plain integer `0`–`100`, or `unknown` when pack ADC reads under 1500 mV (no pack / floating holder) | After ADC sample when % changes ≥ 1 pt, known ↔ unknown transition, connect snapshot, or forced resample |
 | `.../battery_voltage` | Plain integer pack mV (including `0`) | Same sample tick as `.../battery` |
 | `.../mains` | `ON` / `OFF` | Immediately on debounced mains connect/loss; connect snapshot |
 

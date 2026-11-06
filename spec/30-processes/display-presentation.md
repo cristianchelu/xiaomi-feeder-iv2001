@@ -114,7 +114,7 @@ updated — see [weight-compensation.md](weight-compensation.md).
 
 With the broker connected the bar shows device health: **green** when healthy,
 **steady orange** while any problem is active — bowl error (missing bowl or
-calibration incomplete), hopper `low`/`empty`, or battery below 15 %. The
+calibration incomplete), hopper `low`/`empty`, or battery below 15 % **while running on battery**. The
 connecting blink and error pattern below take precedence when MQTT is not
 connected. `display_mqtt_indicator_set_problem()` is fed by `app`.
 

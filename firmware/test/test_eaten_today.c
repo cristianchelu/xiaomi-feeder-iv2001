@@ -181,3 +181,46 @@ void test_eaten_today_reset_zeroes_and_persists(void)
     TEST_ASSERT_EQUAL(PORT_OK, cfg->read(CONFIG_GROUP_EATEN, CONFIG_KEY_EATEN_DG, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("0", buf);
 }
+
+/* Real CS1270: 1 g resolution, reading flickers by one count (10 dg). */
+static void feed_flicker(weight_dg_t dg, unsigned n, uint32_t day)
+{
+    for (unsigned i = 0u; i < n; i++) {
+        eaten_today_on_idle_sample((i % 2u) ? dg + 10 : dg, true, day);
+    }
+}
+
+void test_eaten_today_counts_meal_on_flickering_scale(void)
+{
+    setup();
+    feed_flicker(300, 12u, DAY1);
+    feed_flicker(200, 12u, DAY1);   /* pet ate 10 g */
+    TEST_ASSERT_INT32_WITHIN(10, 100, eaten_today_total_dg());
+}
+
+void test_eaten_today_flicker_alone_is_never_counted(void)
+{
+    setup();
+    feed_flicker(300, 400u, DAY1);
+    TEST_ASSERT_EQUAL_INT32(0, eaten_today_total_dg());
+}
+
+void test_eaten_today_small_drops_accumulate_past_threshold(void)
+{
+    setup();
+    feed(500, 8u, DAY1);
+    feed(480, 8u, DAY1);   /* 2 g: below the 3 g step, not yet counted */
+    TEST_ASSERT_EQUAL_INT32(0, eaten_today_total_dg());
+    feed(460, 8u, DAY1);   /* 4 g total since the reference */
+    TEST_ASSERT_EQUAL_INT32(40, eaten_today_total_dg());
+}
+
+void test_eaten_today_reference_waits_for_settled_level(void)
+{
+    setup();
+    eaten_today_on_idle_sample(880, true, DAY1);   /* bowl still bouncing */
+    eaten_today_on_idle_sample(950, true, DAY1);
+    feed(900, 8u, DAY1);
+    feed(850, 8u, DAY1);
+    TEST_ASSERT_EQUAL_INT32(50, eaten_today_total_dg());
+}

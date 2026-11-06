@@ -105,7 +105,7 @@ port_err_t mqtt_display_handle(const void *payload, size_t len)
     }
     if (has_brightness) {
         if (!mqtt_json_find_uint(json, len, "brightness", &brightness) ||
-            brightness < DISPLAY_BRIGHTNESS_MIN || brightness > DISPLAY_BRIGHTNESS_MAX) {
+            brightness > DISPLAY_BRIGHTNESS_MAX) {   /* MIN is 0 */
             return PORT_ERR_INVALID_ARG;
         }
     }

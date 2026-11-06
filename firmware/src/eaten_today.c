@@ -15,8 +15,9 @@ static weight_dg_t s_total_dg;
 static uint32_t s_day;
 static weight_dg_t s_ref_dg;
 static bool s_ref_valid;
-static weight_dg_t s_last_dg;
-static unsigned s_settle;
+static weight_dg_t s_win[EATEN_TODAY_SETTLE_SAMPLES];
+static unsigned s_win_len;
+static unsigned s_win_head;
 
 static void eaten_today_persist(void)
 {
@@ -103,20 +104,58 @@ static void eaten_today_rollover(uint32_t day_key)
 void eaten_today_reset(void)
 {
     s_total_dg = 0;
-    s_ref_valid = false;
-    s_settle = 0u;
+    eaten_today_invalidate();
     eaten_today_persist();
 }
 
 void eaten_today_invalidate(void)
 {
     s_ref_valid = false;
-    s_settle = 0u;
+    s_win_len = 0u;
+    s_win_head = 0u;
+}
+
+/* Push a sample; true with the window mean when the last N samples agree
+ * within the settle band. */
+static bool eaten_today_settled(weight_dg_t dg, weight_dg_t *mean_out)
+{
+    weight_dg_t lo;
+    weight_dg_t hi;
+    int32_t sum = 0;
+    unsigned i;
+
+    s_win[s_win_head] = dg;
+    s_win_head = (s_win_head + 1u) % EATEN_TODAY_SETTLE_SAMPLES;
+    if (s_win_len < EATEN_TODAY_SETTLE_SAMPLES) {
+        s_win_len++;
+    }
+    if (s_win_len < EATEN_TODAY_SETTLE_SAMPLES) {
+        return false;
+    }
+
+    lo = s_win[0];
+    hi = s_win[0];
+    for (i = 0u; i < EATEN_TODAY_SETTLE_SAMPLES; i++) {
+        if (s_win[i] < lo) {
+            lo = s_win[i];
+        }
+        if (s_win[i] > hi) {
+            hi = s_win[i];
+        }
+        sum += s_win[i];
+    }
+    if ((hi - lo) > EATEN_TODAY_SETTLE_BAND_DG) {
+        return false;
+    }
+
+    *mean_out = (weight_dg_t)((sum + (int32_t)(EATEN_TODAY_SETTLE_SAMPLES / 2u)) /
+                              (int32_t)EATEN_TODAY_SETTLE_SAMPLES);
+    return true;
 }
 
 void eaten_today_on_idle_sample(weight_dg_t presented_dg, bool usable, uint32_t day_key)
 {
-    weight_dg_t delta;
+    weight_dg_t level;
 
     eaten_today_rollover(day_key);
 
@@ -124,35 +163,20 @@ void eaten_today_on_idle_sample(weight_dg_t presented_dg, bool usable, uint32_t 
         eaten_today_invalidate();
         return;
     }
+    if (!eaten_today_settled(presented_dg, &level)) {
+        return;
+    }
     if (!s_ref_valid) {
-        s_ref_dg = presented_dg;
+        s_ref_dg = level;
         s_ref_valid = true;
-        s_last_dg = presented_dg;
-        s_settle = 0u;
         return;
     }
 
-    delta = presented_dg - s_last_dg;
-    if (delta < 0) {
-        delta = -delta;
-    }
-    s_last_dg = presented_dg;
-    if (delta <= EATEN_TODAY_SETTLE_BAND_DG) {
-        if (s_settle < EATEN_TODAY_SETTLE_SAMPLES) {
-            s_settle++;
-        }
-    } else {
-        s_settle = 0u;
-    }
-    if (s_settle < EATEN_TODAY_SETTLE_SAMPLES) {
-        return;
-    }
-
-    if (presented_dg > s_ref_dg) {
-        s_ref_dg = presented_dg;
-    } else if (s_ref_dg - presented_dg >= EATEN_TODAY_MIN_EATEN_DG) {
-        s_total_dg += s_ref_dg - presented_dg;
-        s_ref_dg = presented_dg;
+    if (level > s_ref_dg + EATEN_TODAY_SETTLE_BAND_DG) {
+        s_ref_dg = level;   /* food added or drift up: rebase, never counted */
+    } else if (s_ref_dg - level >= EATEN_TODAY_MIN_EATEN_DG) {
+        s_total_dg += s_ref_dg - level;
+        s_ref_dg = level;
         eaten_today_persist();
     }
 }
@@ -178,6 +202,6 @@ void eaten_today_test_reset(void)
     s_day = 0u;
     s_ref_dg = 0;
     s_ref_valid = false;
-    s_last_dg = 0;
-    s_settle = 0u;
+    s_win_len = 0u;
+    s_win_head = 0u;
 }

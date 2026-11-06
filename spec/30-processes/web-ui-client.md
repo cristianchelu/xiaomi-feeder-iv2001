@@ -126,7 +126,7 @@ Poll `/api/status` every 5 s; do not add per-topic GETs in v0.
 
 ### Settings tab
 
-Feed mode, overfill protection (toggle + 30–100 g threshold), and timezone.
+Feed mode, overfill protection (toggle + 30–500 g threshold), and timezone.
 The threshold input is disabled when overfill protection is off.
 
 ### Chrome

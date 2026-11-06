@@ -88,3 +88,15 @@ void test_mqtt_feed_overfill_format_snapshot(void)
     TEST_ASSERT_TRUE(mqtt_feed_overfill_format_snapshot(buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("{\"enabled\":true,\"threshold_g\":75}", buf);
 }
+
+void test_mqtt_feed_overfill_threshold_up_to_500_and_never_truncated(void)
+{
+    const char ok[] = "{\"threshold_g\":300}";
+    const char big[] = "{\"threshold_g\":556}";   /* 556 & 0xFF = 44: must not alias */
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(PORT_OK, mqtt_feed_overfill_handle(ok, strlen(ok)));
+    TEST_ASSERT_EQUAL_UINT16(300u, feed_config_overfill_threshold_g_get());
+    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, mqtt_feed_overfill_handle(big, strlen(big)));
+    TEST_ASSERT_EQUAL_UINT16(300u, feed_config_overfill_threshold_g_get());
+}
