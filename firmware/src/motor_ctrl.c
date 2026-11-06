@@ -77,6 +77,9 @@ static motor_phase_t s_phase = MOTOR_PHASE_IDLE;
 static motor_cmd_t s_active_cmd;
 static uint8_t s_pulses;
 static bool s_prev_beam_open;
+/* When the beam last closed: a hole only counts after a real closed stretch. */
+static TickType_t s_beam_closed_tick;
+static bool s_beam_closed_valid;
 static TickType_t s_en_start_tick;
 static TickType_t s_phase_end_tick;
 static uint32_t s_sustained_over_ms;
@@ -289,6 +292,9 @@ static void motor_ctrl_session_teardown(void)
 
 static void motor_ctrl_finish_burst_done(void)
 {
+    app_log_info("motor", "burst done: %u pulse(s) in %lu ms",
+                 (unsigned)s_pulses,
+                 (unsigned long)((motor_ctrl_tick_now() - s_en_start_tick) * portTICK_PERIOD_MS));
     if (!motor_ctrl_force_stop()) {
         motor_ctrl_finish_fault(MOTOR_FAULT_DRIVER_STOP);
         return;
@@ -363,10 +369,24 @@ static void motor_ctrl_schedule_index_sample(TickType_t now)
     }
 }
 
-static void motor_ctrl_apply_beam_sample(bool beam_open)
+static void motor_ctrl_apply_beam_sample(bool beam_open, TickType_t now)
 {
+    if (!beam_open && s_prev_beam_open) {
+        s_beam_closed_tick = now;
+        s_beam_closed_valid = true;
+    }
+
+    /* Count a hole only after the beam stayed closed for a real stretch
+     * between holes. The auger parks at the hole edge, and the start-up jolt
+     * makes the beam flicker closed→open: that used to be counted as a whole
+     * portion, so a 1-portion burst (10 g, the dispense button) stopped after a
+     * twitch and delivered nothing. */
     if (beam_open && !s_prev_beam_open) {
-        s_pulses++;
+        if (s_beam_closed_valid &&
+            (now - s_beam_closed_tick) >= pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS)) {
+            s_pulses++;
+        }
+        s_beam_closed_valid = false;
     }
 
     s_prev_beam_open = beam_open;
@@ -399,7 +419,7 @@ static void motor_ctrl_try_index_sample(TickType_t now)
     }
 
     motor_ctrl_note_io_success();
-    motor_ctrl_apply_beam_sample(beam_open);
+    motor_ctrl_apply_beam_sample(beam_open, now);
 
     if (s_phase == MOTOR_PHASE_RUN_BURST &&
         s_pulses >= s_active_cmd.pulse_target) {
@@ -501,6 +521,8 @@ static port_err_t motor_ctrl_begin_run(bool park)
      * until a read says otherwise, so a failed initial read never turns the
      * parked hole into a counted edge (a 1-portion burst stopped at once). */
     s_prev_beam_open = true;
+    s_beam_closed_valid = false;
+    s_beam_closed_tick = 0u;
     s_sustained_over_ms = 0u;
     s_instant_jam = false;
     s_io_fail_streak = 0u;
@@ -534,6 +556,12 @@ static port_err_t motor_ctrl_begin_run(bool park)
             }
             if (known) {
                 s_prev_beam_open = beam_open;
+                if (!beam_open) {
+                    /* Starting between holes: the closed stretch is real. */
+                    s_beam_closed_tick = motor_ctrl_tick_now() -
+                                         pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS);
+                    s_beam_closed_valid = true;
+                }
             } else {
                 app_log_info("motor", "index baseline unread: assuming parked (beam open)");
             }
@@ -660,7 +688,7 @@ static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
     }
 
     motor_ctrl_note_io_success();
-    motor_ctrl_apply_beam_sample(beam_open);
+    motor_ctrl_apply_beam_sample(beam_open, now);
 
     if (s_phase == MOTOR_PHASE_IDLE) {
         return;

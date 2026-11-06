@@ -288,9 +288,46 @@ void test_motor_ctrl_burst_from_parked_hole_needs_a_real_edge(void)
     TEST_ASSERT_TRUE(motor_ctrl_is_active());           /* still turning */
 
     fake_motor_index_port_set_beam_open(false);         /* leaves the hole */
+    for (i = 0u; i < 6u; i++) {                         /* ~300 ms between holes */
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_TRUE(motor_ctrl_is_active());
+    fake_motor_index_port_set_beam_open(true);          /* next hole: 1 portion */
+    for (i = 0u; i < 5u && motor_ctrl_is_active(); i++) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_FALSE(motor_ctrl_is_active());
+}
+
+/* Parked at the hole edge, the start-up jolt flickers the beam closed→open
+ * for a few ms. That is not a portion: the burst must keep turning. */
+void test_motor_ctrl_start_jolt_flicker_is_not_a_portion(void)
+{
+    uint32_t i;
+
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(true);
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(1u, 8000u));
+    motor_ctrl_test_poll();
+
+    fake_motor_index_port_set_beam_open(false);         /* jolt: 50 ms closed */
     fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
     motor_ctrl_test_poll();
-    fake_motor_index_port_set_beam_open(true);          /* next hole: 1 portion */
+    fake_motor_index_port_set_beam_open(true);          /* back in the same hole */
+    for (i = 0u; i < 4u; i++) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    TEST_ASSERT_TRUE(motor_ctrl_is_active());
+
+    fake_motor_index_port_set_beam_open(false);         /* real closed stretch */
+    for (i = 0u; i < 6u; i++) {
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
+    fake_motor_index_port_set_beam_open(true);          /* next hole */
     for (i = 0u; i < 5u && motor_ctrl_is_active(); i++) {
         fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
         motor_ctrl_test_poll();

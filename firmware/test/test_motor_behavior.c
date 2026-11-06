@@ -131,8 +131,10 @@ void test_motor_burst_survives_wfci_busy_then_counts_pulse(void)
     /* Baseline was unreadable (bus busy), so the controller assumed the parked
      * hole: it needs to see the beam close, then the next hole. */
     fake_gpio_expander_set_index_beam_open(false);
-    fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
-    motor_ctrl_test_poll();
+    for (int i = 0; i < 6; i++) {   /* ~300 ms between holes */
+        fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);
+        motor_ctrl_test_poll();
+    }
     TEST_ASSERT_TRUE(motor_ctrl_is_active());
     motor_behavior_simulate_index_hole();
     fake_time_advance_ms(MOTOR_BURST_BEAM_POLL_MS + 1u);

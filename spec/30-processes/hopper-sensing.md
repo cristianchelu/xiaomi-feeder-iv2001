@@ -76,12 +76,14 @@ Updated on transition only.
 |-------|---------|
 | `normal` | IR beam blocked (food in path); hopper not latched empty |
 | `low` | IR beam clear (almost empty); hopper not latched empty |
-| `empty` | Material path exhausted: measured zero delivery with IR `low`, or `underfill` after compensated retry exhaustion |
+| `empty` | Material path exhausted: measured zero delivery with IR `low`, or `underfill` after compensated retry exhaustion **with IR `low`** |
 
 `low` is the **almost-empty** IR flag. It does **not** alone mean a dispense
 failed. `empty` is stronger: out-of-food for feeding purposes. A compensated
-`underfill` may latch `empty` even when the last few grams came from chute
-stragglers — the hopper is effectively empty after that job.
+`underfill` latches `empty` only while the IR reads `low`; with the beam
+blocked (food in the path) an underfill is a delivery fault and the level stays
+`normal` (earlier revisions latched `empty` regardless, so one failed dispense
+made every later one report `empty_hopper`).
 
 ## Raw reading
 

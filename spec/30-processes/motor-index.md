@@ -60,6 +60,12 @@ Handled inside `motor_index_port` (adapter owns P0.6 / P0.7 sequencing):
   only counted on an observed closed → open transition, so a parked hole is
   never counted as the first portion (previous behaviour: a failed baseline read
   defaulted to "closed" and a 1-portion burst stopped almost at once).
+- **Minimum closed stretch:** an open edge counts only if the beam stayed closed
+  for at least `[tune]` 150 ms before it (a burst that starts between holes
+  counts as already closed). The auger parks at the hole edge and the start-up
+  jolt flickers the beam for a few ms; counting that flicker stopped 1-portion
+  bursts after a twitch with nothing delivered, and left every N-portion job one
+  portion short.
 
 ### Jam timeout detection
 

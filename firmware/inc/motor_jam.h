@@ -26,6 +26,9 @@
 #define MOTOR_INDEX_LED_SETTLE_MS          5u
 #define MOTOR_INDEX_BASELINE_TRIES         5u
 #define MOTOR_INDEX_BASELINE_RETRY_MS      10u
+/* Minimum closed stretch before a hole counts as an index pulse. A half turn
+ * keeps the beam closed for most of 180°; edge flicker lasts a few ms. */
+#define MOTOR_INDEX_MIN_CLOSED_MS        150u
 #define MOTOR_PARK_BEAM_POLL_MS           200u
 
 #endif /* MOTOR_JAM_H */

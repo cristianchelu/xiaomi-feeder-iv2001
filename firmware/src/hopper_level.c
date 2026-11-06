@@ -60,8 +60,12 @@ static bool hopper_level_should_latch_empty(dispense_outcome_t outcome,
                                             int32_t raw_delta,
                                             bool measured)
 {
+    /* Underfill only means "empty" when the IR also sees the hopper low. With
+     * the beam blocked (food present) it is a delivery fault (index count,
+     * bridging), not an empty hopper: latching here made every following
+     * dispense report empty_hopper. */
     if (outcome == DISPENSE_OUTCOME_UNDERFILL) {
-        return true;
+        return hopper_input_almost_empty();
     }
 
     return outcome == DISPENSE_OUTCOME_SUCCESS && measured && raw_delta <= 0 &&
