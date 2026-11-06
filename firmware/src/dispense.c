@@ -306,6 +306,10 @@ static void dispense_after_settle(uint32_t now_ms)
         event_grams = (int32_t)s_total_portions * (int32_t)DISPENSE_GRAMS_PER_PORTION;
     }
 
+    app_log_info("dispense", "settle: base %ld post %ld dg (valid %d/%d) measured %d portions %u batch %u",
+                 (long)s_baseline_dg, (long)post_dg, (int)s_baseline_valid, (int)post_valid,
+                 (int)measured, (unsigned)s_total_portions, (unsigned)s_batch_count);
+
     if (s_outcome == DISPENSE_OUTCOME_STUCK) {
         dispense_publish_terminal(now_ms, event_grams, measured, raw_delta_dg);
         return;

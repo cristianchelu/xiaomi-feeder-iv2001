@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "unity.h"
+#include "app_log.h"
 
 #include "bowl_mass_present.h"
 #include "display_settings.h"
@@ -213,4 +214,14 @@ void test_web_api_status_includes_settings(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"child_lock\":false"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"eaten_today\":\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"hopper_ir\":"));
+}
+
+void test_web_api_get_log_returns_recent_lines(void)
+{
+    char buf[512];
+
+    TEST_ASSERT_EQUAL(WEB_API_GET_LOG, web_api_classify("GET", "/api/log"));
+    app_log_info("test", "ring-marker-42");
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "ring-marker-42"));
 }

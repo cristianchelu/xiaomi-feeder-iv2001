@@ -371,6 +371,12 @@ static void motor_ctrl_schedule_index_sample(TickType_t now)
 
 static void motor_ctrl_apply_beam_sample(bool beam_open, TickType_t now)
 {
+    if (beam_open != s_prev_beam_open) {
+        app_log_info("motor", "beam %s +%lu ms",
+                     beam_open ? "open" : "closed",
+                     (unsigned long)((now - s_en_start_tick) * portTICK_PERIOD_MS));
+    }
+
     if (!beam_open && s_prev_beam_open) {
         s_beam_closed_tick = now;
         s_beam_closed_valid = true;
@@ -385,6 +391,12 @@ static void motor_ctrl_apply_beam_sample(bool beam_open, TickType_t now)
         if (s_beam_closed_valid &&
             (now - s_beam_closed_tick) >= pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS)) {
             s_pulses++;
+            app_log_info("motor", "pulse %u", (unsigned)s_pulses);
+        } else {
+            app_log_info("motor", "edge ignored (closed %lu ms)",
+                         s_beam_closed_valid
+                             ? (unsigned long)((now - s_beam_closed_tick) * portTICK_PERIOD_MS)
+                             : 0ul);
         }
         s_beam_closed_valid = false;
     }
@@ -554,6 +566,10 @@ static port_err_t motor_ctrl_begin_run(bool park)
                     motor_hal_delay_ms(MOTOR_INDEX_BASELINE_RETRY_MS);
                 }
             }
+            app_log_info("motor", "%s start: baseline %s (target %u)",
+                         park ? "park" : "burst",
+                         known ? (beam_open ? "open" : "closed") : "unread",
+                         (unsigned)(park ? s_active_cmd.max_pulses : s_active_cmd.pulse_target));
             if (known) {
                 s_prev_beam_open = beam_open;
                 if (!beam_open) {

@@ -1,6 +1,7 @@
 #include "app_log.h"
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,6 +16,63 @@ extern int log_write(char *buf, int len);
 #endif
 
 #define APP_LOG_LINE_MAX 256
+
+/* Recent-log ring, readable over the LAN at GET /api/log (field diagnosis). */
+#define APP_LOG_RING_SIZE 3072u
+static char s_ring[APP_LOG_RING_SIZE];
+static size_t s_ring_head;
+static bool s_ring_wrapped;
+
+static void app_log_ring_push(const char *buf, size_t len)
+{
+    size_t i;
+
+#ifndef HOST_TEST
+    taskENTER_CRITICAL();
+#endif
+    for (i = 0u; i < len; i++) {
+        if (buf[i] == '\r') {
+            continue;
+        }
+        s_ring[s_ring_head] = buf[i];
+        s_ring_head = (s_ring_head + 1u) % APP_LOG_RING_SIZE;
+        if (s_ring_head == 0u) {
+            s_ring_wrapped = true;
+        }
+    }
+#ifndef HOST_TEST
+    taskEXIT_CRITICAL();
+#endif
+}
+
+size_t app_log_ring_copy(char *out, size_t len)
+{
+    size_t n = 0u;
+    size_t start;
+    size_t count;
+    size_t i;
+
+    if (out == NULL || len == 0u) {
+        return 0u;
+    }
+#ifndef HOST_TEST
+    taskENTER_CRITICAL();
+#endif
+    count = s_ring_wrapped ? APP_LOG_RING_SIZE : s_ring_head;
+    start = s_ring_wrapped ? s_ring_head : 0u;
+    if (count > len - 1u) {
+        start = (start + (count - (len - 1u))) % APP_LOG_RING_SIZE;
+        count = len - 1u;
+    }
+    for (i = 0u; i < count; i++) {
+        out[n++] = s_ring[(start + i) % APP_LOG_RING_SIZE];
+    }
+#ifndef HOST_TEST
+    taskEXIT_CRITICAL();
+#endif
+    out[n] = '\0';
+    return n;
+}
 
 static void (*s_mirror_sink)(const char *buf, size_t len, void *ctx);
 static void *s_mirror_ctx;
@@ -125,6 +183,7 @@ static void app_log_emit(const char *tag, const char *fmt, va_list ap)
 
     line[total++] = '\r';
     line[total++] = '\n';
+    app_log_ring_push(line, total);
     app_log_write_raw(line, total);
 }
 

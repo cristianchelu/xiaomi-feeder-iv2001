@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "app_cmd_dispatch.h"
+#include "app_log.h"
 #include "dispense.h"
 #include "feed_config.h"
 #include "eaten_today.h"
@@ -307,6 +308,9 @@ web_api_route_t web_api_classify(const char *method, const char *path)
         if (strcmp(path, "/api/status") == 0) {
             return WEB_API_GET_STATUS;
         }
+        if (strcmp(path, "/api/log") == 0) {
+            return WEB_API_GET_LOG;
+        }
         if (strcmp(path, "/api/schedule/state") == 0) {
             return WEB_API_GET_SCHEDULE_STATE;
         }
@@ -435,6 +439,9 @@ int web_api_handle_get(web_api_route_t route, char *buf, size_t len)
 
     case WEB_API_GET_STATUS:
         return web_api_format_status(buf, len);
+
+    case WEB_API_GET_LOG:
+        return (int)app_log_ring_copy(buf, len);
 
     default:
         return -1;

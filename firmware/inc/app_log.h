@@ -13,6 +13,8 @@
 #endif
 
 void app_log_init(void);
+/* Copy the recent-log ring (oldest first, NUL-terminated); returns length. */
+size_t app_log_ring_copy(char *out, size_t len);
 void app_log_debug(const char *tag, const char *fmt, ...);
 void app_log_info(const char *tag, const char *fmt, ...);
 void app_log_warn(const char *tag, const char *fmt, ...);
