@@ -39,7 +39,6 @@ static void web_api_cgi_send(struct cgi_para *para,
 
 int web_api_cgi_handler(struct cgi_para *para)
 {
-    web_api_route_t route;
     const char *method;
     const char *path;
     int written;
@@ -50,36 +49,17 @@ int web_api_cgi_handler(struct cgi_para *para)
 
     path = s_web_api_path[0] != '\0' ? s_web_api_path : "/";
     method = (para->cmd_len > 0) ? "POST" : "GET";
-    route = web_api_classify(method, path);
-    if (route == WEB_API_ROUTE_UNKNOWN) {
-        written = snprintf(s_web_api_resp,
-                           sizeof(s_web_api_resp),
-                           "{\"ok\":false,\"error\":\"not_found\"}");
-        if (written <= 0) {
-            return -1;
-        }
-
-        web_api_cgi_send(para, s_web_api_resp, (size_t)written);
-        return 0;
-    }
-
-    if (strcmp(method, "GET") == 0) {
-        written = web_api_handle_get(route, s_web_api_resp, sizeof(s_web_api_resp));
-        if (written < 0) {
-            return -1;
-        }
-
-        web_api_cgi_send(para, s_web_api_resp, (size_t)written);
-        return 0;
-    }
-
-    written = web_api_handle_post(route,
-                                  para->cmd,
-                                  para->cmd_len > 0 ? (size_t)para->cmd_len : 0u,
-                                  s_web_api_resp,
-                                  sizeof(s_web_api_resp));
-    if (written < 0) {
+    written = web_api_handle_request(method,
+                                     path,
+                                     para->cmd,
+                                     para->cmd_len > 0 ? (size_t)para->cmd_len : 0u,
+                                     s_web_api_resp,
+                                     sizeof(s_web_api_resp));
+    if (written <= 0) {
         return -1;
+    }
+    if ((size_t)written >= sizeof(s_web_api_resp)) {
+        written = (int)sizeof(s_web_api_resp) - 1;
     }
 
     web_api_cgi_send(para, s_web_api_resp, (size_t)written);

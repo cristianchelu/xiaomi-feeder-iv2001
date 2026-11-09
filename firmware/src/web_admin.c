@@ -100,6 +100,26 @@ bool web_admin_password_set(void)
     return web_admin_read_pass(pass, sizeof(pass));
 }
 
+bool web_admin_password_matches(const char *s, size_t n)
+{
+    char pass[WEB_ADMIN_PASS_MAX + 1u];
+    size_t plen;
+    unsigned char diff = 0u;
+    size_t i;
+
+    if (!web_admin_read_pass(pass, sizeof(pass))) {
+        return true;
+    }
+    plen = strlen(pass);
+    if (s == NULL || n != plen) {
+        return false;
+    }
+    for (i = 0u; i < n; i++) {
+        diff |= (unsigned char)(s[i] ^ pass[i]);
+    }
+    return diff == 0u;
+}
+
 bool web_admin_unlock(const char **body, size_t *len)
 {
     char pass[WEB_ADMIN_PASS_MAX + 1u];
@@ -122,9 +142,7 @@ bool web_admin_unlock(const char **body, size_t *len)
     } else if (nl == NULL) {
         ok = false;
     } else {
-        size_t klen = (size_t)(nl - (b + 4));
-
-        ok = klen == strlen(pass) && memcmp(b + 4, pass, klen) == 0;
+        ok = web_admin_password_matches(b + 4, (size_t)(nl - (b + 4)));
     }
 
     if (nl != NULL) {

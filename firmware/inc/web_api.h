@@ -46,7 +46,16 @@ typedef enum {
     WEB_API_POST_UNLOCK,
 } web_api_route_t;
 
+#define WEB_API_AUTH_FAIL_DELAY_MS 1000u
+
 web_api_route_t web_api_classify(const char *method, const char *path);
+/* Full request entry (HTTP server): password gate for reads and writes. */
+int web_api_handle_request(const char *method,
+                           const char *path,
+                           const char *body,
+                           size_t body_len,
+                           char *resp,
+                           size_t resp_len);
 int web_api_handle_get(web_api_route_t route, char *buf, size_t len);
 int web_api_handle_post(web_api_route_t route,
                         const char *body,

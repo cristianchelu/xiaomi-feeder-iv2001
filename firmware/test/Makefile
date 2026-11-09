@@ -13,6 +13,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/console_mux.c \
              ../src/console_uart.c \
              ../src/remote_cli.c \
+             ../src/remote_auth.c \
              ../src/port_err.c \
              ../src/boot_bank.c \
              ../src/wifi_cred.c \

@@ -1288,6 +1288,15 @@ async function api(method, path, body) {
   const r = await fetch(path, o);
   return parseApiResponse(await r.text());
 }
+async function readRaw(path) {
+  const r = webPw
+    ? await fetch(path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: withKey('', webPw) })
+    : await fetch(path);
+  return r.text();
+}
+async function read(path) {
+  return parseApiResponse(await readRaw(path));
+}
 async function post(path, body) {
   const raw = typeof body === 'string' ? body : JSON.stringify(body);
   const r = await api('POST', path, withKey(raw, webPw));
@@ -1360,7 +1369,9 @@ function renderOnce(st) {
   setIfIdle('dispG', st.dispense_g ? st.dispense_g : 10);
 }
 async function loadStatus() {
-  const st = await api('GET', '/api/status');
+  const st = await read('/api/status');
+  if (!st || st.locked || st.error === 'unauthorized') { lock(true); return null; }
+  lock(false);
   const newDow = st.time_synced ? weekdayFromLocalTime(st.local_time) : null;
   const dowChanged = newDow !== todayDow;
   todayDow = newDow;
@@ -1373,7 +1384,7 @@ async function loadStatus() {
   return st;
 }
 async function loadSchedule() {
-  const doc = await api('GET', '/api/schedule/state');
+  const doc = await read('/api/schedule/state');
   const rows = sortSlotsByTime(doc.schedule || []);
   const list = $('slotList');
   list.innerHTML = '';
@@ -1409,11 +1420,11 @@ ${skipCtrl ? `<button type=button class="icon skip${skipCtrl.active ? ' on' : ''
   });
 }
 async function loadMode() {
-  const m = await api('GET', '/api/feed/mode');
+  const m = await read('/api/feed/mode');
   $('feedMode').value = typeof m === 'string' && m.trim ? m.trim() : m;
 }
 async function loadOverfill() {
-  const o = await api('GET', '/api/feed/overfill');
+  const o = await read('/api/feed/overfill');
   const en = $('overfillEn'), g = $('overfillG');
   if (o && typeof o === 'object') {
     en.checked = Boolean(o.enabled);
@@ -1428,13 +1439,13 @@ function showTz(rule) {
   $('tzRule').value = rule || '';
 }
 async function loadConfig() {
-  const c = await api('GET', '/api/config');
+  const c = await read('/api/config');
   showTz(c.tz_rule || 'UTC0');
 }
 async function loadAll() {
   toast('', true);
   const st = await loadStatus();
-  await checkLock(st);
+  if (!st) return;
   renderOnce(st);
   await loadSchedule();
   await loadMode();
@@ -1459,11 +1470,6 @@ function lock(on) {
   $('unlock').hidden = !on;
   if (on) $('unlockPw').focus();
 }
-async function checkLock(st) {
-  if (!(st.network && st.network.password)) { lock(false); return; }
-  const r = webPw ? await api('POST', '/api/unlock', withKey('{}', webPw)) : null;
-  lock(!(r && r.ok));
-}
 $('unlockBtn').onclick = async () => {
   const pw = $('unlockPw').value;
   const r = await api('POST', '/api/unlock', withKey('{}', pw));
@@ -1472,7 +1478,7 @@ $('unlockBtn').onclick = async () => {
   try { localStorage.setItem('feederPw', pw); } catch (e) { /* memory only */ }
   $('unlockPw').value = '';
   toast('', true);
-  lock(false);
+  loadAll();
 };
 $('unlockPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('unlockBtn').click(); });
 $('addSlotBtn').onclick = openNewSlotEditor;
@@ -1567,8 +1573,9 @@ $('savePw').onclick = async () => {
   loadStatus();
 };
 $('exportBtn').onclick = async () => {
-  const r = await fetch('/api/export');
-  const blob = new Blob([await r.text()], {type: 'application/json'});
+  const text = await readRaw('/api/export');
+  if (text.includes('"unauthorized"')) { lock(true); return; }
+  const blob = new Blob([text], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'feeder-settings.json';
@@ -1592,8 +1599,7 @@ $('factoryBtn').onclick = () => {
   postSave('/api/factory_reset', '{}', 'Factory reset — restarting in setup mode…');
 };
 $('logBtn').onclick = async () => {
-  const r = await fetch('/api/log');
-  $('logOut').textContent = await r.text();
+  $('logOut').textContent = await readRaw('/api/log');
 };
 loadAll().then(() => { pollTimer = setTimeout(poll, 5000); });
 </script>

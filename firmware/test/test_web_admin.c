@@ -180,3 +180,35 @@ void test_web_admin_unlock_route_checks_key_only(void)
     post(WEB_API_POST_UNLOCK, "key=chat42\n{}", resp, sizeof(resp));
     TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
 }
+
+static int req(const char *method, const char *path, const char *body, char *resp, size_t n)
+{
+    return web_api_handle_request(method, path, body, body != NULL ? strlen(body) : 0u, resp, n);
+}
+
+/* Regression: with a password set, reads must not leak over plain GET. */
+void test_web_admin_password_locks_reads(void)
+{
+    char resp[2048];
+
+    fake_config_port_reset();
+    TEST_ASSERT_GREATER_THAN(0, req("GET", "/api/status", NULL, resp, sizeof(resp)));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"network\""));
+    post(WEB_API_POST_PASSWORD, "{\"password\":\"chat42\"}", resp, sizeof(resp));
+
+    req("GET", "/api/status", NULL, resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"locked\":true}", resp);
+    req("GET", "/api/log", NULL, resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+    req("GET", "/api/export", NULL, resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+    req("POST", "/api/status", "key=wrong\n", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+
+    req("POST", "/api/status", "key=chat42\n", resp, sizeof(resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"network\""));
+    req("POST", "/api/schedule/state", "key=chat42\n", resp, sizeof(resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"schedule\""));
+    req("POST", "/api/reboot", "key=chat42\n{}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+}

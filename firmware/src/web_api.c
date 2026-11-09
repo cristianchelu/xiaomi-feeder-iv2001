@@ -12,6 +12,8 @@
 #include "app_lock.h"
 #include "app_log.h"
 #include "web_admin.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include "mqtt_wifi_rssi.h"
 #include "mqtt_dispense_amount.h"
 #include "mqtt_dispense_progress.h"
@@ -383,6 +385,8 @@ static int web_api_format_status(char *buf, size_t len)
     return off < 0 ? -1 : off;
 }
 
+static int web_api_unauthorized(const char *path, char *resp, size_t resp_len);
+
 static const struct {
     const char *path;
     web_api_route_t route;
@@ -566,8 +570,7 @@ int web_api_handle_post(web_api_route_t route,
 
     /* Optional admin password: first body line "key=<password>". */
     if (!web_admin_unlock(&body, &body_len)) {
-        app_log_info("web", "%s rejected (unauthorized)", web_api_post_path(route));
-        return web_api_write_error(resp, resp_len, "unauthorized");
+        return web_api_unauthorized(web_api_post_path(route), resp, resp_len);
     }
     if (route == WEB_API_POST_UNLOCK) {
         return web_api_write_ok(resp, resp_len);
@@ -634,4 +637,55 @@ int web_api_handle_post(web_api_route_t route,
     }
 
     return web_api_write_error(resp, resp_len, "rejected");
+}
+
+/* Failed key: slow down password guessing (web-ui.md § Security). */
+static int web_api_unauthorized(const char *path, char *resp, size_t resp_len)
+{
+    app_log_info("web", "%s rejected (unauthorized)", path);
+    vTaskDelay(pdMS_TO_TICKS(WEB_API_AUTH_FAIL_DELAY_MS));
+    return web_api_write_error(resp, resp_len, "unauthorized");
+}
+
+int web_api_handle_request(const char *method,
+                           const char *path,
+                           const char *body,
+                           size_t body_len,
+                           char *resp,
+                           size_t resp_len)
+{
+    web_api_route_t route;
+
+    if (method == NULL || path == NULL || resp == NULL || resp_len == 0u) {
+        return -1;
+    }
+
+    if (strcmp(method, "GET") == 0) {
+        route = web_api_classify("GET", path);
+        if (route == WEB_API_ROUTE_UNKNOWN) {
+            return snprintf(resp, resp_len, "{\"ok\":false,\"error\":\"not_found\"}");
+        }
+        if (web_admin_password_set()) {
+            if (route == WEB_API_GET_STATUS) {
+                return snprintf(resp, resp_len, "{\"locked\":true}");
+            }
+            return web_api_write_error(resp, resp_len, "unauthorized");
+        }
+        return web_api_handle_get(route, resp, resp_len);
+    }
+
+    route = web_api_classify("POST", path);
+    if (route != WEB_API_ROUTE_UNKNOWN) {
+        return web_api_handle_post(route, body, body_len, resp, resp_len);
+    }
+
+    /* POST to a read path: authenticated read. */
+    route = web_api_classify("GET", path);
+    if (route == WEB_API_ROUTE_UNKNOWN) {
+        return snprintf(resp, resp_len, "{\"ok\":false,\"error\":\"not_found\"}");
+    }
+    if (!web_admin_unlock(&body, &body_len)) {
+        return web_api_unauthorized(path, resp, resp_len);
+    }
+    return web_api_handle_get(route, resp, resp_len);
 }

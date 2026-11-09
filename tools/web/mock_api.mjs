@@ -226,29 +226,39 @@ export function createMockApiHandler(getState, setState) {
         const path = url.pathname;
         const method = req.method || 'GET';
 
-        if (method === 'GET' && path === '/api/status') {
+        let m = method;
+        if (m === 'POST' && ['/api/status', '/api/schedule/state', '/api/feed/mode', '/api/feed/overfill', '/api/config', '/api/log', '/api/export'].includes(path)) {
+            const raw0 = await readBody(req);
+            const pw = getState().web_pw;
+            if (pw && raw0 !== `key=${pw}\n`) return json(res, 200, { ok: false, error: 'unauthorized' });
+            m = 'GET';
+        } else if (m === 'GET' && getState().web_pw && path.startsWith('/api/')) {
+            return json(res, 200, path === '/api/status' ? { locked: true } : { ok: false, error: 'unauthorized' });
+        }
+        const method2 = m;
+        if (method2 === 'GET' && path === '/api/status') {
             return json(res, 200, statusPayload(getState()));
         }
-        if (method === 'GET' && path === '/api/schedule/state') {
+        if (method2 === 'GET' && path === '/api/schedule/state') {
             return json(res, 200, schedulePayload(getState()));
         }
-        if (method === 'GET' && path === '/api/feed/mode') {
+        if (method2 === 'GET' && path === '/api/feed/mode') {
             return text(res, 200, getState().feed_mode);
         }
-        if (method === 'GET' && path === '/api/feed/overfill') {
+        if (method2 === 'GET' && path === '/api/feed/overfill') {
             return json(res, 200, { enabled: false, threshold_g: 50 });
         }
-        if (method === 'GET' && path === '/api/log') {
+        if (method2 === 'GET' && path === '/api/log') {
             return text(res, 200, '[00:00:01.000] [app] mock log line\n');
         }
-        if (method === 'GET' && path === '/api/export') {
+        if (method2 === 'GET' && path === '/api/export') {
             return json(res, 200, { version: 1, feed: {}, schedule: '' });
         }
-        if (method === 'GET' && path === '/api/config') {
+        if (method2 === 'GET' && path === '/api/config') {
             return json(res, 200, { tz_rule: getState().tz_rule });
         }
 
-        if (method !== 'POST') {
+        if (method2 !== 'POST') {
             res.writeHead(405);
             return res.end();
         }

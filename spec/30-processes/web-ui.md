@@ -173,7 +173,19 @@ MQTT password or web password; `/api/import` leaves those untouched.
 ## Security
 
 Without a web password the panel is open on the LAN (same control surface as
-MQTT). When a password is set (`system/web_pass`), every POST body starts with
-the line `key=<password>` followed by `\n` and the normal body; a missing or
-wrong key returns `{"ok":false,"error":"unauthorized"}`. GET routes stay open
-(they return no secrets). Compile-time `WEB_UI_ENABLE=n` removes the panel.
+MQTT). When a password is set (`system/web_pass`) every `/api/*` route needs it:
+
+- A request authenticates with a body whose first line is `key=<password>`
+  followed by `\n` and the normal body (possibly empty).
+- **Reads** are then sent as POST to the read path (`POST /api/status` with
+  body `key=…\n`); a POST to a read path is served exactly like the GET.
+- A plain `GET /api/status` returns only `{"locked":true}`; every other plain
+  GET returns `{"ok":false,"error":"unauthorized"}`.
+- A missing or wrong key returns `{"ok":false,"error":"unauthorized"}` after a
+  `[tune]` 1 s delay (slows password guessing) and logs
+  `[web] <path> rejected (unauthorized)`.
+- `/` (the static page) stays open: it holds no data.
+
+The remote telnet console asks for the same password
+([uart-console.md](uart-console.md) § Security). Compile-time
+`WEB_UI_ENABLE=n` removes the panel.

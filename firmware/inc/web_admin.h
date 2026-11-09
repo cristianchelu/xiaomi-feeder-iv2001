@@ -22,6 +22,8 @@ typedef enum {
 } web_admin_action_t;
 
 bool web_admin_password_set(void);
+/* True when s[0..n) is the web password (or none is set). */
+bool web_admin_password_matches(const char *s, size_t n);
 /* POST bodies start with "key=<password>\n" when a password is set. Strips
  * the line (always, when present) and returns false on a wrong/missing key. */
 bool web_admin_unlock(const char **body, size_t *len);

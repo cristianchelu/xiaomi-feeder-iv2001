@@ -100,6 +100,7 @@ ifeq ($(REMOTE_CLI_ENABLE),y)
 CFLAGS += -DREMOTE_CLI_ENABLE=1
 APP_FILES      += $(APP_PATH_SRC)/console_uart.c
 APP_FILES      += $(APP_PATH_SRC)/remote_cli.c
+APP_FILES      += $(APP_PATH_SRC)/remote_auth.c
 else
 CFLAGS += -DREMOTE_CLI_ENABLE=0
 endif
