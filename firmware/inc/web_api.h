@@ -12,6 +12,7 @@ typedef enum {
     WEB_API_ROUTE_UNKNOWN = 0,
     WEB_API_GET_STATUS,
     WEB_API_GET_LOG,
+    WEB_API_GET_EXPORT,
     WEB_API_GET_SCHEDULE_STATE,
     WEB_API_GET_SCHEDULE_NEXT,
     WEB_API_GET_CONFIG,
@@ -35,6 +36,11 @@ typedef enum {
     WEB_API_POST_CHILD_LOCK,
     WEB_API_POST_POWER,
     WEB_API_POST_PORTION_CAL,
+    WEB_API_POST_NETWORK,
+    WEB_API_POST_PASSWORD,
+    WEB_API_POST_REPROVISION,
+    WEB_API_POST_FACTORY_RESET,
+    WEB_API_POST_IMPORT,
 } web_api_route_t;
 
 web_api_route_t web_api_classify(const char *method, const char *path);

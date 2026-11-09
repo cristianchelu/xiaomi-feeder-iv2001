@@ -50,6 +50,20 @@ static void wifi_sta_run_connect(void)
     app_event_t ev;
     TickType_t t0 = xTaskGetTickCount();
 
+    /* Network change from the web page: try the new credentials first,
+     * keep the old ones if they do not connect. */
+    if (wifi_cred_trial_load(config_port_get(), ssid, sizeof(ssid), pass, sizeof(pass)) == PORT_OK) {
+        APP_LOG_I("wifi", "trying new network \"%s\"", ssid);
+        if (wifi_session_connect(ssid, pass, WIFI_SESSION_CONNECT_TIMEOUT_MS) == PORT_OK) {
+            (void)wifi_cred_trial_commit(config_port_get());
+            APP_LOG_I("wifi", "new network saved");
+            goto connected;
+        }
+        APP_LOG_E("wifi", "new network failed: back to the previous one");
+        wifi_cred_trial_drop(config_port_get());
+        (void)wifi_session_down();
+    }
+
     if (wifi_cred_load(config_port_get(),
                        ssid, sizeof(ssid),
                        pass, sizeof(pass)) != PORT_OK) {
@@ -66,6 +80,8 @@ static void wifi_sta_run_connect(void)
         wifi_sta_post(EVT_WIFI_STA_FAILED);
         return;
     }
+
+connected:
 
     APP_LOG_I("wifi", "session connect done +%lu ms",
               (unsigned long)(xTaskGetTickCount() - t0) * portTICK_PERIOD_MS);

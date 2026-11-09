@@ -28,6 +28,9 @@
 #include "mqtt_child_lock.h"
 #include "mqtt_display.h"
 #include "mqtt_eaten_today.h"
+#include "mqtt_dispense_amount.h"
+#include "mqtt_wifi_rssi.h"
+#include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
 #include "mqtt_power.h"
 #include "ota_base.h"
@@ -348,6 +351,9 @@ static port_err_t mqtt_client_do_connect(void)
     ota_base_set_device_id(s_device_id);
     mqtt_power_set_device_id(s_device_id);
     mqtt_portion_set_device_id(s_device_id);
+    mqtt_dispense_amount_set_device_id(s_device_id);
+    mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_dispense_progress_set_device_id(s_device_id);
     mqtt_timezone_set_device_id(s_device_id);
 
     {
@@ -619,6 +625,9 @@ void mqtt_client_test_set_device_id(const char *device_id)
     ota_base_set_device_id(s_device_id);
     mqtt_power_set_device_id(s_device_id);
     mqtt_portion_set_device_id(s_device_id);
+    mqtt_dispense_amount_set_device_id(s_device_id);
+    mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_dispense_progress_set_device_id(s_device_id);
 }
 
 bool mqtt_client_test_is_suspended(void)

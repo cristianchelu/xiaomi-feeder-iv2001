@@ -62,6 +62,7 @@
 #include "app_lock.h"
 #include "battery_monitor.h"
 #include "mqtt_power.h"
+#include "mqtt_wifi_rssi.h"
 #include "power_policy.h"
 #include "provision.h"
 #include "provision_reset.h"
@@ -89,6 +90,7 @@ typedef enum {
 
 static app_display_mode_t s_display_mode = APP_DISPLAY_MODE_WEIGHT;
 static uint16_t s_battery_off_s = DISPLAY_BATTERY_OFF_S_DEFAULT;
+static uint16_t s_mains_off_s = DISPLAY_MAINS_OFF_S_DEFAULT;
 static bool s_idle_blank;
 static bool s_last_on_battery;
 static uint32_t s_last_tick_ms;
@@ -315,6 +317,7 @@ void app_display_apply_settings(void)
     display_mode_t mode = display_settings_mode_get();
 
     s_battery_off_s = display_settings_battery_off_s_get();
+    s_mains_off_s = display_settings_mains_off_s_get();
     s_idle_blank = false;
     display_idle_note_activity(s_last_tick_ms);
 
@@ -347,10 +350,13 @@ static void app_display_idle_poll(uint32_t now_ms)
     }
     s_last_on_battery = on_battery;
 
-    wanted = s_asleep || display_idle_blank_wanted(now_ms, on_battery,
-                                                   power_policy_screen_off_s(s_battery_off_s,
-                                                                              on_battery,
-                                                                              app_low_battery()));
+    /* One inactivity timer, delay chosen by the current power source. */
+    wanted = s_asleep || display_idle_blank_wanted(now_ms, true,
+                                                   on_battery
+                                                       ? power_policy_screen_off_s(s_battery_off_s,
+                                                                                   true,
+                                                                                   app_low_battery())
+                                                       : s_mains_off_s);
     if (wanted == s_idle_blank) {
         return;
     }
@@ -767,6 +773,7 @@ void app_dispatch(const app_event_t *ev)
         break;
 
     case EVT_WIFI_STA_READY:
+        mqtt_ha_discovery_set_ip(ev->u.wifi_ready.ip);
         display_wifi_indicator_connected();
         time_sync_on_wifi_ready();
         mqtt_client_notify_wifi_ready();
@@ -834,6 +841,8 @@ void app_dispatch(const app_event_t *ev)
         (void)mqtt_ha_discovery_pump();
         reboot_request_poll(ev->u.display_tick.now_ms);
         app_power_policy_poll(ev->u.display_tick.now_ms);
+        mqtt_wifi_rssi_poll(ev->u.display_tick.now_ms, false);
+        dispense_progress_poll();
         break;
 
     case EVT_BUTTON_IRQ:
@@ -976,6 +985,7 @@ void app_test_reset(void)
     s_panel_off = false;
     display_mqtt_indicator_set_problem(false);
     s_battery_off_s = DISPLAY_BATTERY_OFF_S_DEFAULT;
+    s_mains_off_s = DISPLAY_MAINS_OFF_S_DEFAULT;
     s_idle_blank = false;
     s_last_on_battery = false;
     s_last_tick_ms = 0u;

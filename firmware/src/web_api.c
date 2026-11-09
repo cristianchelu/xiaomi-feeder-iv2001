@@ -11,6 +11,8 @@
 #include "app_cmd_dispatch.h"
 #include "app_lock.h"
 #include "app_log.h"
+#include "web_admin.h"
+#include "mqtt_wifi_rssi.h"
 #include "dispense.h"
 #include "feed_config.h"
 #include "eaten_today.h"
@@ -87,6 +89,15 @@ static const char *web_api_hopper_wire(void)
     }
 
     return "normal";
+}
+
+#ifndef FW_VERSION
+#define FW_VERSION "dev"
+#endif
+
+static const char *web_api_fw_version(void)
+{
+    return FW_VERSION;
 }
 
 static int web_api_write_ok(char *resp, size_t resp_len)
@@ -180,7 +191,7 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
     }
 
     {
-        char disp[80];
+        char disp[112];
 
         if (mqtt_display_format_snapshot(disp, sizeof(disp))) {
             off = web_api_append(buf, len, off, ",\"display\":%s", disp);
@@ -221,6 +232,28 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
             scale = "zero_only";
         }
         off = web_api_append(buf, len, off, ",\"scale\":\"%s\"", scale);
+        if (off < 0) {
+            return -1;
+        }
+    }
+
+    {
+        char net[320];
+        int8_t rssi;
+
+        if (web_admin_format_network(net, sizeof(net)) > 0) {
+            off = web_api_append(buf, len, off, "%s", net);
+            if (off < 0) {
+                return -1;
+            }
+        }
+        if (mqtt_wifi_rssi_last(&rssi)) {
+            off = web_api_append(buf, len, off, ",\"rssi\":%d", (int)rssi);
+            if (off < 0) {
+                return -1;
+            }
+        }
+        off = web_api_append(buf, len, off, ",\"fw\":\"%s\"", web_api_fw_version());
         if (off < 0) {
             return -1;
         }
@@ -341,6 +374,9 @@ web_api_route_t web_api_classify(const char *method, const char *path)
         if (strcmp(path, "/api/log") == 0) {
             return WEB_API_GET_LOG;
         }
+        if (strcmp(path, "/api/export") == 0) {
+            return WEB_API_GET_EXPORT;
+        }
         if (strcmp(path, "/api/schedule/state") == 0) {
             return WEB_API_GET_SCHEDULE_STATE;
         }
@@ -414,6 +450,21 @@ web_api_route_t web_api_classify(const char *method, const char *path)
     if (strcmp(path, "/api/portion_cal") == 0) {
         return WEB_API_POST_PORTION_CAL;
     }
+    if (strcmp(path, "/api/network") == 0) {
+        return WEB_API_POST_NETWORK;
+    }
+    if (strcmp(path, "/api/password") == 0) {
+        return WEB_API_POST_PASSWORD;
+    }
+    if (strcmp(path, "/api/reprovision") == 0) {
+        return WEB_API_POST_REPROVISION;
+    }
+    if (strcmp(path, "/api/factory_reset") == 0) {
+        return WEB_API_POST_FACTORY_RESET;
+    }
+    if (strcmp(path, "/api/import") == 0) {
+        return WEB_API_POST_IMPORT;
+    }
 
     return WEB_API_ROUTE_UNKNOWN;
 }
@@ -476,6 +527,9 @@ int web_api_handle_get(web_api_route_t route, char *buf, size_t len)
     case WEB_API_GET_LOG:
         return (int)app_log_ring_copy(buf, len);
 
+    case WEB_API_GET_EXPORT:
+        return web_admin_export(buf, len);
+
     default:
         return -1;
     }
@@ -489,9 +543,50 @@ int web_api_handle_post(web_api_route_t route,
 {
     mqtt_route_kind_t mqtt_route;
     port_err_t err;
+    web_admin_action_t admin;
+    bool is_admin = true;
 
     if (resp == NULL || resp_len == 0) {
         return -1;
+    }
+
+    /* Optional admin password: first body line "key=<password>". */
+    if (!web_admin_unlock(&body, &body_len)) {
+        return web_api_write_error(resp, resp_len, "unauthorized");
+    }
+
+    switch (route) {
+    case WEB_API_POST_NETWORK:
+        admin = WEB_ADMIN_NETWORK;
+        break;
+    case WEB_API_POST_PASSWORD:
+        admin = WEB_ADMIN_PASSWORD;
+        break;
+    case WEB_API_POST_REPROVISION:
+        admin = WEB_ADMIN_REPROVISION;
+        break;
+    case WEB_API_POST_FACTORY_RESET:
+        admin = WEB_ADMIN_FACTORY_RESET;
+        break;
+    case WEB_API_POST_IMPORT:
+        admin = WEB_ADMIN_IMPORT;
+        break;
+    default:
+        is_admin = false;
+        admin = WEB_ADMIN_NETWORK;
+        break;
+    }
+    if (is_admin) {
+        if (!app_lock_take(3000u)) {
+            return web_api_write_error(resp, resp_len, "busy");
+        }
+        err = web_admin_run(admin, body, body_len);
+        app_lock_give();
+        if (err == PORT_OK) {
+            return web_api_write_ok(resp, resp_len);
+        }
+        return web_api_write_error(resp, resp_len,
+                                   err == PORT_ERR_INVALID_ARG ? "rejected" : "io");
     }
 
     mqtt_route = web_api_post_route_to_mqtt(route);

@@ -17,6 +17,17 @@ typedef struct {
     int (*format_config)(char *buf, size_t len, const char *device_id);
 } mqtt_ha_entity_t;
 
+#ifndef FW_VERSION
+#define FW_VERSION "dev"
+#endif
+
+static char s_ha_ip[20];
+
+void mqtt_ha_discovery_set_ip(const char *ip)
+{
+    (void)snprintf(s_ha_ip, sizeof(s_ha_ip), "%s", ip != NULL ? ip : "");
+}
+
 static int mqtt_ha_format_device_suffix(char *buf,
                                         size_t len,
                                         const char *device_id)
@@ -32,11 +43,16 @@ static int mqtt_ha_format_device_suffix(char *buf,
                        "\"device\":{\"identifiers\":[\"petfeeder_%s\"],"
                        "\"name\":\"Pet Feeder %s\","
                        "\"manufacturer\":\"%s\","
-                       "\"model\":\"%s\"}",
+                       "\"model\":\"%s\","
+                       "\"sw_version\":\"%s\"%s%s%s}",
                        device_id,
                        device_id,
                        MQTT_HA_MANUFACTURER,
-                       MQTT_HA_MODEL);
+                       MQTT_HA_MODEL,
+                       FW_VERSION,
+                       s_ha_ip[0] != '\0' ? ",\"configuration_url\":\"http://" : "",
+                       s_ha_ip,
+                       s_ha_ip[0] != '\0' ? "\"" : "");
     if (written < 0 || (size_t)written >= len) {
         return -1;
     }
@@ -50,7 +66,7 @@ int mqtt_ha_format_dispense_button_config(char *buf,
 {
     char cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -100,7 +116,7 @@ int mqtt_ha_format_bowl_error_config(char *buf, size_t len, const char *device_i
 {
     char state_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -153,7 +169,7 @@ int mqtt_ha_format_bowl_weight_config(char *buf, size_t len, const char *device_
     char bowl_weight_topic[96];
     char state_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -218,7 +234,7 @@ int mqtt_ha_format_battery_config(char *buf, size_t len, const char *device_id)
 {
     char battery_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -280,7 +296,7 @@ int mqtt_ha_format_battery_voltage_config(char *buf, size_t len, const char *dev
 {
     char voltage_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -310,7 +326,7 @@ int mqtt_ha_format_battery_voltage_config(char *buf, size_t len, const char *dev
 
     written = snprintf(buf,
                        len,
-                       "{\"name\":\"Battery pack voltage\","
+                       "{\"name\":\"Battery voltage\","
                        "\"unique_id\":\"petfeeder_%s_battery_voltage\","
                        "\"state_topic\":\"%s\","
                        "\"unit_of_measurement\":\"mV\","
@@ -337,7 +353,7 @@ int mqtt_ha_format_mains_config(char *buf, size_t len, const char *device_id)
 {
     char mains_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -389,7 +405,7 @@ int mqtt_ha_format_hopper_level_config(char *buf, size_t len, const char *device
 {
     char hopper_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -442,7 +458,7 @@ int mqtt_ha_format_dispense_completed_config(char *buf,
 {
     char event_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -495,7 +511,7 @@ int mqtt_ha_format_device_timezone_config(char *buf, size_t len, const char *dev
 {
     char timezone_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -549,7 +565,7 @@ int mqtt_ha_format_feeding_schedule_config(char *buf, size_t len, const char *de
     char schedule_topic[96];
     char schedule_cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -599,7 +615,7 @@ int mqtt_ha_format_feeding_schedule_config(char *buf, size_t len, const char *de
                        "\"json_attributes_template\":\"{{ value_json | tojson }}\","
                        "\"force_update\":true,"
                        "\"optimistic\":false,"
-                       "\"entity_category\":\"config\","
+                       "\"icon\":\"mdi:calendar-clock\","
                        "\"availability_topic\":\"%s\","
                        "\"payload_available\":\"online\","
                        "\"payload_not_available\":\"offline\","
@@ -622,7 +638,7 @@ int mqtt_ha_format_weight_compensation_config(char *buf, size_t len, const char 
     char feed_mode_topic[96];
     char feed_mode_cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -691,7 +707,7 @@ int mqtt_ha_format_child_lock_config(char *buf, size_t len, const char *device_i
     char state_topic[96];
     char cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -728,7 +744,7 @@ int mqtt_ha_format_child_lock_config(char *buf, size_t len, const char *device_i
                        "\"payload_on\":\"ON\","
                        "\"payload_off\":\"OFF\","
                        "\"optimistic\":false,"
-                       "\"entity_category\":\"config\","
+                       "\"icon\":\"mdi:lock\","
                        "\"availability_topic\":\"%s\","
                        "\"payload_available\":\"online\","
                        "\"payload_not_available\":\"offline\","
@@ -750,7 +766,7 @@ int mqtt_ha_format_overfill_protection_config(char *buf, size_t len, const char 
     char state_topic[96];
     char cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -810,7 +826,7 @@ int mqtt_ha_format_overfill_threshold_g_config(char *buf, size_t len, const char
     char state_topic[96];
     char cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -887,7 +903,7 @@ static int mqtt_ha_format_generic(char *buf,
     char state_topic[96];
     char cmd_topic[96];
     char connection_topic[96];
-    char device_block[192];
+    char device_block[320];
     int written;
 
     if (buf == NULL || len == 0 || device_id == NULL || device_id[0] == '\0') {
@@ -985,41 +1001,75 @@ MQTT_HA_GENERIC(mqtt_ha_format_calibrate_span_config,
     "\"payload_press\":\"{\\\"action\\\":\\\"span\\\"}\",\"entity_category\":\"config\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_display_mode_config,
-    "Display mode", "display_mode", "display", "cmd/display",
+    "Screen mode", "display_mode", "display", "cmd/display",
     "\"value_template\":\"{{ value_json.mode }}\","
     "\"command_template\":\"{\\\"mode\\\": \\\"{{ value }}\\\"}\","
     "\"options\":[\"weight\",\"eaten_today\"],"
     "\"entity_category\":\"config\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_display_brightness_config,
-    "Display brightness", "display_brightness", "display", "cmd/display",
+    "Screen brightness", "display_brightness", "display", "cmd/display",
     "\"value_template\":\"{{ value_json.brightness }}\","
     "\"command_template\":\"{\\\"brightness\\\": {{ value | int }}}\","
     "\"min\":0,\"max\":4,\"step\":1,\"mode\":\"slider\",\"optimistic\":false,"
     "\"entity_category\":\"config\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_display_battery_off_config,
-    "Display off delay on battery", "display_battery_off", "display", "cmd/display",
+    "Screen off delay (battery)", "display_battery_off", "display", "cmd/display",
     "\"value_template\":\"{{ value_json.battery_off_s }}\","
     "\"command_template\":\"{\\\"battery_off_s\\\": {{ value | int }}}\","
     "\"min\":0,\"max\":600,\"step\":10,\"unit_of_measurement\":\"s\","
-    "\"mode\":\"box\",\"optimistic\":false,\"entity_category\":\"config\"")
+    "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:timer-outline\","
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_display_mains_off_config,
+    "Screen off delay (mains)", "display_mains_off", "display", "cmd/display",
+    "\"value_template\":\"{{ value_json.mains_off_s }}\","
+    "\"command_template\":\"{\\\"mains_off_s\\\": {{ value | int }}}\","
+    "\"min\":0,\"max\":3600,\"step\":10,\"unit_of_measurement\":\"s\","
+    "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:timer-outline\","
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_dispense_progress_config,
+    "Dispense status", "dispense_progress", "dispense/progress", NULL,
+    "\"value_template\":\"{% if value_json.state == 'running' %}"
+    "{{ value_json.portions }}/{{ value_json.of }} ({{ value_json.g }} g){% else %}"
+    "{{ value_json.state }}{% endif %}\",\"icon\":\"mdi:progress-clock\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_wifi_rssi_config,
+    "Wi-Fi signal", "wifi_rssi", "wifi_rssi", NULL,
+    "\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\","
+    "\"state_class\":\"measurement\",\"entity_category\":\"diagnostic\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_eaten_today_config,
     "Eaten today", "eaten_today", "eaten_today", NULL,
     "\"device_class\":\"weight\",\"unit_of_measurement\":\"g\","
-    "\"state_class\":\"total_increasing\"")
+    "\"state_class\":\"total_increasing\",\"icon\":\"mdi:food-drumstick\"")
 
-MQTT_HA_GENERIC(mqtt_ha_format_dispense_custom_config,
-    "Dispense custom amount", "dispense_custom", NULL, "cmd/dispense",
+/* Amount used by the Dispense button. Setting it never dispenses (the old
+ * "Dispense custom amount" number dispensed on every change). */
+MQTT_HA_GENERIC(mqtt_ha_format_dispense_amount_config,
+    "Dispense amount", "dispense_amount", "feed/dispense_amount", "cmd/dispense_amount",
+    "\"value_template\":\"{{ value_json.g }}\","
     "\"command_template\":\"{\\\"g\\\": {{ value | int }}}\","
     "\"min\":5,\"max\":150,\"step\":1,\"unit_of_measurement\":\"g\","
-    "\"mode\":\"box\",\"optimistic\":true,\"entity_category\":\"config\"")
+    "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:weight-gram\"")
+
+/* Retired entity: an empty retained config removes it from Home Assistant. */
+static int mqtt_ha_format_retired(char *buf, size_t len, const char *device_id)
+{
+    (void)device_id;
+    if (buf == NULL || len == 0u) {
+        return -1;
+    }
+    buf[0] = '\0';
+    return 0;
+}
 
 MQTT_HA_GENERIC(mqtt_ha_format_hopper_ir_config,
     "Hopper IR beam", "hopper_ir", "hopper_ir", NULL,
     "\"device_class\":\"enum\",\"options\":[\"blocked\",\"clear\"],"
-    "\"entity_category\":\"diagnostic\"")
+    "\"enabled_by_default\":false,\"entity_category\":\"diagnostic\"")
 
 MQTT_HA_GENERIC(mqtt_ha_format_ota_state_config,
     "Firmware update state", "ota_state", "ota/status", NULL,
@@ -1168,8 +1218,28 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
     },
     {
         .component = "number",
+        .object_id = "dispense_amount",
+        .format_config = mqtt_ha_format_dispense_amount_config,
+    },
+    {
+        .component = "number",
         .object_id = "dispense_custom",
-        .format_config = mqtt_ha_format_dispense_custom_config,
+        .format_config = mqtt_ha_format_retired,
+    },
+    {
+        .component = "number",
+        .object_id = "display_mains_off",
+        .format_config = mqtt_ha_format_display_mains_off_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "dispense_progress",
+        .format_config = mqtt_ha_format_dispense_progress_config,
+    },
+    {
+        .component = "sensor",
+        .object_id = "wifi_rssi",
+        .format_config = mqtt_ha_format_wifi_rssi_config,
     },
     {
         .component = "sensor",

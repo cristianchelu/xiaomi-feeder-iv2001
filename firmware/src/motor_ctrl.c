@@ -76,7 +76,7 @@ static QueueHandle_t s_cmd_q;
 static TaskHandle_t s_task;
 static motor_phase_t s_phase = MOTOR_PHASE_IDLE;
 static motor_cmd_t s_active_cmd;
-static uint8_t s_pulses;
+static volatile uint8_t s_pulses;
 static bool s_prev_beam_open;
 /* When the beam last closed: a hole only counts after a real closed stretch. */
 static TickType_t s_beam_closed_tick;
@@ -1129,4 +1129,9 @@ void motor_ctrl_test_poll(void)
             motor_ctrl_poll_antijam(now);
         }
     }
+}
+
+uint8_t motor_ctrl_pulses(void)
+{
+    return s_pulses;
 }

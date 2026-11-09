@@ -162,6 +162,22 @@ static port_err_t fake_wifi_stop_ap(void)
     return PORT_ERR_NOT_SUPPORTED;
 }
 
+static int8_t s_fake_rssi = -55;
+
+void fake_wifi_port_set_rssi(int8_t dbm)
+{
+    s_fake_rssi = dbm;
+}
+
+static port_err_t fake_wifi_get_rssi(int8_t *dbm)
+{
+    if (dbm == NULL) {
+        return PORT_ERR_INVALID_ARG;
+    }
+    *dbm = s_fake_rssi;
+    return PORT_OK;
+}
+
 static const wifi_port_t s_fake_wifi_port = {
     .disconnect = fake_wifi_disconnect,
     .radio_up = fake_wifi_radio_up,
@@ -171,6 +187,7 @@ static const wifi_port_t s_fake_wifi_port = {
     .wait_ready = fake_wifi_wait_ready,
     .is_connected = fake_wifi_is_connected,
     .get_ip = fake_wifi_get_ip,
+    .get_rssi = fake_wifi_get_rssi,
     .start_ap = fake_wifi_start_ap,
     .stop_ap = fake_wifi_stop_ap,
 };

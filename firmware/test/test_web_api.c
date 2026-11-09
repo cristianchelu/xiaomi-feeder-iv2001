@@ -209,7 +209,7 @@ void test_web_api_status_includes_settings(void)
     setup_status_telemetry();
     fake_config_port_reset();
     TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_STATUS, buf, sizeof(buf)));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"display\":{\"mode\":\"weight\",\"brightness\":4,\"battery_off_s\":60}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"display\":{\"mode\":\"weight\",\"brightness\":4,\"battery_off_s\":60,\"mains_off_s\":0}"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"power\":{\"battery_wifi\":\"on\"}"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"child_lock\":false"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"eaten_today\":\""));

@@ -98,7 +98,7 @@ void test_mqtt_ha_format_battery_voltage_config_json(void)
 
     written = mqtt_ha_format_battery_voltage_config(buf, sizeof(buf), TEST_DEVICE_ID);
     TEST_ASSERT_GREATER_THAN(0, written);
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"name\":\"Battery pack voltage\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"name\":\"Battery voltage\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/battery_voltage\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"unit_of_measurement\":\"mV\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"device_class\":\"voltage\""));
@@ -170,7 +170,7 @@ void test_mqtt_ha_format_feeding_schedule_config_json(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"json_attributes_template\":\"{{ value_json | tojson }}\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"force_update\":true"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"optimistic\":false"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"config\""));
+    TEST_ASSERT_NULL(strstr(buf, "entity_category"));   /* control */
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"unique_id\":\"petfeeder_ddeeff_feeding_schedule\""));
 }
 
@@ -390,7 +390,7 @@ void test_mqtt_ha_format_child_lock_config_json(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_on\":\"ON\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"payload_off\":\"OFF\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"unique_id\":\"petfeeder_ddeeff_child_lock\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"entity_category\":\"config\""));
+    TEST_ASSERT_NULL(strstr(buf, "entity_category"));   /* control */
 }
 
 typedef int (*ha_format_fn_t)(char *, size_t, const char *);
@@ -467,18 +467,29 @@ void test_mqtt_ha_format_eaten_today_sensor(void)
     TEST_ASSERT_NULL(strstr(buf, "command_topic"));
 }
 
-void test_mqtt_ha_format_dispense_custom_number(void)
+void test_mqtt_ha_format_dispense_amount_number(void)
 {
     char buf[MQTT_OUTBOX_MAX_PAYLOAD];
 
-    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_dispense_custom_config(buf, sizeof(buf), TEST_DEVICE_ID));
-    assert_common(buf, "dispense_custom");
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/dispense\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "{\\\"g\\\": {{ value | int }}}"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"min\":5"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":150"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"mode\":\"box\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"optimistic\":true"));
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_dispense_amount_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "dispense_amount");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/dispense_amount\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/feed/dispense_amount\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"optimistic\":false"));
+    TEST_ASSERT_NULL(strstr(buf, "entity_category"));   /* a control, not config */
+}
+
+void test_mqtt_ha_device_block_has_link_and_version_once_ip_known(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    mqtt_ha_discovery_set_ip("10.20.10.73");
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_dispense_amount_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"configuration_url\":\"http://10.20.10.73\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"sw_version\":\""));
+    mqtt_ha_discovery_set_ip("");
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_dispense_amount_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    TEST_ASSERT_NULL(strstr(buf, "configuration_url"));
 }
 
 void test_mqtt_ha_format_hopper_ir_diagnostic_sensor(void)

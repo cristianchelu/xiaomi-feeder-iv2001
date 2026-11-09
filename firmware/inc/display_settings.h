@@ -21,6 +21,11 @@ typedef enum {
 #define DISPLAY_BATTERY_OFF_S_MAX      600u
 #define DISPLAY_BATTERY_OFF_S_DEFAULT  60u
 
+/* Screen off after inactivity on mains (0 = always on). */
+#define DISPLAY_MAINS_OFF_S_MAX     3600u
+#define DISPLAY_MAINS_OFF_S_DEFAULT 0u
+uint16_t display_settings_mains_off_s_get(void);
+bool display_settings_mains_off_s_set(uint16_t seconds);
 uint16_t display_settings_battery_off_s_get(void);
 bool display_settings_battery_off_s_set(uint16_t seconds);
 

@@ -117,3 +117,66 @@ bool wifi_cred_is_stored(const config_port_t *cfg)
 
     return ssid[0] != '\0';
 }
+
+#define WIFI_TRIAL_SSID_KEY "ssid_new"
+#define WIFI_TRIAL_PASS_KEY "pass_new"
+
+port_err_t wifi_cred_trial_save(const config_port_t *cfg, const char *ssid, const char *pass)
+{
+    port_err_t err;
+
+    if (cfg == NULL || ssid == NULL || pass == NULL) {
+        return PORT_ERR_INVALID_ARG;
+    }
+    err = wifi_cred_validate(ssid, pass);
+    if (err != PORT_OK) {
+        return err;
+    }
+    if (cfg->write(CONFIG_GROUP_WIFI, WIFI_TRIAL_SSID_KEY, ssid) != PORT_OK ||
+        cfg->write(CONFIG_GROUP_WIFI, WIFI_TRIAL_PASS_KEY, pass) != PORT_OK) {
+        return PORT_ERR_IO;
+    }
+    return PORT_OK;
+}
+
+port_err_t wifi_cred_trial_load(const config_port_t *cfg,
+                                char *ssid, size_t ssid_len,
+                                char *pass, size_t pass_len)
+{
+    if (cfg == NULL || ssid == NULL || pass == NULL || ssid_len == 0u || pass_len == 0u) {
+        return PORT_ERR_INVALID_ARG;
+    }
+    if (cfg->read(CONFIG_GROUP_WIFI, WIFI_TRIAL_SSID_KEY, ssid, ssid_len) != PORT_OK) {
+        return PORT_ERR_NOT_FOUND;
+    }
+    if (cfg->read(CONFIG_GROUP_WIFI, WIFI_TRIAL_PASS_KEY, pass, pass_len) != PORT_OK) {
+        pass[0] = '\0';
+    }
+    return wifi_cred_validate(ssid, pass);
+}
+
+port_err_t wifi_cred_trial_commit(const config_port_t *cfg)
+{
+    char ssid[WIFI_SSID_MAX_LEN + 1];
+    char pass[WIFI_PASS_MAX_LEN + 1];
+    port_err_t err;
+
+    err = wifi_cred_trial_load(cfg, ssid, sizeof(ssid), pass, sizeof(pass));
+    if (err != PORT_OK) {
+        return err;
+    }
+    err = wifi_cred_save(cfg, ssid, pass);
+    if (err == PORT_OK) {
+        wifi_cred_trial_drop(cfg);
+    }
+    return err;
+}
+
+void wifi_cred_trial_drop(const config_port_t *cfg)
+{
+    if (cfg == NULL || cfg->erase == NULL) {
+        return;
+    }
+    (void)cfg->erase(CONFIG_GROUP_WIFI, WIFI_TRIAL_SSID_KEY);
+    (void)cfg->erase(CONFIG_GROUP_WIFI, WIFI_TRIAL_PASS_KEY);
+}

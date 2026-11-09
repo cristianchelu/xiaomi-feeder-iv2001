@@ -53,6 +53,11 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/portion_estimate.c \
              ../src/mqtt_portion.c \
              ../src/app_lock.c \
+             ../src/ntp_config.c \
+             ../src/mqtt_dispense_amount.c \
+             ../src/mqtt_wifi_rssi.c \
+             ../src/web_admin.c \
+             ../src/mqtt_dispense_progress.c \
              ../src/mqtt_power.c \
              ../src/display_settings.c \
              ../src/mqtt_backoff.c \

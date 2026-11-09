@@ -18,6 +18,7 @@
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
+#include "mqtt_dispense_amount.h"
 #include "mqtt_portion.h"
 #include "mqtt_power.h"
 #include "ota_base.h"
@@ -55,6 +56,17 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
             }
         }
 
+        {
+            uint16_t amount_g;
+
+            /* Dispense button: the configured amount, else one portion. */
+            if (dispense_amount_get(&amount_g)) {
+                return dispense_submit_grams((uint8_t)amount_g, DISPENSE_SOURCE_MQTT)
+                               == DISPENSE_SUBMIT_OK
+                           ? PORT_OK
+                           : PORT_ERR_BUSY;
+            }
+        }
         if (dispense_submit_portions((uint8_t)MQTT_DISPENSE_DEFAULT_PORTIONS,
                                      DISPENSE_SOURCE_MQTT)
                 == DISPENSE_SUBMIT_OK) {
@@ -114,6 +126,9 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
     case MQTT_ROUTE_CMD_PORTION_CAL:
         return mqtt_portion_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
+        return mqtt_dispense_amount_handle(payload, len);
 
     case MQTT_ROUTE_CMD_OTA_BASE:
         return ota_base_handle(payload, len);

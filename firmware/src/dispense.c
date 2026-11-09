@@ -3,6 +3,8 @@
  */
 
 #include "dispense.h"
+#include "motor_ctrl.h"
+#include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
 #include "portion_estimate.h"
 
@@ -54,9 +56,41 @@ static bool s_baseline_valid;
 static uint32_t s_settle_start_ms;
 static uint8_t s_zero_delta_streak;
 
+static void dispense_progress_publish(void)
+{
+    uint8_t before = (uint8_t)(s_total_portions - s_batch_portions);
+    uint8_t done;
+
+    switch (s_phase) {
+    case DISPENSE_PHASE_MOTOR:
+        done = (uint8_t)(before + motor_ctrl_pulses());
+        if (done > s_total_portions) {
+            done = s_total_portions;
+        }
+        mqtt_dispense_progress_update("running", done, s_total_portions,
+                                      (weight_dg_t)done * portion_estimate_dg());
+        break;
+    case DISPENSE_PHASE_SETTLE:
+        mqtt_dispense_progress_update("weighing", s_total_portions, s_total_portions,
+                                      (weight_dg_t)s_total_portions * portion_estimate_dg());
+        break;
+    default:
+        mqtt_dispense_progress_update("idle", 0u, 0u, 0);
+        break;
+    }
+}
+
+void dispense_progress_poll(void)
+{
+    if (s_phase == DISPENSE_PHASE_MOTOR) {
+        dispense_progress_publish();
+    }
+}
+
 static void dispense_sync_runtime_active(void)
 {
     feeder_runtime_set_dispense_active(s_job_pending || s_phase != DISPENSE_PHASE_NONE);
+    dispense_progress_publish();
 }
 
 static bool dispense_capture_baseline(uint32_t now_ms)

@@ -76,3 +76,17 @@ void test_app_display_does_not_blank_on_mains(void)
     tick(200000u);
     TEST_ASSERT_FALSE(last_op_is_power_off());
 }
+
+void test_app_display_blanks_on_mains_when_mains_delay_set(void)
+{
+    setup_battery();
+    fake_power_source_port_set_mains_present(true);
+    power_source_input_init(fake_power_source_port_get());
+    TEST_ASSERT_TRUE(display_settings_mains_off_s_set(120u));
+    app_display_apply_settings();
+    tick(200u);
+    tick(100000u);
+    TEST_ASSERT_FALSE(last_op_is_power_off());
+    tick(121000u);
+    TEST_ASSERT_TRUE(last_op_is_power_off());
+}

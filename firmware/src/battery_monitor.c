@@ -3,6 +3,7 @@
  */
 
 #include "battery_monitor.h"
+#include "power_source_input.h"
 
 #include <stddef.h>
 
@@ -90,6 +91,18 @@ bool battery_monitor_poll(uint32_t now_ms)
     s_force_sample = false;
     s_last_sample_ms = now_ms;
     s_has_last_sample_ms = true;
+
+    /* Field: on mains the pack sense sometimes reads ~24.8 V (pin near ADC
+     * full scale), impossible for 4 AA cells. Drop it, keep the last valid
+     * value, and log for diagnosis. */
+    if (pack_mv > BATTERY_MONITOR_MAX_PLAUSIBLE_MV) {
+        app_log_info("app", "battery read implausible %u mV (mains %s): ignored",
+                     (unsigned)pack_mv,
+                     power_source_input_is_valid()
+                         ? (power_source_input_get() == POWER_SOURCE_MAINS ? "ON" : "OFF")
+                         : "?");
+        return false;
+    }
 
     mqtt_battery_voltage_sync(pack_mv, force);
 

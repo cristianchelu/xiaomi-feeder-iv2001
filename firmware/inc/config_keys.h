@@ -35,6 +35,7 @@
 #define CONFIG_KEY_DISPLAY_MODE         "mode"
 #define CONFIG_KEY_DISPLAY_BRIGHTNESS   "brightness"
 #define CONFIG_KEY_DISPLAY_BATTERY_OFF_S "battery_off_s"
+#define CONFIG_KEY_DISPLAY_MAINS_OFF_S   "mains_off_s"
 
 #define CONFIG_GROUP_EATEN              "eaten"
 #define CONFIG_KEY_EATEN_DAY            "day"
@@ -48,6 +49,7 @@
 #define CONFIG_GROUP_TIME          "time"
 #define CONFIG_KEY_TZ_RULE         "tz_rule"
 #define CONFIG_KEY_TZ_LABEL        "tz_label"
+#define CONFIG_KEY_NTP_SERVER      "ntp"
 
 #define CONFIG_GROUP_SCHEDULE      "schedule"
 #define CONFIG_KEY_SCHEDULE_ENABLED "enabled"

@@ -87,6 +87,9 @@ mqtt_route_kind_t mqtt_route_classify(const char *topic, const char *device_id)
     if (topic_matches_cmd(topic, device_id, "eaten_reset")) {
         return MQTT_ROUTE_CMD_EATEN_RESET;
     }
+    if (topic_matches_cmd(topic, device_id, "dispense_amount")) {
+        return MQTT_ROUTE_CMD_DISPENSE_AMOUNT;
+    }
     if (topic_matches_cmd(topic, device_id, "portion_cal")) {
         return MQTT_ROUTE_CMD_PORTION_CAL;
     }
@@ -140,6 +143,8 @@ const char *mqtt_route_label(mqtt_route_kind_t route)
         return "eaten_reset";
     case MQTT_ROUTE_CMD_PORTION_CAL:
         return "portion_cal";
+    case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
+        return "dispense_amount";
     case MQTT_ROUTE_CMD_POWER:
         return "power";
     case MQTT_ROUTE_CMD_OTA_BASE:

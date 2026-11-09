@@ -62,6 +62,8 @@ ifeq ($(MTK_FOTA_DUAL_IMAGE_ENABLE),y)
 export MTK_FOTA_DUAL_IMAGE_ENABLE
 FOTA_PARTITION_B_BUILD    ?= n
 ifeq ($(FOTA_PARTITION_B_BUILD),y)
+FW_VERSION ?= $(shell git -C $(dir $(lastword $(MAKEFILE_LIST))) describe --always --dirty 2>/dev/null || echo dev)
+CFLAGS += -DFW_VERSION=\"$(FW_VERSION)\"
 CFLAGS += -DFOTA_PARTITION_B_BUILD
 endif
 PARTITION_B_EXTRA ?= FOTA_PARTITION_B_BUILD=y BUILD_DIR=$(BUILD_DIR)/binary_B OUTPATH=$(OUTPATH)/binary_B PROJ_PATH=$(PROJ_PATH)
@@ -150,6 +152,11 @@ APP_FILES      += $(APP_PATH_SRC)/power_policy.c
 APP_FILES      += $(APP_PATH_SRC)/portion_estimate.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_portion.c
 APP_FILES      += $(APP_PATH_SRC)/app_lock.c
+APP_FILES      += $(APP_PATH_SRC)/ntp_config.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_dispense_amount.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_wifi_rssi.c
+APP_FILES      += $(APP_PATH_SRC)/web_admin.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_dispense_progress.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_power.c
 APP_FILES      += $(APP_PATH_SRC)/display_settings.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_overfill.c

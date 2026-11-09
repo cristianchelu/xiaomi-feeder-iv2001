@@ -80,6 +80,8 @@ dispense_submit_result_t dispense_submit_grams(uint8_t grams,
 /* Portion calibration: turn PORTION_CAL_PORTIONS holes open-loop, weigh once,
  * set the grams-per-portion estimate (see portion_estimate.h). */
 dispense_submit_result_t dispense_submit_portion_cal(dispense_source_t source);
+/* Publish live progress while the motor turns (call from the app tick). */
+void dispense_progress_poll(void);
 bool dispense_is_active(void);
 void dispense_start_from_request(const app_dispense_request_t *req);
 bool dispense_on_burst_done(void);
