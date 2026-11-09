@@ -38,6 +38,10 @@ if [ "$web_ui_enable" = "y" ]; then
     "$REPO_ROOT/tools/web/build.sh"
 fi
 
+# Firmware version (HA sw_version, web page): git describe of this repo.
+FW_VERSION="${FW_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}"
+export FW_VERSION
+
 cd "$SDK_ROOT"
 ./build.sh mt7682_hdk petfeeder bl
 
