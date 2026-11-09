@@ -117,6 +117,15 @@ SECTIONS
 
     } > VSYSRAM  AT> ROM_RTOS
 
+    /* Not cleared at boot: survives a software reboot (log ring). */
+    . = ALIGN(4);
+    .noinit (NOLOAD):
+    {
+        *(.noinit)
+        *(.noinit*)
+        . = ALIGN(4);
+    } > VSYSRAM
+
      . = ALIGN(32);
     _noncached_sysram_rw_load = LOADADDR(.noncached_sysram_data);
      . = . - ORIGIN(VSYSRAM) + ORIGIN(SYSRAM);

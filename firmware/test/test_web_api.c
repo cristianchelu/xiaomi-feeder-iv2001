@@ -245,3 +245,32 @@ void test_web_api_post_dispense_amount_and_ota_base(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"ota_base\":\"http://10.0.0.5:8123/local/feeder\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"progress\":{\"state\":\"idle\""));
 }
+
+/* Log ring survives a software reboot (retained RAM): web-ui.md § Log ring. */
+void test_web_api_log_keeps_previous_boot(void)
+{
+    char buf[6144];
+
+    app_log_info("test", "before-reboot-marker");
+    app_log_test_soft_reboot();
+    app_log_info("test", "after-reboot-marker");
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "--- previous boot ---"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "before-reboot-marker"));
+    TEST_ASSERT_TRUE(strstr(buf, "--- this boot ---") < strstr(buf, "after-reboot-marker"));
+    TEST_ASSERT_TRUE(strstr(buf, "before-reboot-marker") < strstr(buf, "--- this boot ---"));
+}
+
+void test_web_api_log_drops_corrupt_retained_ring(void)
+{
+    char buf[6144];
+
+    app_log_info("test", "garbage-marker");
+    app_log_test_corrupt_retained();
+    app_log_test_soft_reboot();
+    app_log_info("test", "fresh-marker");
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
+    TEST_ASSERT_NULL(strstr(buf, "--- previous boot ---"));
+    TEST_ASSERT_NULL(strstr(buf, "garbage-marker"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "fresh-marker"));
+}

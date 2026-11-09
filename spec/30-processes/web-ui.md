@@ -68,7 +68,7 @@ Read payloads match retained MQTT state / command wire formats in
 | GET | `/api/feed/mode` | Plain text `open_loop` or `compensated` (same as `.../feed/mode`) |
 | GET | `/api/feed/overfill` | JSON `{"enabled":false,"threshold_g":50}` (same as `.../feed/overfill`) |
 | GET | `/api/status` | Composite JSON — see [Status composite](#status-composite) |
-| GET | `/api/log` | Plain text: the last ~3 KB of log lines (RAM ring, field diagnosis) |
+| GET | `/api/log` | Plain text log — see [Log ring](#log-ring) |
 | GET | `/api/export` | Settings backup JSON — see [Administration](#administration) |
 
 #### Status composite
@@ -108,6 +108,30 @@ sensor reads from the HTTP handler.
 
 Per-topic GET mirrors (`/api/bowl_weight`, `/api/hopper`, …) are **deferred**
 past v0.
+
+#### Log ring
+
+Every log line also goes to a `[tune]` 3 KB RAM ring placed in a RAM section
+the startup code does not clear, so it survives a **software** reboot
+(watchdog, `cmd/reboot`, OTA, crash restart); a power cut loses it. On the
+first log line after boot the ring is checked (marker word, indexes in range,
+printable bytes only): when valid its last `[tune]` 2 KB are kept as the
+*previous boot* log, otherwise nothing is kept; the ring then restarts empty.
+
+`/api/log` returns:
+
+```
+--- previous boot ---
+<last lines before the reboot>
+--- this boot ---
+<recent lines>
+```
+
+The first block is absent when nothing was kept.
+
+Every `[tune]` 10 min the app task logs `[app] heap free <bytes> min <bytes>`
+(current and lowest-ever free heap), so a kept log shows the memory trend
+before a hang.
 
 ### Writes
 

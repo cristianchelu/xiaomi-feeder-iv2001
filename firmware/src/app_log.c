@@ -2,6 +2,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,27 +18,102 @@ extern int log_write(char *buf, int len);
 
 #define APP_LOG_LINE_MAX 256
 
-/* Recent-log ring, readable over the LAN at GET /api/log (field diagnosis). */
+/* Recent-log ring, readable over the LAN at GET /api/log (field diagnosis).
+ * It lives in a RAM section startup does not clear, so a software reboot
+ * keeps it: the first line after boot saves its tail as the previous-boot log
+ * (spec/30-processes/web-ui.md § Log ring). */
 #define APP_LOG_RING_SIZE 3072u
-static char s_ring[APP_LOG_RING_SIZE];
-static size_t s_ring_head;
-static bool s_ring_wrapped;
+#define APP_LOG_PREV_SIZE 2048u
+#define APP_LOG_KEEP_MAGIC 0x4C4F4721u
+
+#ifdef HOST_TEST
+#define APP_LOG_NOINIT
+#else
+#define APP_LOG_NOINIT __attribute__((section(".noinit")))
+#endif
+
+typedef struct {
+    uint32_t magic;
+    uint32_t head;
+    uint32_t wrapped;
+    char ring[APP_LOG_RING_SIZE];
+} app_log_keep_t;
+
+static app_log_keep_t s_keep APP_LOG_NOINIT;
+static bool s_restored;           /* .bss: false after every boot */
+static char s_prev[APP_LOG_PREV_SIZE];
+static size_t s_prev_len;
+
+static bool app_log_keep_valid(void)
+{
+    size_t count;
+    size_t i;
+
+    if (s_keep.magic != APP_LOG_KEEP_MAGIC || s_keep.head >= APP_LOG_RING_SIZE ||
+        s_keep.wrapped > 1u) {
+        return false;
+    }
+    count = s_keep.wrapped ? APP_LOG_RING_SIZE : s_keep.head;
+    for (i = 0u; i < count; i++) {
+        unsigned char c = (unsigned char)s_keep.ring[i];
+
+        if (c != '\n' && (c < 0x20u || c > 0x7Eu)) {
+            return false;
+        }
+    }
+    return count > 0u;
+}
+
+/* First call after boot: keep the previous boot's tail, restart the ring. */
+static void app_log_ring_restore(void)
+{
+    size_t count;
+    size_t start;
+    size_t i;
+
+    if (s_restored) {
+        return;
+    }
+    s_restored = true;
+    s_prev_len = 0u;
+    if (app_log_keep_valid()) {
+        count = s_keep.wrapped ? APP_LOG_RING_SIZE : s_keep.head;
+        start = s_keep.wrapped ? s_keep.head : 0u;
+        if (count > APP_LOG_PREV_SIZE - 1u) {
+            start = (start + (count - (APP_LOG_PREV_SIZE - 1u))) % APP_LOG_RING_SIZE;
+            count = APP_LOG_PREV_SIZE - 1u;
+        }
+        for (i = 0u; i < count; i++) {
+            s_prev[s_prev_len++] = s_keep.ring[(start + i) % APP_LOG_RING_SIZE];
+        }
+    }
+    s_prev[s_prev_len] = '\0';
+    s_keep.head = 0u;
+    s_keep.wrapped = 0u;
+    s_keep.magic = APP_LOG_KEEP_MAGIC;
+}
 
 static void app_log_ring_push(const char *buf, size_t len)
 {
     size_t i;
 
+    app_log_ring_restore();
 #ifndef HOST_TEST
     taskENTER_CRITICAL();
 #endif
     for (i = 0u; i < len; i++) {
-        if (buf[i] == '\r') {
+        char c = buf[i];
+
+        if (c == '\r') {
             continue;
         }
-        s_ring[s_ring_head] = buf[i];
-        s_ring_head = (s_ring_head + 1u) % APP_LOG_RING_SIZE;
-        if (s_ring_head == 0u) {
-            s_ring_wrapped = true;
+        if (c != '\n' && ((unsigned char)c < 0x20u || (unsigned char)c > 0x7Eu)) {
+            c = '?';
+        }
+        s_keep.ring[s_keep.head] = c;
+        s_keep.head = (s_keep.head + 1u) % APP_LOG_RING_SIZE;
+        if (s_keep.head == 0u) {
+            s_keep.wrapped = 1u;
         }
     }
 #ifndef HOST_TEST
@@ -55,17 +131,18 @@ size_t app_log_ring_copy(char *out, size_t len)
     if (out == NULL || len == 0u) {
         return 0u;
     }
+    app_log_ring_restore();
 #ifndef HOST_TEST
     taskENTER_CRITICAL();
 #endif
-    count = s_ring_wrapped ? APP_LOG_RING_SIZE : s_ring_head;
-    start = s_ring_wrapped ? s_ring_head : 0u;
+    count = s_keep.wrapped ? APP_LOG_RING_SIZE : s_keep.head;
+    start = s_keep.wrapped ? s_keep.head : 0u;
     if (count > len - 1u) {
         start = (start + (count - (len - 1u))) % APP_LOG_RING_SIZE;
         count = len - 1u;
     }
     for (i = 0u; i < count; i++) {
-        out[n++] = s_ring[(start + i) % APP_LOG_RING_SIZE];
+        out[n++] = s_keep.ring[(start + i) % APP_LOG_RING_SIZE];
     }
 #ifndef HOST_TEST
     taskEXIT_CRITICAL();
@@ -73,6 +150,36 @@ size_t app_log_ring_copy(char *out, size_t len)
     out[n] = '\0';
     return n;
 }
+
+size_t app_log_prev_copy(char *out, size_t len)
+{
+    size_t n;
+
+    if (out == NULL || len == 0u) {
+        return 0u;
+    }
+    app_log_ring_restore();
+    n = s_prev_len;
+    if (n > len - 1u) {
+        n = len - 1u;
+    }
+    memcpy(out, s_prev + (s_prev_len - n), n);
+    out[n] = '\0';
+    return n;
+}
+
+#ifdef HOST_TEST
+void app_log_test_soft_reboot(void)
+{
+    s_restored = false;
+    s_prev_len = 0u;
+}
+
+void app_log_test_corrupt_retained(void)
+{
+    s_keep.magic = 0u;
+}
+#endif
 
 static void (*s_mirror_sink)(const char *buf, size_t len, void *ctx);
 static void *s_mirror_ctx;

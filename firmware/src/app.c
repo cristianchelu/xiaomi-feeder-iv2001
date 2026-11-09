@@ -187,6 +187,28 @@ static void app_sleep_enter(void)
     app_log_info("app", "sleep");
 }
 
+#define APP_HEAP_LOG_PERIOD_MS 600000u
+
+/* Periodic heap line for the kept log (web-ui.md § Log ring). */
+static void app_heap_log_poll(uint32_t now_ms)
+{
+    static uint32_t s_last_ms;
+    static bool s_started;
+
+    if (!s_started) {
+        s_started = true;
+        s_last_ms = now_ms;
+        return;
+    }
+    if ((uint32_t)(now_ms - s_last_ms) < APP_HEAP_LOG_PERIOD_MS) {
+        return;
+    }
+    s_last_ms = now_ms;
+    app_log_info("app", "heap free %u min %u",
+                 (unsigned)xPortGetFreeHeapSize(),
+                 (unsigned)xPortGetMinimumEverFreeHeapSize());
+}
+
 static void app_factory_reset_now(void)
 {
     if (!provision_erase_app_groups(config_port_get())) {
@@ -842,6 +864,7 @@ void app_dispatch(const app_event_t *ev)
         reboot_request_poll(ev->u.display_tick.now_ms);
         app_power_policy_poll(ev->u.display_tick.now_ms);
         mqtt_wifi_rssi_poll(ev->u.display_tick.now_ms, false);
+        app_heap_log_poll(ev->u.display_tick.now_ms);
         dispense_progress_poll();
         break;
 

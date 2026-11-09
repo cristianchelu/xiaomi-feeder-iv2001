@@ -7,6 +7,7 @@
 #include "app.h"
 #include "app_event.h"
 #include "app_event_port.h"
+#include "app_log.h"
 #include "display_presentation.h"
 #include "display_settings.h"
 #include "fake_config_port.h"
@@ -89,4 +90,16 @@ void test_app_display_blanks_on_mains_when_mains_delay_set(void)
     TEST_ASSERT_FALSE(last_op_is_power_off());
     tick(121000u);
     TEST_ASSERT_TRUE(last_op_is_power_off());
+}
+
+void test_app_logs_heap_every_ten_minutes(void)
+{
+    char log[3072];
+
+    setup_battery();
+    tick(1000u);
+    tick(700000u);
+    tick(1400000u);
+    (void)app_log_ring_copy(log, sizeof(log));
+    TEST_ASSERT_NOT_NULL(strstr(log, "[app] heap free "));
 }

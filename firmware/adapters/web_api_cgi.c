@@ -11,7 +11,7 @@
 #include "web_api_cgi.h"
 #include "web_ui.h"
 
-#define WEB_API_RESP_MAX   4096
+#define WEB_API_RESP_MAX   6144
 
 static char s_web_api_path[96];
 static char s_web_api_resp[WEB_API_RESP_MAX];

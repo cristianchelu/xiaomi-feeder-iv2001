@@ -542,8 +542,34 @@ int web_api_handle_get(web_api_route_t route, char *buf, size_t len)
     case WEB_API_GET_STATUS:
         return web_api_format_status(buf, len);
 
-    case WEB_API_GET_LOG:
-        return (int)app_log_ring_copy(buf, len);
+    case WEB_API_GET_LOG: {
+        size_t off = 0u;
+
+        if (len < 64u) {
+            return -1;
+        }
+        {
+            static const char prev_hdr[] = "--- previous boot ---\n";
+            static const char this_hdr[] = "--- this boot ---\n";
+            size_t room = len / 2u;
+            size_t n;
+
+            if (room > sizeof(prev_hdr)) {
+                n = app_log_prev_copy(buf + sizeof(prev_hdr) - 1u, room - (sizeof(prev_hdr) - 1u));
+                if (n > 0u) {
+                    memcpy(buf, prev_hdr, sizeof(prev_hdr) - 1u);
+                    off = sizeof(prev_hdr) - 1u + n;
+                    if (buf[off - 1u] != '\n') {
+                        buf[off++] = '\n';
+                    }
+                }
+            }
+            memcpy(buf + off, this_hdr, sizeof(this_hdr) - 1u);
+            off += sizeof(this_hdr) - 1u;
+            off += app_log_ring_copy(buf + off, len - off);
+        }
+        return (int)off;
+    }
 
     case WEB_API_GET_EXPORT:
         return web_admin_export(buf, len);
