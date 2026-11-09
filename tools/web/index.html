@@ -119,7 +119,8 @@ h1 {
 
 #tab-now:checked ~ .tabs label[for="tab-now"],
 #tab-sched:checked ~ .tabs label[for="tab-sched"],
-#tab-settings:checked ~ .tabs label[for="tab-settings"] {
+#tab-settings:checked ~ .tabs label[for="tab-settings"],
+#tab-system:checked ~ .tabs label[for="tab-system"] {
   background: var(--card);
   color: var(--fg);
   box-shadow: var(--shadow-sm);
@@ -131,7 +132,8 @@ h1 {
 
 #tab-now:checked ~ .tab-body #pane-now,
 #tab-sched:checked ~ .tab-body #pane-sched,
-#tab-settings:checked ~ .tab-body #pane-settings {
+#tab-settings:checked ~ .tab-body #pane-settings,
+#tab-system:checked ~ .tab-body #pane-system {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -276,7 +278,7 @@ input, select, button {
   font: inherit;
 }
 
-:is(input[type=number], input[type=text], input[type=time], select) {
+:is(input[type=number], input[type=text], input[type=time], input[type=password], select) {
   padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
@@ -782,6 +784,113 @@ button {
   font-weight: 600;
 }
 
+.hint {
+  margin: 0 0 10px;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 0 12px;
+
+  & label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--muted);
+    min-width: 0;
+  }
+
+  & label.tog {
+    flex-direction: row;
+    align-items: center;
+    color: var(--fg);
+    font-size: .9rem;
+  }
+
+  & .wide {
+    grid-column: 1 / -1;
+  }
+
+  & :is(input:not([type=checkbox]), select) {
+    width: 100%;
+    color: var(--fg);
+  }
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: .9rem;
+
+  & b {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}
+
+button.danger {
+  color: var(--bad);
+  border-color: var(--bad-bd);
+
+  &:hover:not(:disabled) {
+    background: var(--bad-bg);
+  }
+}
+
+.progress {
+  margin: 8px 0 0;
+  font-weight: 700;
+  color: var(--accent-deep);
+
+  &:empty {
+    display: none;
+  }
+}
+
+#unlock {
+  margin: 0 0 12px;
+}
+
+pre.log {
+  margin: 10px 0 0;
+  max-height: 22rem;
+  overflow: auto;
+  font-size: .72rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--muted-bg);
+  border-radius: var(--r-sm);
+  padding: 10px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 30rem) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: .01ms !important;
@@ -816,27 +925,38 @@ button {
 </div>
 </header>
 <div id="toast"></div>
+<section class="panel" id="unlock" hidden>
+<p class="hint">This feeder has a web password.</p>
+<div class="row between">
+<input type="password" id="unlockPw" placeholder="Web password" autocomplete="current-password">
+<button class="pri sm" id="unlockBtn">Unlock</button>
+</div>
+</section>
 <input type="radio" name="tab" id="tab-now" class="tab-radios" checked>
 <input type="radio" name="tab" id="tab-sched" class="tab-radios">
 <input type="radio" name="tab" id="tab-settings" class="tab-radios">
+<input type="radio" name="tab" id="tab-system" class="tab-radios">
 <nav class="tabs">
-<label for="tab-now">Now</label>
+<label for="tab-now">Home</label>
 <label for="tab-sched">Schedule</label>
 <label for="tab-settings">Settings</label>
+<label for="tab-system">System</label>
 </nav>
 <div class="tab-body">
 <div id="pane-now" class="tab-pane">
 <section class="panel hero" aria-live="polite">
 <p class="eyebrow" id="nextMeta">—</p>
 <p class="next-main" id="nextMain" hidden></p>
+<p class="progress" id="progress"></p>
 <div class="alerts" id="statusAlerts"></div>
 </section>
 <section class="panel">
 <h2>Status</h2>
 <div class="state-grid" id="stateGrid"></div>
+<div class="kv" style="margin-top:10px"><span>Eaten today</span><span class="row"><b id="eatenVal">—</b> g <button id="eatenReset" class="sm">Reset</button></span></div>
 </section>
 <section class="panel action">
-<h2>Manual dispense</h2>
+<h2>Feed now</h2>
 <div class="dispense-row">
 <label class="dispense-amt"><input id="dispG" type="number" min="5" max="150" value="10" aria-label="Grams" inputmode="numeric"> g</label>
 <button class="pri" id="dispBtn">Dispense</button>
@@ -858,29 +978,45 @@ button {
 </div>
 <div id="pane-settings" class="tab-pane">
 <section class="panel">
-<div class="set-block">
-<div class="row between">
+<h2>Feeding</h2>
+<div class="fields">
 <label>Feed mode
 <select id="feedMode">
 <option value="open_loop">Open loop</option>
 <option value="compensated">Compensated</option>
 </select>
 </label>
-<button id="saveMode" class="pri sm">Save</button>
-</div>
-</div>
-<div class="set-block">
-<div class="row between">
-<label class="tog"><input type="checkbox" id="overfillEn"> Skip scheduled feeds when bowl is full</label>
+<label>Dispense button (g)
+<input type="number" id="btnG" min="5" max="150" placeholder="1 portion">
+</label>
 </div>
 <div class="row between">
-<label>Full bowl threshold (g) <input type="number" id="overfillG" min="30" max="500" value="50"></label>
-<button id="saveOverfill" class="pri sm">Save</button>
+<label class="tog"><input type="checkbox" id="childLock"> Child lock</label>
+<button id="saveFeed" class="pri sm">Save</button>
 </div>
+</section>
+<section class="panel">
+<h2>Overfill protection</h2>
+<p class="hint">Skips scheduled feeds while the bowl already holds this much.</p>
+<div class="fields">
+<label class="tog"><input type="checkbox" id="overfillEn"> Enabled</label>
+<label>Full bowl (g) <input type="number" id="overfillG" min="30" max="500" value="50"></label>
 </div>
-<div class="set-block">
-<div class="row between">
-<label>Display
+<div class="card-foot"><button id="saveOverfill" class="pri sm">Save</button></div>
+</section>
+<section class="panel">
+<h2>Portion</h2>
+<div class="kv"><span>Portion size</span><b><span id="portionG">—</span> g <small id="portionSt"></small></b></div>
+<p class="hint">Calibrate turns 3 portions (~25 g) into the bowl and weighs them. An empty bowl is not required.</p>
+<div class="card-foot">
+<button id="portionReset" class="sm">Reset to 10 g</button>
+<button id="portionCal" class="pri sm">Calibrate</button>
+</div>
+</section>
+<section class="panel">
+<h2>Screen</h2>
+<div class="fields">
+<label>Shows
 <select id="dispMode">
 <option value="weight">Bowl weight</option>
 <option value="eaten_today">Eaten today</option>
@@ -888,74 +1024,123 @@ button {
 </label>
 <label>Brightness
 <select id="dispBright">
-<option value="0">0 (off)</option>
+<option value="0">Off</option>
 <option value="1">1</option>
 <option value="2">2</option>
 <option value="3">3</option>
 <option value="4">4</option>
 </select>
 </label>
+<label>Off after, on battery (s)
+<input type="number" id="dispOff" min="0" max="600" value="60">
+</label>
+<label>Off after, on mains (s)
+<input type="number" id="dispMainsOff" min="0" max="3600" value="0">
+</label>
 </div>
-<div class="row between">
-<label>Screen off on battery (s, 0=never) <input type="number" id="dispOff" min="0" max="600" value="60"></label>
-<button id="saveDisp" class="pri sm">Save</button>
+<p class="hint">0 = always on. Any button press wakes the screen.</p>
+<div class="card-foot"><button id="saveDisp" class="pri sm">Save</button></div>
+</section>
+<section class="panel">
+<h2>Scale</h2>
+<div class="kv"><span>Calibration</span><b id="scaleSt">—</b></div>
+<p class="hint">Remove the bowl and press Zero; put the empty 350 g bowl back and press Span.</p>
+<div class="card-foot">
+<button id="calZero" class="sm">Zero (no bowl)</button>
+<button id="calSpan" class="sm">Span (empty bowl)</button>
 </div>
-</div>
-<div class="set-block">
-<div class="row between">
-<label>Wi-Fi on battery
+</section>
+<section class="panel">
+<h2>Battery</h2>
+<div class="fields">
+<label class="wide">Wi-Fi on battery
 <select id="battWifi">
 <option value="on">Always on</option>
 <option value="scheduled_only">Only around feeds</option>
 <option value="off">Off</option>
 </select>
 </label>
-<button id="saveBattWifi" class="pri sm">Save</button>
 </div>
+<div class="card-foot"><button id="saveBattWifi" class="pri sm">Save</button></div>
+</section>
 </div>
-<div class="set-block">
-<div class="row between">
-<label class="tog"><input type="checkbox" id="childLock"> Child lock</label>
+<div id="pane-system" class="tab-pane">
+<section class="panel">
+<h2>Time</h2>
+<div class="kv"><span>Feeder time</span><b id="sysTime">—</b></div>
+<div class="fields">
+<label>Timezone
+<select id="tzSel"></select>
+</label>
+<label id="tzCustomL" hidden>POSIX rule
+<input type="text" id="tzRule" placeholder="UTC0">
+</label>
+<label class="wide">NTP server
+<input type="text" id="ntpHost" placeholder="pool.ntp.org">
+</label>
 </div>
+<div class="card-foot"><button id="saveTime" class="pri sm">Save</button></div>
+</section>
+<section class="panel">
+<h2>Network</h2>
+<div class="kv"><span>Wi-Fi signal</span><b id="rssi">—</b></div>
+<div class="fields">
+<label>Wi-Fi name (SSID) <input type="text" id="netSsid" autocomplete="off"></label>
+<label>Wi-Fi password <input type="password" id="netPass" placeholder="unchanged" autocomplete="new-password"></label>
+<label>MQTT broker <input type="text" id="netHost" autocomplete="off"></label>
+<label>MQTT port <input type="number" id="netPort" min="1" max="65535"></label>
+<label>MQTT user <input type="text" id="netUser" autocomplete="off"></label>
+<label>MQTT password <input type="password" id="netMqttPass" placeholder="unchanged" autocomplete="new-password"></label>
 </div>
-<div class="set-block">
-<div class="row between">
-<span>Eaten today: <b id="eatenVal">—</b> g</span>
-<button id="eatenReset" class="sm">Reset</button>
+<p class="hint">Saving reboots the feeder. If the new Wi-Fi does not connect, it goes back to the previous one.</p>
+<div class="card-foot"><button id="saveNet" class="pri sm">Save &amp; reboot</button></div>
+</section>
+<section class="panel">
+<h2>Security</h2>
+<div class="kv"><span>Web password</span><b id="pwSt">—</b></div>
+<div class="fields">
+<label class="wide">New password (4–32 characters, empty = none)
+<input type="password" id="newPw" autocomplete="new-password">
+</label>
 </div>
-<div class="row between">
-<span>Hopper IR: <b id="hopperIr">—</b></span>
+<div class="card-foot"><button id="savePw" class="pri sm">Save</button></div>
+</section>
+<section class="panel">
+<h2>Backup</h2>
+<p class="hint">Settings and schedule. Passwords are never included.</p>
+<div class="card-foot">
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<button id="importBtn" class="sm">Restore…</button>
+<button id="exportBtn" class="pri sm">Download</button>
 </div>
+</section>
+<section class="panel">
+<h2>Firmware</h2>
+<div class="kv"><span>Version</span><b id="fwVer">—</b></div>
+<div class="fields">
+<label class="wide">Firmware folder URL
+<input type="text" id="otaBase" placeholder="http://host:8123/local/feeder">
+</label>
 </div>
-<div class="set-block">
-<div class="row between">
-<span>Portion size: <b id="portionG">—</b> g <small id="portionSt"></small></span>
-</div>
-<p class="hint">Calibrate: turns 3 portions (~25 g) into the bowl and weighs them.</p>
-<div class="row between">
-<button id="portionCal" class="sm">Calibrate portion</button>
-<button id="portionReset" class="sm">Reset to 10 g</button>
-</div>
-</div>
-<div class="set-block">
-<p class="hint">Scale (<b id="scaleSt">—</b>): remove the bowl, press Zero; put the empty 350 g bowl back, press Span.</p>
-<div class="row between">
-<button id="calZero" class="sm">Zero (bowl removed)</button>
-<button id="calSpan" class="sm">Span (empty bowl)</button>
-</div>
-</div>
-<div class="set-block">
-<div class="row between">
-<span>Device</span>
+<p class="hint">Updates are installed from Home Assistant (Firmware → Install).</p>
+<div class="card-foot"><button id="saveOta" class="pri sm">Save</button></div>
+</section>
+<section class="panel">
+<h2>Device</h2>
+<div class="card-foot">
 <button id="rebootBtn" class="sm">Reboot</button>
+<button id="reprovBtn" class="sm danger">Wi-Fi setup again</button>
 </div>
-</div>
-<div class="set-block">
+<p class="hint" style="margin-top:14px">Factory reset erases Wi-Fi, MQTT, schedule and calibration. Type RESET to confirm.</p>
 <div class="row between">
-<label>Timezone <input id="tzRule" size="20" placeholder="UTC0"></label>
-<button id="saveTz" class="pri sm">Save</button>
+<input type="text" id="resetConfirm" placeholder="RESET" size="8" autocomplete="off">
+<button id="factoryBtn" class="sm danger">Factory reset</button>
 </div>
-</div>
+</section>
+<section class="panel">
+<h2>Diagnostics</h2>
+<div class="card-foot"><button id="logBtn" class="sm">Show recent log</button></div>
+<pre class="log" id="logOut"></pre>
 </section>
 </div>
 </div>
@@ -995,6 +1180,8 @@ const SVG = {
   skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6l9 6-9 6z"/><path d="M19 5v14"/></svg>',
 };
 let editKey = null, editSlotEnabled = true, todayDow = null, deviceLocalTime = null;
+let webPw = '', progressActive = false, pollTimer = null;
+try { webPw = localStorage.getItem('feederPw') || ''; } catch (e) { webPw = ''; }
 const editorOverlay = $('slotEditor');
 DAYS.forEach((d, i) => {
   const l = document.createElement('label');
@@ -1002,6 +1189,13 @@ DAYS.forEach((d, i) => {
   l.innerHTML = `<input type=checkbox class=day value=${i}><span title="${d}">${d[0]}</span>`;
   $('days').appendChild(l);
 });
+TIMEZONES.forEach((t) => {
+  const o = document.createElement('option');
+  o.value = t.rule;
+  o.textContent = t.label;
+  $('tzSel').appendChild(o);
+});
+$('tzSel').insertAdjacentHTML('beforeend', '<option value="">Custom…</option>');
 function toast(text, ok) {
   const s = $('toast');
   s.textContent = text || '';
@@ -1016,6 +1210,10 @@ function showTab(name) {
 }
 function slotKey(h, m) {
   return `${Number(h)}:${String(Number(m)).padStart(2, '0')}`;
+}
+function setIfIdle(id, v) {
+  const el = $(id);
+  if (el && document.activeElement !== el && v !== undefined && v !== null) el.value = v;
 }
 function syncRowSelection() {
   const v = $('slotTime').value;
@@ -1066,11 +1264,15 @@ function renderStatus(st) {
   const main = $('nextMain');
   main.textContent = parts.detail || '';
   main.hidden = !parts.detail;
+  const prog = formatProgress(st.progress);
+  $('progress').textContent = prog || '';
+  progressActive = !!prog;
   $('statusAlerts').innerHTML = formatStatusAlerts(st).map((a) => badge(a.text, a.tone)).join(' ');
   $('stateGrid').innerHTML = statusStateRows(st)
     .map((r) => `<div class="state-item"><dt class="eyebrow">${r.label}</dt><dd class="${r.tone}">${r.value}</dd></div>`)
     .join('');
   $('deviceTime').textContent = formatDeviceTime(st);
+  $('sysTime').textContent = formatDeviceTime(st);
 }
 async function api(method, path, body) {
   const o = { method };
@@ -1081,6 +1283,15 @@ async function api(method, path, body) {
   const r = await fetch(path, o);
   return parseApiResponse(await r.text());
 }
+async function post(path, body) {
+  const raw = typeof body === 'string' ? body : JSON.stringify(body);
+  const r = await api('POST', path, withKey(raw, webPw));
+  if (r && r.error === 'unauthorized') {
+    $('unlock').hidden = false;
+    $('unlockPw').focus();
+  }
+  return r;
+}
 function daysToMask() {
   return readMaskFromCheckedValues([...document.querySelectorAll('.day:checked')].map((c) => c.value));
 }
@@ -1090,47 +1301,61 @@ function renderDays(mask) {
 }
 function bindSlotActions(card, s, skipCtrl) {
   const t = s.time.split(':');
-  const body = () => JSON.stringify(buildScheduleToggleBody(t[0], t[1]));
+  const body = () => buildScheduleToggleBody(t[0], t[1]);
   const toggleLbl = card.querySelector('.slot-en');
   const toggle = card.querySelector('[data-toggle]');
   toggleLbl.onclick = (e) => e.stopPropagation();
   toggle.onchange = async (e) => {
     e.stopPropagation();
-    await api('POST', '/api/schedule/toggle', body());
-    loadAll();
+    await post('/api/schedule/toggle', body());
+    loadSchedule();
   };
   const skipBtn = card.querySelector('[data-skip]');
   if (skipBtn && skipCtrl) {
     skipBtn.onclick = async (e) => {
       e.stopPropagation();
-      await api('POST', '/api/schedule/skip', JSON.stringify(buildScheduleSkipBody(t[0], t[1], skipCtrl.skip)));
-      loadAll();
+      await post('/api/schedule/skip', buildScheduleSkipBody(t[0], t[1], skipCtrl.skip));
+      loadSchedule();
     };
   }
   card.querySelector('[data-del]').onclick = async (e) => {
     e.stopPropagation();
-    await api('POST', '/api/schedule/delete', JSON.stringify(buildScheduleDeleteBody(t[0], t[1])));
+    if (!confirm(`Delete the ${formatSlotClock(s.time)} feed?`)) return;
+    await post('/api/schedule/delete', buildScheduleDeleteBody(t[0], t[1]));
     if (editKey === slotKey(t[0], t[1])) closeEditor();
-    loadAll();
+    loadSchedule();
   };
 }
 function renderSettings(st) {
   const d = st.display;
-  const act = document.activeElement;
   if (d) {
-    if (act !== $('dispMode')) $('dispMode').value = d.mode;
-    if (act !== $('dispBright')) $('dispBright').value = String(d.brightness);
-    if (act !== $('dispOff')) $('dispOff').value = d.battery_off_s;
+    setIfIdle('dispMode', d.mode);
+    setIfIdle('dispBright', String(d.brightness));
+    setIfIdle('dispOff', d.battery_off_s);
+    setIfIdle('dispMainsOff', d.mains_off_s);
   }
-  if (st.power && act !== $('battWifi')) $('battWifi').value = st.power.battery_wifi;
+  if (st.power) setIfIdle('battWifi', st.power.battery_wifi);
   if (st.portion) {
     $('portionG').textContent = st.portion.g;
-    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'failed' ? '(last calibration failed)' : '(default)';
+    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'failed' ? '(last calibration failed)' : st.portion.status === 'running' ? '(calibrating…)' : '(default)';
   }
-  if (st.scale) $('scaleSt').textContent = st.scale === 'calibrated' ? 'calibrated' : st.scale === 'zero_only' ? 'zero done, span missing' : 'not calibrated';
-  $('childLock').checked = !!st.child_lock;
+  if (st.scale) $('scaleSt').textContent = st.scale === 'calibrated' ? 'done' : st.scale === 'zero_only' ? 'zero done, span missing' : 'not calibrated';
+  if (document.activeElement !== $('childLock')) $('childLock').checked = !!st.child_lock;
   $('eatenVal').textContent = st.eaten_today !== undefined && st.eaten_today !== '' ? st.eaten_today : '—';
-  $('hopperIr').textContent = st.hopper_ir === 1 ? 'blocked' : st.hopper_ir === 0 ? 'clear' : '—';
+  $('rssi').textContent = formatRssi(st.rssi);
+  $('fwVer').textContent = st.fw || '—';
+  $('pwSt').textContent = st.network && st.network.password ? 'set' : 'none';
+}
+function renderOnce(st) {
+  const n = st.network || {};
+  setIfIdle('netSsid', n.ssid);
+  setIfIdle('netHost', n.mqtt_host);
+  setIfIdle('netPort', n.mqtt_port);
+  setIfIdle('netUser', n.mqtt_user);
+  setIfIdle('ntpHost', n.ntp);
+  setIfIdle('otaBase', st.ota_base || '');
+  setIfIdle('btnG', st.dispense_g ? st.dispense_g : '');
+  setIfIdle('dispG', st.dispense_g ? st.dispense_g : 10);
 }
 async function loadStatus() {
   const st = await api('GET', '/api/status');
@@ -1143,6 +1368,7 @@ async function loadStatus() {
   $('schedEn').checked = !!st.schedule_enabled;
   $('todayEn').checked = !!st.today_enabled;
   if (dowChanged && $('tab-sched').checked) await loadSchedule();
+  return st;
 }
 async function loadSchedule() {
   const doc = await api('GET', '/api/schedule/state');
@@ -1193,25 +1419,44 @@ async function loadOverfill() {
   }
   g.disabled = !en.checked;
 }
+function showTz(rule) {
+  const preset = TIMEZONES.some((t) => t.rule === rule);
+  $('tzSel').value = preset ? rule : '';
+  $('tzCustomL').hidden = preset;
+  $('tzRule').value = rule || '';
+}
 async function loadConfig() {
   const c = await api('GET', '/api/config');
-  if (c.tz_rule) $('tzRule').value = c.tz_rule;
+  showTz(c.tz_rule || 'UTC0');
 }
 async function loadAll() {
   toast('', true);
-  await loadStatus();
+  const st = await loadStatus();
+  renderOnce(st);
   await loadSchedule();
   await loadMode();
   await loadOverfill();
   await loadConfig();
 }
 async function postSave(path, body, okMsg, failMsg) {
-  const r = await api('POST', path, typeof body === 'string' ? body : JSON.stringify(body));
+  const r = await post(path, body);
   const m = mutationMessage(r, okMsg, failMsg);
   toast(m.text, m.ok);
   return m.ok;
 }
+function poll() {
+  clearTimeout(pollTimer);
+  loadStatus().catch(() => {}).finally(() => {
+    pollTimer = setTimeout(poll, progressActive ? 1000 : 5000);
+  });
+}
 $('refreshBtn').onclick = loadAll;
+$('unlockBtn').onclick = () => {
+  webPw = $('unlockPw').value;
+  try { localStorage.setItem('feederPw', webPw); } catch (e) { /* memory only */ }
+  $('unlock').hidden = true;
+  toast('Password stored on this browser — repeat the action', true);
+};
 $('addSlotBtn').onclick = openNewSlotEditor;
 $('editorBackdrop').onclick = closeEditor;
 $('clearSlot').onclick = closeEditor;
@@ -1228,14 +1473,15 @@ $('dispBtn').onclick = async () => {
   btn.disabled = true;
   await postSave('/api/dispense', buildDispenseBody($('dispG').value), 'Dispense started', 'Dispense failed');
   btn.disabled = false;
-  loadStatus();
+  poll();
 };
+$('eatenReset').onclick = () => confirm('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
 $('schedEn').onchange = async (e) => {
-  await api('POST', '/api/schedule/enable', JSON.stringify(buildScheduleEnableBody(e.target.checked)));
+  await post('/api/schedule/enable', buildScheduleEnableBody(e.target.checked));
   loadAll();
 };
 $('todayEn').onchange = async (e) => {
-  await api('POST', '/api/schedule/today', JSON.stringify(buildScheduleTodayBody(e.target.checked)));
+  await post('/api/schedule/today', buildScheduleTodayBody(e.target.checked));
   loadAll();
 };
 $('slotEditorForm').addEventListener('submit', async (e) => {
@@ -1245,29 +1491,93 @@ $('slotEditorForm').addEventListener('submit', async (e) => {
     hour, min, mask: daysToMask(), g: $('slotG').value, enabled: editSlotEnabled,
   }), 'Feeding time saved');
   if (ok) closeEditor();
-  loadAll();
+  loadSchedule();
 });
-$('saveDisp').onclick = () => postSave('/api/display', {
-  mode: $('dispMode').value,
-  brightness: Number($('dispBright').value),
-  battery_off_s: Number($('dispOff').value),
-}, 'Display saved').then(loadStatus);
-$('saveBattWifi').onclick = () => postSave('/api/power', {battery_wifi: $('battWifi').value}, 'Saved').then(loadStatus);
-$('portionCal').onclick = () => confirm('Dispense 3 portions (~25 g) into the bowl to measure them?') && postSave('/api/portion_cal', '{}', 'Calibrating… (~25 s)');
-$('portionReset').onclick = () => confirm('Reset portion size to 10 g?') && postSave('/api/portion_cal', {action: 'reset'}, 'Portion size reset').then(loadStatus);
+$('saveFeed').onclick = async () => {
+  if (!await postSave('/api/feed/mode', $('feedMode').value, 'Saved')) return;
+  const g = $('btnG').value;
+  if (g !== '') await postSave('/api/dispense_amount', {g: Number(g)}, 'Feeding settings saved');
+  loadStatus();
+};
 $('childLock').onchange = () => postSave('/api/child_lock', $('childLock').checked ? 'ON' : 'OFF', 'Child lock saved').then(loadStatus);
-$('eatenReset').onclick = () => confirm('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
-$('calZero').onclick = () => confirm('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');
-$('calSpan').onclick = () => confirm('Empty 350 g bowl installed?') && postSave('/api/calibrate', {action: 'span'}, 'Span captured');
-$('rebootBtn').onclick = () => confirm('Reboot the feeder?') && postSave('/api/reboot', '{}', 'Rebooting…');
-$('saveMode').onclick = () => postSave('/api/feed/mode', $('feedMode').value, 'Feed mode saved');
 $('overfillEn').onchange = () => { $('overfillG').disabled = !$('overfillEn').checked; };
 $('saveOverfill').onclick = () => postSave('/api/feed/overfill', buildFeedOverfillBody({
   enabled: $('overfillEn').checked, threshold_g: $('overfillG').value,
-}), 'Overfill settings saved');
-$('saveTz').onclick = () => postSave('/api/config', buildConfigTzBody($('tzRule').value), 'Timezone saved');
-loadAll();
-setInterval(loadStatus, 5000);
+}), 'Overfill protection saved').then(loadOverfill);
+$('portionCal').onclick = () => confirm('Dispense 3 portions (~25 g) into the bowl to measure them?') && postSave('/api/portion_cal', '{}', 'Calibrating… (~25 s)').then(poll);
+$('portionReset').onclick = () => confirm('Reset portion size to 10 g?') && postSave('/api/portion_cal', {action: 'reset'}, 'Portion size reset').then(loadStatus);
+$('saveDisp').onclick = () => postSave('/api/display', buildDisplayBody({
+  mode: $('dispMode').value,
+  brightness: $('dispBright').value,
+  battery_off_s: $('dispOff').value,
+  mains_off_s: $('dispMainsOff').value,
+}), 'Screen saved').then(loadStatus);
+$('calZero').onclick = () => confirm('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');
+$('calSpan').onclick = () => confirm('Empty 350 g bowl installed?') && postSave('/api/calibrate', {action: 'span'}, 'Span captured');
+$('saveBattWifi').onclick = () => postSave('/api/power', {battery_wifi: $('battWifi').value}, 'Saved').then(loadStatus);
+$('tzSel').onchange = () => {
+  const custom = $('tzSel').value === '';
+  $('tzCustomL').hidden = !custom;
+  if (!custom) $('tzRule').value = $('tzSel').value;
+};
+$('saveTime').onclick = async () => {
+  const rule = $('tzSel').value || $('tzRule').value.trim();
+  if (!await postSave('/api/config', buildConfigTzBody(rule), 'Saved')) return;
+  const ntp = $('ntpHost').value.trim();
+  if (ntp) await postSave('/api/network', buildNetworkBody({ntp}), 'Time settings saved');
+  setTimeout(loadAll, 1500);
+};
+$('saveNet').onclick = async () => {
+  const body = buildNetworkBody({
+    ssid: $('netSsid').value.trim(),
+    wifi_pass: $('netPass').value,
+    mqtt_host: $('netHost').value.trim(),
+    mqtt_port: $('netPort').value,
+    mqtt_user: $('netUser').value.trim(),
+    mqtt_pass: $('netMqttPass').value,
+  });
+  if (!confirm('Save the network settings and reboot the feeder?')) return;
+  await postSave('/api/network', body, 'Saved — rebooting…', 'Not saved');
+};
+$('savePw').onclick = async () => {
+  const pw = $('newPw').value;
+  if (pw && pw.length < 4) { toast('Password needs at least 4 characters'); return; }
+  if (!await postSave('/api/password', {password: pw}, pw ? 'Password set' : 'Password removed')) return;
+  webPw = pw;
+  try { localStorage.setItem('feederPw', pw); } catch (e) { /* memory only */ }
+  $('newPw').value = '';
+  loadStatus();
+};
+$('exportBtn').onclick = async () => {
+  const r = await fetch('/api/export');
+  const blob = new Blob([await r.text()], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'feeder-settings.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async () => {
+  const f = $('importFile').files[0];
+  if (!f) return;
+  const text = (await f.text()).trim();
+  $('importFile').value = '';
+  if (!confirm('Restore these settings on the feeder?')) return;
+  if (await postSave('/api/import', text, 'Settings restored')) loadAll();
+};
+$('saveOta').onclick = () => postSave('/api/ota_base', $('otaBase').value.trim(), 'Firmware URL saved');
+$('rebootBtn').onclick = () => confirm('Reboot the feeder?') && postSave('/api/reboot', '{}', 'Rebooting…');
+$('reprovBtn').onclick = () => confirm('Erase the Wi-Fi settings and restart in setup mode (access point)?') && postSave('/api/reprovision', '{}', 'Restarting in setup mode…');
+$('factoryBtn').onclick = () => {
+  if ($('resetConfirm').value !== 'RESET') { toast('Type RESET to confirm'); return; }
+  postSave('/api/factory_reset', '{}', 'Factory reset — restarting in setup mode…');
+};
+$('logBtn').onclick = async () => {
+  const r = await fetch('/api/log');
+  $('logOut').textContent = await r.text();
+};
+loadAll().then(() => { pollTimer = setTimeout(poll, 5000); });
 </script>
 </body>
 </html>

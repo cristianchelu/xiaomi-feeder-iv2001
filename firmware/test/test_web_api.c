@@ -225,3 +225,23 @@ void test_web_api_get_log_returns_recent_lines(void)
     TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "ring-marker-42"));
 }
+
+void test_web_api_post_dispense_amount_and_ota_base(void)
+{
+    char resp[64];
+    char buf[1536];
+    const char amt[] = "{\"g\":25}";
+    const char url[] = "http://10.0.0.5:8123/local/feeder";
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(WEB_API_POST_DISPENSE_AMOUNT, web_api_classify("POST", "/api/dispense_amount"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_OTA_BASE, web_api_classify("POST", "/api/ota_base"));
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_DISPENSE_AMOUNT, amt, strlen(amt), resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_OTA_BASE, url, strlen(url), resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_STATUS, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"dispense_g\":25"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"ota_base\":\"http://10.0.0.5:8123/local/feeder\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"progress\":{\"state\":\"idle\""));
+}

@@ -384,8 +384,11 @@ inactivity (`display_idle`, pure logic over `display_presentation_set_blanked`):
 
 - Setting `display/battery_off_s` (0–600 s, default `[tune]` 60; **0 =
   disabled**), set through `cmd/display` key `battery_off_s`.
-- Blank when the debounced power source is **battery** and no *activity* for
-  `battery_off_s` seconds. On mains the panel never idle-blanks.
+- Setting `display/mains_off_s` (0–3600 s, default 0 = never), set through
+  `cmd/display` key `mains_off_s`.
+- Blank when no *activity* for the delay of the current debounced power
+  source (`battery_off_s` on battery, `mains_off_s` on mains); a delay of 0
+  never blanks.
 - *Activity* = any button edge, a dispense in progress, the OTA indicator,
   a `cmd/display` change, or a power-source change. Any activity wakes the panel
   within one display tick (50 ms).

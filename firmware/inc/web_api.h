@@ -41,6 +41,8 @@ typedef enum {
     WEB_API_POST_REPROVISION,
     WEB_API_POST_FACTORY_RESET,
     WEB_API_POST_IMPORT,
+    WEB_API_POST_DISPENSE_AMOUNT,
+    WEB_API_POST_OTA_BASE,
 } web_api_route_t;
 
 web_api_route_t web_api_classify(const char *method, const char *path);

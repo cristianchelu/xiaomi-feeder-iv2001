@@ -28,6 +28,13 @@ MT7682 NVDM (Non-Volatile Data Management) — SDK-provided key-value flash stor
 | feed | overfill_threshold_g | uint16 | 50 | Overfill threshold in grams; clamped 30–500 on load |
 | display | mode | enum | weight | Display mode: weight / eaten_today / off |
 | display | battery_off_s | uint16 | 60 | Seconds of inactivity before the panel blanks on battery (0 = never, max 600) |
+| display | mains_off_s | uint16 | 0 | Same on mains (0 = never, max 3600) |
+| feed | button_g | uint16 | absent | Dispense-button grams (5–150); absent = one portion |
+| feed | portion_dg | uint16 | 100 | Grams per portion ×10, set by portion calibration |
+| time | ntp | string | `pool.ntp.org` | SNTP server host |
+| wifi | ssid_new / pass_new | string | absent | Trial Wi-Fi from the web page; committed on success, erased on failure |
+| system | web_pass | string | absent | Web page password (4–32 chars) |
+| system | ota_base | string | absent | Firmware folder URL |
 | display | brightness | uint8 | 4 | TM1637 brightness (0 = panel off, 1–4 maps to `0x88`–`0x8B`); legacy `display/mode=off` reads as brightness 0 |
 | eaten | day | uint32 | 0 | Local date `YYYYMMDD` the eaten total belongs to |
 | eaten | dg | uint32 | 0 | Eaten-today total in tenth-grams |

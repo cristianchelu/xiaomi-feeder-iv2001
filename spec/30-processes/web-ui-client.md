@@ -76,20 +76,29 @@ produces the sorted `repeat_days` array for the POST body.
 | `parseApiResponse(text)` | JSON object or plain string (feed mode GET) |
 | `apiContentType(body)` | `application/json` vs `text/plain` for POST |
 | `mutationMessage(r, okText, failPrefix?)` | User-visible result from `{ok, error?}` |
+| `TIMEZONES` | `{label, rule}` presets for the timezone dropdown (POSIX rules, e.g. Paris `CET-1CEST,M3.5.0,M10.5.0/3`) |
+| `timezoneLabel(rule)` | Preset label for a stored rule, or `Custom` |
+| `formatProgress(p)` | Live dispense line from `progress` (`Dispensing 2/5 · 17.3 g`, `Weighing…`), `null` when idle |
+| `formatRssi(dbm)` | `-55 dBm · good` (≥ −60 good, ≥ −70 fair, else weak), `—` when unknown |
+| `withKey(body, password)` | Prefixes `key=<password>\n` when a web password is stored |
+| `buildNetworkBody(fields)` | `POST /api/network` object with only the non-empty fields (`mqtt_port` as a number) |
+| `buildDisplayBody(fields)` | `POST /api/display` object (`mode`, `brightness`, `battery_off_s`, `mains_off_s`) |
 
-## Page layout (frozen v0)
+## Page layout
 
-Sticky tab bar (**Now** · **Schedule** · **Settings**); one pane visible at a time
-(CSS `:checked` on hidden radios — no framework).
+Sticky tab bar (**Home** · **Schedule** · **Settings** · **System**); one pane
+visible at a time (CSS `:checked` on hidden radios — no framework). Each pane is
+a column of titled cards; every card saves its own fields with one button.
 
-### Now tab
+### Home tab
 
 | Block | Source |
 |-------|--------|
 | Next feed | `/api/status` `next` — two-line hero (`formatNextFeedParts`) |
 | Problem alerts | `/api/status` — time not synced, `bowl_error` |
+| Live dispense | `progress` (`formatProgress`), shown only while a dispense runs |
 | **Current state** grid | `/api/status` telemetry fields — see below |
-| Feed now | `POST /api/dispense` |
+| Feed now | `POST /api/dispense`; the grams field starts at `dispense_g` (or 10) |
 
 **Current state** rows (`statusStateRows`) expect these `/api/status` fields:
 
@@ -102,7 +111,9 @@ Sticky tab bar (**Now** · **Schedule** · **Settings**); one pane visible at a 
 | Battery | `battery` (optional) | `formatBatteryWire` |
 | Power | `mains` (optional) | `formatMainsWire` |
 
-Poll `/api/status` every 5 s; do not add per-topic GETs in v0.
+Plus **Eaten today** (`eaten_today`) with a Reset button.
+
+Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 
 ### Schedule tab
 
@@ -126,8 +137,32 @@ Poll `/api/status` every 5 s; do not add per-topic GETs in v0.
 
 ### Settings tab
 
-Feed mode, overfill protection (toggle + 30–500 g threshold), and timezone.
-The threshold input is disabled when overfill protection is off.
+| Card | Fields |
+|------|--------|
+| Feeding | Feed mode; Dispense-button amount (`POST /api/dispense_amount`); child lock |
+| Overfill protection | Toggle + 30–500 g threshold (threshold disabled when off) |
+| Portion | Portion size and calibration status; Calibrate / Reset to 10 g |
+| Screen | Mode, brightness, screen-off delay on battery and on mains (seconds, 0 = never) |
+| Scale | Calibration status; Zero (bowl removed) / Span (empty bowl) |
+| Battery | Wi-Fi on battery |
+
+### System tab
+
+| Card | Fields |
+|------|--------|
+| Time | Feeder time; timezone dropdown (`TIMEZONES` + Custom POSIX rule); NTP server |
+| Network | Wi-Fi SSID / password, MQTT host / port / user / password — current values prefilled except passwords (blank keeps the stored one); Wi-Fi signal (`formatRssi`). Saving any field other than NTP reboots; a failing new Wi-Fi falls back to the previous one |
+| Security | Web password set / change / remove |
+| Backup | Download settings (`GET /api/export`), restore from a file (`POST /api/import`) |
+| Firmware | Version (`fw`), firmware folder URL (`POST /api/ota_base`) |
+| Device | Reboot; Wi-Fi setup again (`/api/reprovision`); Factory reset (`/api/factory_reset`, typed confirmation `RESET`) |
+| Diagnostics | Recent log (`GET /api/log`) on demand |
+
+### Password
+
+When a POST returns `unauthorized`, the page asks for the web password,
+stores it in `localStorage` (wrapped in `try/catch`; memory only when storage
+fails) and retries once. Every POST goes through `withKey`.
 
 ### Chrome
 

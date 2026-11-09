@@ -27,7 +27,10 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../feed/overfill` | `{"enabled":false,"threshold_g":50}` — see [Overfill protection](#overfill-protection) | 1 |
 | `.../child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../timezone` | Device timezone plain text — see [Device timezone](#device-timezone) | 1 |
-| `.../display` | `{"mode": "weight", "brightness": 4, "battery_off_s": 60}` | 1 |
+| `.../display` | `{"mode": "weight", "brightness": 4, "battery_off_s": 60, "mains_off_s": 0}` | 1 |
+| `.../feed/dispense_amount` | `{"g":25}` — Dispense-button amount, `0` = one portion; see [Dispense amount](#dispense-amount) | 1 |
+| `.../dispense/progress` | `{"state":"running","portions":2,"of":5,"g":"17.3"}` — see [Dispense progress](#dispense-progress) | 0 |
+| `.../wifi_rssi` | `-58` — plain integer dBm, every `[tune]` 60 s | 1 |
 | `.../eaten_today` | `85.3` — plain string, one decimal (0.1 g); see [Eaten today](#eaten-today) | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
 
@@ -37,16 +40,14 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 |-------|---------|-----|--------|
 | `.../dispense/event` | Dispense completion JSON — see [Dispense event](#dispense-event) | 1 | false |
 
-Dropped from the protocol: retained `.../dispense/status` and
-`.../dispense/progress`. Completion is reported only via the fire-and-forget
-dispense event. Other retained state topics (`state`, `bowl_weight`, etc.) are
-unchanged.
+Completion (grams, outcome) is reported only via the fire-and-forget dispense
+event; the retained `.../dispense/progress` topic is a best-effort live view.
 
 ## Command topics (subscribed by device, not retained)
 
 | Topic | Payload | QoS |
 |-------|---------|-----|
-| `.../cmd/dispense` | `{"g": 30}` | 1 |
+| `.../cmd/dispense` | `{"g": 30}`; an empty payload dispenses the [Dispense amount](#dispense-amount) (one portion when unset) | 1 |
 | `.../cmd/dispense/cancel` | `{}` | 1 |
 | `.../cmd/schedule/set` | `{"hour":8,"min":0,"repeat_days":[0,1,2,3,4,5,6],"g":30,"enabled":true}` | 1 |
 | `.../cmd/schedule/delete` | `{"hour":8,"min":0}` | 1 |
@@ -66,6 +67,7 @@ unchanged.
 | `.../cmd/eaten_reset` | `{}` — zero today's eaten total | 1 |
 | `.../cmd/portion_cal` | `{}` — turn 3 portions open-loop, weigh once, set grams per portion; `{"action":"reset"}` → 10 g. Result retained on `.../portion` `{"g":"8.5","status":"ok"\|"failed"\|"default"}` | 1 |
 | `.../cmd/power` | `{"battery_wifi":"on"\|"off"\|"scheduled_only"}`; retained on `.../power` | 1 |
+| `.../cmd/dispense_amount` | `{"g": 25}` (5–150; `0` = one portion) — see [Dispense amount](#dispense-amount) | 1 |
 
 ### Reboot command
 
@@ -126,7 +128,10 @@ State and command-reply publishes enqueued by `app` keep at least
 discovery is running.
 
 Each discovery message includes a `device` block with `identifiers`,
-`name`, `manufacturer`, `model` for unified HA device grouping.
+`name`, `manufacturer`, `model`, `sw_version` (firmware `git describe`) and,
+once the station has an IP address, `configuration_url` `http://<ip>` (the
+feeder web page, shown as "Visit" on the HA device page) for unified HA device
+grouping.
 `manufacturer` and `model` identify the **physical hardware** (retail
 product), not the firmware author — see [validation slice](#home-assistant-validation-slice).
 
@@ -138,9 +143,13 @@ be auto-added to dashboards.
 
 | Category | Entities |
 |----------|----------|
-| (primary) | `dispense`, `bowl_weight`, `bowl_error`, `battery`, `mains`, `hopper_level`, `dispense_completed` |
-| `diagnostic` | `battery_voltage`, `device_timezone` |
-| `config` | `feeding_schedule`, `weight_compensation`, `overfill_protection`, `overfill_threshold_g` |
+| (primary controls) | `dispense`, `dispense_amount`, `feeding_schedule`, `child_lock` |
+| (primary sensors) | `bowl_weight`, `eaten_today`, `bowl_error`, `battery`, `mains`, `hopper_level`, `portion_size`, `dispense_progress`, `dispense_completed` |
+| `config` | feeding, overfill, screen, scale, portion, battery Wi-Fi and firmware settings |
+| `diagnostic` | `battery_voltage`, `device_timezone`, `wifi_rssi`, `hopper_ir`, `ota_state`, `firmware_bank` |
+
+`dispense_custom` is retired: the device publishes an empty retained config
+for it so Home Assistant removes the entity.
 
 Read-only sensors use `diagnostic`, not `config` — Home Assistant rejects
 passive sensors with `entity_category: config`. Writable components (switch,
@@ -162,15 +171,17 @@ clear the config topic (empty retained payload) and republish, or use
 | binary_sensor | mains | `power` | — | Mains connected — `ON`/`OFF` on `.../mains` |
 | button | dispense | — | — | Triggers default portion |
 | event | dispense_completed | — | — | Fires on each dispense job completion |
-| number | dispense_custom | — | `config` | Range: 5–150 g, `box` mode, optimistic: **entering a value dispenses that many grams** (`cmd/dispense {"g": N}`), it is not a stored setting |
-| switch | feeding_schedule | — | `config` | On = global schedule enabled |
+| number | dispense_amount | — | — | "Dispense amount", 5–150 g, `box` mode; stored amount used by the Dispense button (`.../feed/dispense_amount`) |
+| sensor | dispense_progress | — | — | "Dispense status": `2/5 (17.3 g)` while running, else `idle` / `weighing` |
+| switch | feeding_schedule | — | — | On = global schedule enabled |
 | switch | weight_compensation | — | `config` | On = compensated dispense mode |
 | switch | overfill_protection | — | `config` | On = skip scheduled feeds when bowl ≥ threshold |
 | number | overfill_threshold_g | — | `config` | Range: 30–500 g |
-| switch | child_lock | — | `config` | On/off |
+| switch | child_lock | — | — | On/off |
 | select | display_mode | — | `config` | Options: weight, eaten_today |
 | number | display_brightness | — | `config` | Range: 0–4 (0 = panel off) |
-| number | display_battery_off | — | `config` | Seconds, 0–600 (0 = never); panel idle-blank on battery |
+| number | display_battery_off | — | `config` | "Screen off delay (battery)", seconds 0–600 (0 = never) |
+| number | display_mains_off | — | `config` | "Screen off delay (mains)", seconds 0–3600 (0 = never) |
 | button | reboot | `restart` | `config` | `cmd/reboot` |
 | button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
 | button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
@@ -180,7 +191,8 @@ clear the config topic (empty retained payload) and republish, or use
 | select | battery_wifi | — | `config` | Options: on, off, scheduled_only (`power/battery_wifi`) |
 | text | ota_base | — | `config` | Firmware folder URL (≤ 120 chars) |
 | button | ota_install | `update` | `config` | `cmd/ota {"install":true}` |
-| sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear` |
+| sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear`; `enabled_by_default`: false |
+| sensor | wifi_rssi | `signal_strength` | `diagnostic` | "Wi-Fi signal", unit dBm |
 | sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |
 | sensor | firmware_bank | — | `diagnostic` | `value_json.bank` of `.../ota/status` (`A` or `B`) |
 | sensor | battery_voltage | `voltage` | `diagnostic` | Unit: mV; `enabled_by_default`: false |
@@ -752,7 +764,7 @@ from NVDM `display/mode` and `display/brightness` (see
 [display-presentation.md](display-presentation.md) § Display modes):
 
 ```json
-{"mode":"weight","brightness":4,"battery_off_s":60}
+{"mode":"weight","brightness":4,"battery_off_s":60,"mains_off_s":0}
 ```
 
 Command topic `.../cmd/display` takes a JSON object with either or both keys:
@@ -762,6 +774,7 @@ Command topic `.../cmd/display` takes a JSON object with either or both keys:
 | `mode` | `weight` \| `eaten_today` | What the panel shows. `off` is not a mode: set `brightness` 0 |
 | `brightness` | integer 0–4 | TM1637 brightness; **0 = panel off** (rail powered down), 1–4 lit |
 | `battery_off_s` | integer 0–600 | Seconds of inactivity before the panel blanks **on battery**; `0` disables ([display-presentation.md](display-presentation.md) § Idle blank on battery) |
+| `mains_off_s` | integer 0–3600 | Same, **on mains**; default `0` (always on) |
 
 Rules:
 
@@ -774,7 +787,24 @@ Rules:
   which always shows so a running update is visible; the panel blanks again
   when the OTA indicator stops.
 - Publish the state on MQTT connect (snapshot) and after every change.
-- Not exposed on the web API.
+- Also settable from the web page (`POST /api/display`, [web-ui.md](web-ui.md)).
+
+## Dispense amount
+
+NVDM `feed/button_g` holds the amount the Dispense button (HA button, empty
+`cmd/dispense`) delivers: 5–150 g, or absent / `0` for one portion. Set with
+`cmd/dispense_amount {"g":N}` (out-of-range rejected); state retained on
+`.../feed/dispense_amount` `{"g":N}`, published on connect and after a change.
+
+## Dispense progress
+
+`.../dispense/progress` (retained, QoS 0) carries
+`{"state","portions","of","g"}`: `running` while the motor turns (`portions`
+done of `of`, `g` = portions × portion size, one decimal), `weighing` while
+the bowl settles, `idle` otherwise. Published only when the payload changes
+and only while the outbox holds fewer than `[tune]` 8 items (progress never
+competes with state or event messages); polled every display tick. Republished
+on connect.
 
 ## Device timezone
 

@@ -263,3 +263,60 @@ export function mutationMessage(r, okText, failPrefix) {
     const err = r?.error || 'unknown';
     return { text: failPrefix ? `${failPrefix}: ${err}` : err, ok: false };
 }
+
+export const TIMEZONES = [
+    { label: 'UTC', rule: 'UTC0' },
+    { label: 'Paris / Brussels / Berlin', rule: 'CET-1CEST,M3.5.0,M10.5.0/3' },
+    { label: 'London / Lisbon', rule: 'GMT0BST,M3.5.0/1,M10.5.0' },
+    { label: 'Athens / Helsinki', rule: 'EET-2EEST,M3.5.0/3,M10.5.0/4' },
+    { label: 'Montreal / New York', rule: 'EST5EDT,M3.2.0,M11.1.0' },
+    { label: 'Chicago', rule: 'CST6CDT,M3.2.0,M11.1.0' },
+    { label: 'Denver', rule: 'MST7MDT,M3.2.0,M11.1.0' },
+    { label: 'Los Angeles', rule: 'PST8PDT,M3.2.0,M11.1.0' },
+    { label: 'Réunion', rule: '<+04>-4' },
+    { label: 'Guadeloupe / Martinique', rule: 'AST4' },
+    { label: 'Tokyo', rule: 'JST-9' },
+];
+
+export function timezoneLabel(rule) {
+    const tz = TIMEZONES.find((t) => t.rule === rule);
+    return tz ? tz.label : 'Custom';
+}
+
+export function formatProgress(p) {
+    if (!p || p.state === 'idle' || !p.state) return null;
+    if (p.state === 'weighing') return 'Weighing…';
+    return `Dispensing ${p.portions}/${p.of} · ${p.g} g`;
+}
+
+export function formatRssi(dbm) {
+    if (dbm === undefined || dbm === null || Number.isNaN(Number(dbm))) return '—';
+    const v = Number(dbm);
+    const q = v >= -60 ? 'good' : v >= -70 ? 'fair' : 'weak';
+    return `${v} dBm · ${q}`;
+}
+
+export function withKey(body, password) {
+    return password ? `key=${password}\n${body}` : body;
+}
+
+export function buildNetworkBody(fields) {
+    const body = {};
+    for (const k of ['ssid', 'wifi_pass', 'mqtt_host', 'mqtt_user', 'mqtt_pass', 'ntp']) {
+        const v = fields[k];
+        if (v !== undefined && v !== null && String(v) !== '') body[k] = String(v);
+    }
+    if (fields.mqtt_port !== undefined && String(fields.mqtt_port) !== '') {
+        body.mqtt_port = Number(fields.mqtt_port);
+    }
+    return body;
+}
+
+export function buildDisplayBody({ mode, brightness, battery_off_s, mains_off_s }) {
+    return {
+        mode,
+        brightness: Number(brightness),
+        battery_off_s: Number(battery_off_s),
+        mains_off_s: Number(mains_off_s),
+    };
+}

@@ -13,6 +13,9 @@
 #include "app_log.h"
 #include "web_admin.h"
 #include "mqtt_wifi_rssi.h"
+#include "mqtt_dispense_amount.h"
+#include "mqtt_dispense_progress.h"
+#include "ota_base.h"
 #include "dispense.h"
 #include "feed_config.h"
 #include "eaten_today.h"
@@ -75,6 +78,10 @@ static mqtt_route_kind_t web_api_post_route_to_mqtt(web_api_route_t route)
         return MQTT_ROUTE_CMD_POWER;
     case WEB_API_POST_PORTION_CAL:
         return MQTT_ROUTE_CMD_PORTION_CAL;
+    case WEB_API_POST_DISPENSE_AMOUNT:
+        return MQTT_ROUTE_CMD_DISPENSE_AMOUNT;
+    case WEB_API_POST_OTA_BASE:
+        return MQTT_ROUTE_CMD_OTA_BASE;
     default:
         return MQTT_ROUTE_UNKNOWN;
     }
@@ -256,6 +263,31 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
         off = web_api_append(buf, len, off, ",\"fw\":\"%s\"", web_api_fw_version());
         if (off < 0) {
             return -1;
+        }
+    }
+
+    {
+        char extra[OTA_BASE_MAX_LEN + 1u];
+        uint16_t amount_g = 0u;
+
+        if (!dispense_amount_get(&amount_g)) {
+            amount_g = 0u;
+        }
+        off = web_api_append(buf, len, off, ",\"dispense_g\":%u", (unsigned)amount_g);
+        if (off < 0) {
+            return -1;
+        }
+        if (mqtt_dispense_progress_format(extra, sizeof(extra))) {
+            off = web_api_append(buf, len, off, ",\"progress\":%s", extra);
+            if (off < 0) {
+                return -1;
+            }
+        }
+        if (ota_base_get(extra, sizeof(extra)) && extra[0] != '\0') {
+            off = web_api_append(buf, len, off, ",\"ota_base\":\"%s\"", extra);
+            if (off < 0) {
+                return -1;
+            }
         }
     }
 
@@ -464,6 +496,12 @@ web_api_route_t web_api_classify(const char *method, const char *path)
     }
     if (strcmp(path, "/api/import") == 0) {
         return WEB_API_POST_IMPORT;
+    }
+    if (strcmp(path, "/api/dispense_amount") == 0) {
+        return WEB_API_POST_DISPENSE_AMOUNT;
+    }
+    if (strcmp(path, "/api/ota_base") == 0) {
+        return WEB_API_POST_OTA_BASE;
     }
 
     return WEB_API_ROUTE_UNKNOWN;

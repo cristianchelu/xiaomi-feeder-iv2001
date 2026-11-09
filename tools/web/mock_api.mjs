@@ -157,7 +157,13 @@ function statusPayload(state) {
     if (state.mains !== undefined) {
         body.mains = state.mains;
     }
-    body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60 };
+    body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60, mains_off_s: 0 };
+    body.network = { ssid: 'HomeNet', mqtt_host: '192.168.1.10', mqtt_port: 1883, mqtt_user: 'feeder', ntp: state.ntp || 'pool.ntp.org', password: !!state.web_pw };
+    body.rssi = -58;
+    body.fw = 'v1.2.0-dev';
+    body.dispense_g = state.dispense_g || 0;
+    body.progress = state.dispense_busy ? { state: 'running', portions: 1, of: 3, g: '8.5' } : { state: 'idle', portions: 0, of: 0, g: '0.0' };
+    if (state.ota_base) body.ota_base = state.ota_base;
     body.power = state.power || { battery_wifi: 'on' };
     body.portion = { g: '10.0', status: 'default' };
     body.scale = 'calibrated';
@@ -229,6 +235,15 @@ export function createMockApiHandler(getState, setState) {
         if (method === 'GET' && path === '/api/feed/mode') {
             return text(res, 200, getState().feed_mode);
         }
+        if (method === 'GET' && path === '/api/feed/overfill') {
+            return json(res, 200, { enabled: false, threshold_g: 50 });
+        }
+        if (method === 'GET' && path === '/api/log') {
+            return text(res, 200, '[00:00:01.000] [app] mock log line\n');
+        }
+        if (method === 'GET' && path === '/api/export') {
+            return json(res, 200, { version: 1, feed: {}, schedule: '' });
+        }
         if (method === 'GET' && path === '/api/config') {
             return json(res, 200, { tz_rule: getState().tz_rule });
         }
@@ -238,7 +253,18 @@ export function createMockApiHandler(getState, setState) {
             return res.end();
         }
 
-        const raw = await readBody(req);
+        let raw = await readBody(req);
+        const state0 = getState();
+        if (raw.startsWith('key=')) {
+            const nl = raw.indexOf('\n');
+            const key = raw.slice(4, nl < 0 ? raw.length : nl);
+            raw = nl < 0 ? '' : raw.slice(nl + 1);
+            if (state0.web_pw && key !== state0.web_pw) {
+                return json(res, 200, { ok: false, error: 'unauthorized' });
+            }
+        } else if (state0.web_pw) {
+            return json(res, 200, { ok: false, error: 'unauthorized' });
+        }
         let body = raw;
         if (raw.startsWith('{')) {
             try {
@@ -264,7 +290,27 @@ export function createMockApiHandler(getState, setState) {
             if (body.mode !== undefined) d.mode = body.mode;
             if (body.brightness !== undefined) d.brightness = body.brightness;
             if (body.battery_off_s !== undefined) d.battery_off_s = body.battery_off_s;
+            if (body.mains_off_s !== undefined) d.mains_off_s = body.mains_off_s;
             setState({ ...state, display: d });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/password') {
+            setState({ ...state, web_pw: body.password || '' });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/dispense_amount') {
+            setState({ ...state, dispense_g: Number(body.g) });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/ota_base') {
+            setState({ ...state, ota_base: body });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/network') {
+            if (body.ntp) setState({ ...state, ntp: body.ntp });
+            return json(res, 200, { ok: true });
+        }
+        if (['/api/reprovision', '/api/factory_reset', '/api/import', '/api/feed/overfill'].includes(path)) {
             return json(res, 200, { ok: true });
         }
         if (path === '/api/portion_cal') {
