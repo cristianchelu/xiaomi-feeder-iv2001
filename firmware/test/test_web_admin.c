@@ -212,3 +212,24 @@ void test_web_admin_password_locks_reads(void)
     req("POST", "/api/reboot", "key=chat42\n{}", resp, sizeof(resp));
     TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
 }
+
+/* Regression: paths that are both read and write (/api/feed/mode, /api/config,
+ * /api/feed/overfill) must serve the read when only the key line is sent. */
+void test_web_admin_keyed_read_on_shared_paths(void)
+{
+    char resp[1024];
+
+    fake_config_port_reset();
+    post(WEB_API_POST_PASSWORD, "{\"password\":\"chat42\"}", resp, sizeof(resp));
+    req("POST", "/api/feed/mode", "key=chat42\n", resp, sizeof(resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "open_loop"));
+    req("POST", "/api/feed/overfill", "key=chat42\n", resp, sizeof(resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"threshold_g\""));
+    req("POST", "/api/config", "key=chat42\n", resp, sizeof(resp));
+    TEST_ASSERT_NULL(strstr(resp, "\"error\""));
+    req("POST", "/api/feed/mode", "key=chat42\ncompensated", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    req("POST", "/api/feed/mode", "key=nope\n", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+}
+

@@ -178,7 +178,9 @@ MQTT). When a password is set (`system/web_pass`) every `/api/*` route needs it:
 - A request authenticates with a body whose first line is `key=<password>`
   followed by `\n` and the normal body (possibly empty).
 - **Reads** are then sent as POST to the read path (`POST /api/status` with
-  body `key=…\n`); a POST to a read path is served exactly like the GET.
+  body `key=…\n`). A POST whose body is empty after the key line is a read
+  when the path has a GET route (`/api/feed/mode`, `/api/feed/overfill` and
+  `/api/config` are both read and write paths); any other POST is a write.
 - A plain `GET /api/status` returns only `{"locked":true}`; every other plain
   GET returns `{"ok":false,"error":"unauthorized"}`.
 - A missing or wrong key returns `{"ok":false,"error":"unauthorized"}` after a

@@ -227,12 +227,18 @@ export function createMockApiHandler(getState, setState) {
         const method = req.method || 'GET';
 
         let m = method;
-        if (m === 'POST' && ['/api/status', '/api/schedule/state', '/api/feed/mode', '/api/feed/overfill', '/api/config', '/api/log', '/api/export'].includes(path)) {
-            const raw0 = await readBody(req);
-            const pw = getState().web_pw;
-            if (pw && raw0 !== `key=${pw}\n`) return json(res, 200, { ok: false, error: 'unauthorized' });
-            m = 'GET';
-        } else if (m === 'GET' && getState().web_pw && path.startsWith('/api/')) {
+        let pre = null;
+        if (m === 'POST') {
+            pre = await readBody(req);
+            const nl = pre.indexOf('\n');
+            const after = pre.startsWith('key=') ? (nl < 0 ? '' : pre.slice(nl + 1)) : pre;
+            const readPaths = ['/api/status', '/api/schedule/state', '/api/feed/mode', '/api/feed/overfill', '/api/config', '/api/log', '/api/export'];
+            if (readPaths.includes(path) && pre.startsWith('key=') && after === '') {
+                const pw = getState().web_pw;
+                if (pw && pre !== `key=${pw}\n`) return json(res, 200, { ok: false, error: 'unauthorized' });
+                m = 'GET';
+            }
+        } else if (getState().web_pw && path.startsWith('/api/')) {
             return json(res, 200, path === '/api/status' ? { locked: true } : { ok: false, error: 'unauthorized' });
         }
         const method2 = m;
@@ -263,7 +269,7 @@ export function createMockApiHandler(getState, setState) {
             return res.end();
         }
 
-        let raw = await readBody(req);
+        let raw = pre !== null ? pre : await readBody(req);
         const state0 = getState();
         if (raw.startsWith('key=')) {
             const nl = raw.indexOf('\n');

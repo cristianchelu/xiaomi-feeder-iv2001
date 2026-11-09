@@ -553,17 +553,18 @@ int web_api_handle_get(web_api_route_t route, char *buf, size_t len)
     }
 }
 
+static int web_api_dispatch_post(web_api_route_t route,
+                                 const char *body,
+                                 size_t body_len,
+                                 char *resp,
+                                 size_t resp_len);
+
 int web_api_handle_post(web_api_route_t route,
                         const char *body,
                         size_t body_len,
                         char *resp,
                         size_t resp_len)
 {
-    mqtt_route_kind_t mqtt_route;
-    port_err_t err;
-    web_admin_action_t admin;
-    bool is_admin = true;
-
     if (resp == NULL || resp_len == 0) {
         return -1;
     }
@@ -572,6 +573,21 @@ int web_api_handle_post(web_api_route_t route,
     if (!web_admin_unlock(&body, &body_len)) {
         return web_api_unauthorized(web_api_post_path(route), resp, resp_len);
     }
+    return web_api_dispatch_post(route, body, body_len, resp, resp_len);
+}
+
+/* Body already unlocked (key line stripped). */
+static int web_api_dispatch_post(web_api_route_t route,
+                                 const char *body,
+                                 size_t body_len,
+                                 char *resp,
+                                 size_t resp_len)
+{
+    mqtt_route_kind_t mqtt_route;
+    port_err_t err;
+    web_admin_action_t admin;
+    bool is_admin = true;
+
     if (route == WEB_API_POST_UNLOCK) {
         return web_api_write_ok(resp, resp_len);
     }
@@ -674,18 +690,19 @@ int web_api_handle_request(const char *method,
         return web_api_handle_get(route, resp, resp_len);
     }
 
-    route = web_api_classify("POST", path);
-    if (route != WEB_API_ROUTE_UNKNOWN) {
-        return web_api_handle_post(route, body, body_len, resp, resp_len);
-    }
-
-    /* POST to a read path: authenticated read. */
-    route = web_api_classify("GET", path);
-    if (route == WEB_API_ROUTE_UNKNOWN) {
-        return snprintf(resp, resp_len, "{\"ok\":false,\"error\":\"not_found\"}");
-    }
     if (!web_admin_unlock(&body, &body_len)) {
         return web_api_unauthorized(path, resp, resp_len);
     }
-    return web_api_handle_get(route, resp, resp_len);
+
+    /* Empty body after the key line on a read path: authenticated read. */
+    route = web_api_classify("GET", path);
+    if (route != WEB_API_ROUTE_UNKNOWN && body_len == 0u) {
+        return web_api_handle_get(route, resp, resp_len);
+    }
+
+    route = web_api_classify("POST", path);
+    if (route == WEB_API_ROUTE_UNKNOWN) {
+        return snprintf(resp, resp_len, "{\"ok\":false,\"error\":\"not_found\"}");
+    }
+    return web_api_dispatch_post(route, body, body_len, resp, resp_len);
 }
