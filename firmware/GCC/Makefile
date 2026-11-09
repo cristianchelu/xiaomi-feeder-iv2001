@@ -58,12 +58,14 @@ PROJ_NAME       = $(notdir $(abspath $(dir $(PWD))))
 PROJ_PATH       = $(PWD)
 OUTPATH         = $(PWD)/build
 
+# Firmware version string (HA sw_version, web page); build-firmware.sh exports it.
+FW_VERSION ?= dev
+CFLAGS += -DFW_VERSION=\"$(FW_VERSION)\"
+
 ifeq ($(MTK_FOTA_DUAL_IMAGE_ENABLE),y)
 export MTK_FOTA_DUAL_IMAGE_ENABLE
 FOTA_PARTITION_B_BUILD    ?= n
 ifeq ($(FOTA_PARTITION_B_BUILD),y)
-FW_VERSION ?= $(shell git -C $(dir $(lastword $(MAKEFILE_LIST))) describe --always --dirty 2>/dev/null || echo dev)
-CFLAGS += -DFW_VERSION=\"$(FW_VERSION)\"
 CFLAGS += -DFOTA_PARTITION_B_BUILD
 endif
 PARTITION_B_EXTRA ?= FOTA_PARTITION_B_BUILD=y BUILD_DIR=$(BUILD_DIR)/binary_B OUTPATH=$(OUTPATH)/binary_B PROJ_PATH=$(PROJ_PATH)
