@@ -412,6 +412,7 @@ static const struct {
     { "/api/import", WEB_API_POST_IMPORT },
     { "/api/dispense_amount", WEB_API_POST_DISPENSE_AMOUNT },
     { "/api/ota_base", WEB_API_POST_OTA_BASE },
+    { "/api/unlock", WEB_API_POST_UNLOCK },
 };
 
 #define POST_ROUTE_COUNT (sizeof(s_post_routes) / sizeof(s_post_routes[0]))
@@ -567,6 +568,9 @@ int web_api_handle_post(web_api_route_t route,
     if (!web_admin_unlock(&body, &body_len)) {
         app_log_info("web", "%s rejected (unauthorized)", web_api_post_path(route));
         return web_api_write_error(resp, resp_len, "unauthorized");
+    }
+    if (route == WEB_API_POST_UNLOCK) {
+        return web_api_write_ok(resp, resp_len);
     }
 
     switch (route) {

@@ -294,6 +294,9 @@ export function createMockApiHandler(getState, setState) {
             setState({ ...state, display: d });
             return json(res, 200, { ok: true });
         }
+        if (path === '/api/unlock') {
+            return json(res, 200, { ok: true });
+        }
         if (path === '/api/password') {
             setState({ ...state, web_pw: body.password || '' });
             return json(res, 200, { ok: true });

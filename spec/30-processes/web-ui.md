@@ -158,6 +158,7 @@ unless stated.
 | POST | `/api/reprovision` | `{}` | Erases the Wi-Fi credentials and reboots into the setup access point |
 | POST | `/api/factory_reset` | `{}` | Erases all application settings (Wi-Fi, MQTT, schedule, calibration) and reboots into setup |
 | POST | `/api/import` | export JSON | Restores the settings of a `/api/export` backup |
+| POST | `/api/unlock` | `{}` | Checks the `key=` line only: `{"ok":true}` when it matches (or no password is set), else `unauthorized`. Changes nothing |
 
 **Wi-Fi change fallback.** A new SSID/password from `/api/network` is stored as
 a trial (`wifi/ssid_new`, `wifi/pass_new`). After reboot the station tries the

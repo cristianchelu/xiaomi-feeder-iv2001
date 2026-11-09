@@ -868,6 +868,10 @@ button.danger {
   margin: 0 0 12px;
 }
 
+body.locked :is(.tabs, .tab-body, #refreshBtn) {
+  display: none;
+}
+
 pre.log {
   margin: 10px 0 0;
   max-height: 22rem;
@@ -926,6 +930,7 @@ pre.log {
 </header>
 <div id="toast"></div>
 <section class="panel" id="unlock" hidden>
+<h2>Locked</h2>
 <p class="hint">This feeder has a web password.</p>
 <div class="row between">
 <input type="password" id="unlockPw" placeholder="Web password" autocomplete="current-password">
@@ -1286,10 +1291,7 @@ async function api(method, path, body) {
 async function post(path, body) {
   const raw = typeof body === 'string' ? body : JSON.stringify(body);
   const r = await api('POST', path, withKey(raw, webPw));
-  if (r && r.error === 'unauthorized') {
-    $('unlock').hidden = false;
-    $('unlockPw').focus();
-  }
+  if (r && r.error === 'unauthorized') lock(true);
   return r;
 }
 function daysToMask() {
@@ -1432,6 +1434,7 @@ async function loadConfig() {
 async function loadAll() {
   toast('', true);
   const st = await loadStatus();
+  await checkLock(st);
   renderOnce(st);
   await loadSchedule();
   await loadMode();
@@ -1451,12 +1454,27 @@ function poll() {
   });
 }
 $('refreshBtn').onclick = loadAll;
-$('unlockBtn').onclick = () => {
-  webPw = $('unlockPw').value;
-  try { localStorage.setItem('feederPw', webPw); } catch (e) { /* memory only */ }
-  $('unlock').hidden = true;
-  toast('Password stored on this browser — repeat the action', true);
+function lock(on) {
+  document.body.classList.toggle('locked', on);
+  $('unlock').hidden = !on;
+  if (on) $('unlockPw').focus();
+}
+async function checkLock(st) {
+  if (!(st.network && st.network.password)) { lock(false); return; }
+  const r = webPw ? await api('POST', '/api/unlock', withKey('{}', webPw)) : null;
+  lock(!(r && r.ok));
+}
+$('unlockBtn').onclick = async () => {
+  const pw = $('unlockPw').value;
+  const r = await api('POST', '/api/unlock', withKey('{}', pw));
+  if (!(r && r.ok)) { toast('Wrong password'); return; }
+  webPw = pw;
+  try { localStorage.setItem('feederPw', pw); } catch (e) { /* memory only */ }
+  $('unlockPw').value = '';
+  toast('', true);
+  lock(false);
 };
+$('unlockPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('unlockBtn').click(); });
 $('addSlotBtn').onclick = openNewSlotEditor;
 $('editorBackdrop').onclick = closeEditor;
 $('clearSlot').onclick = closeEditor;

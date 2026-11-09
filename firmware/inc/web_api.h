@@ -43,6 +43,7 @@ typedef enum {
     WEB_API_POST_IMPORT,
     WEB_API_POST_DISPENSE_AMOUNT,
     WEB_API_POST_OTA_BASE,
+    WEB_API_POST_UNLOCK,
 } web_api_route_t;
 
 web_api_route_t web_api_classify(const char *method, const char *path);

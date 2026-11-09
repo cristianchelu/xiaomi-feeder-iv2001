@@ -163,3 +163,20 @@ void test_web_admin_password_rejection_is_logged(void)
     TEST_ASSERT_GREATER_THAN(0, (int)app_log_ring_copy(log, sizeof(log)));
     TEST_ASSERT_NOT_NULL(strstr(log, "[web] /api/password rejected"));
 }
+
+void test_web_admin_unlock_route_checks_key_only(void)
+{
+    char resp[64];
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(WEB_API_POST_UNLOCK, web_api_classify("POST", "/api/unlock"));
+    post(WEB_API_POST_UNLOCK, "{}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    post(WEB_API_POST_PASSWORD, "{\"password\":\"chat42\"}", resp, sizeof(resp));
+    post(WEB_API_POST_UNLOCK, "{}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+    post(WEB_API_POST_UNLOCK, "key=wrong\n{}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"unauthorized\"}", resp);
+    post(WEB_API_POST_UNLOCK, "key=chat42\n{}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+}

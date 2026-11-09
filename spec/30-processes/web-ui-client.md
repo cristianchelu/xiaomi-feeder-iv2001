@@ -160,6 +160,11 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 
 ### Password
 
+When `/api/status` reports `network.password` true, the page shows a lock
+screen over every tab until a password checked with `POST /api/unlock`
+succeeds (a stored password is checked silently on load). Reads (`GET`) stay
+open on the LAN and never contain secrets; the lock guards the controls.
+
 When a POST returns `unauthorized`, the page asks for the web password,
 stores it in `localStorage` (wrapped in `try/catch`; memory only when storage
 fails) and retries once. Every POST goes through `withKey`.
