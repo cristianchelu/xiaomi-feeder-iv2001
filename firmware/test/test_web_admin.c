@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "unity.h"
+#include "app_log.h"
 
 #include "config_keys.h"
 #include "fake_config_port.h"
@@ -97,7 +98,7 @@ void test_web_admin_password_gates_posts(void)
     char resp[64];
 
     setup();
-    post(WEB_API_POST_PASSWORD, "{\"new\":\"chat42\"}", resp, sizeof(resp));
+    post(WEB_API_POST_PASSWORD, "{\"password\":\"chat42\"}", resp, sizeof(resp));
     TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
 
     post(WEB_API_POST_NETWORK, "{\"ntp\":\"10.0.0.1\"}", resp, sizeof(resp));
@@ -107,7 +108,7 @@ void test_web_admin_password_gates_posts(void)
     post(WEB_API_POST_NETWORK, "key=chat42\n{\"ntp\":\"10.0.0.1\"}", resp, sizeof(resp));
     TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
 
-    post(WEB_API_POST_PASSWORD, "key=chat42\n{\"new\":\"\"}", resp, sizeof(resp));
+    post(WEB_API_POST_PASSWORD, "key=chat42\n{\"password\":\"\"}", resp, sizeof(resp));
     TEST_ASSERT_FALSE(web_admin_password_set());
 }
 
@@ -148,4 +149,17 @@ void test_web_admin_export_import_round_trip_without_secrets(void)
     TEST_ASSERT_EQUAL(PORT_OK, cfg()->read(CONFIG_GROUP_FEED, CONFIG_KEY_OVERFILL_THRESHOLD_G, v, sizeof(v)));
     TEST_ASSERT_EQUAL_STRING("120", v);
     TEST_ASSERT_TRUE(reboot_request_pending());
+}
+
+/* Regression: the page sends {"password":…}; a rejected admin POST is logged. */
+void test_web_admin_password_rejection_is_logged(void)
+{
+    char resp[64];
+    char log[3072];
+
+    fake_config_port_reset();
+    post(WEB_API_POST_PASSWORD, "{\"password\":\"ab\"}", resp, sizeof(resp));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"rejected\"}", resp);
+    TEST_ASSERT_GREATER_THAN(0, (int)app_log_ring_copy(log, sizeof(log)));
+    TEST_ASSERT_NOT_NULL(strstr(log, "[web] /api/password rejected"));
 }

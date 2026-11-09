@@ -52,7 +52,8 @@ Target compressed size `[tune]` ≤ 14 KB.
 ## HTTP API
 
 All `/api/*` routes return `Content-Type: application/json`. Mutation responses
-use `{"ok":true}` or `{"ok":false,"error":"<reason>"}`.
+use `{"ok":true}` or `{"ok":false,"error":"<reason>"}`. Every failed POST
+logs `[web] <path> rejected (<reason>)` (readable at `GET /api/log`).
 
 Read payloads match retained MQTT state / command wire formats in
 [mqtt-protocol.md](mqtt-protocol.md) unless noted.

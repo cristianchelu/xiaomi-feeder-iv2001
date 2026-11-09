@@ -383,6 +383,51 @@ static int web_api_format_status(char *buf, size_t len)
     return off < 0 ? -1 : off;
 }
 
+static const struct {
+    const char *path;
+    web_api_route_t route;
+} s_post_routes[] = {
+    { "/api/schedule/set", WEB_API_POST_SCHEDULE_SET },
+    { "/api/schedule/delete", WEB_API_POST_SCHEDULE_DELETE },
+    { "/api/schedule/toggle", WEB_API_POST_SCHEDULE_TOGGLE },
+    { "/api/schedule/skip", WEB_API_POST_SCHEDULE_SKIP },
+    { "/api/schedule/enable", WEB_API_POST_SCHEDULE_ENABLE },
+    { "/api/schedule/today", WEB_API_POST_SCHEDULE_TODAY },
+    { "/api/dispense", WEB_API_POST_DISPENSE },
+    { "/api/dispense/cancel", WEB_API_POST_DISPENSE_CANCEL },
+    { "/api/feed/mode", WEB_API_POST_FEED_MODE },
+    { "/api/feed/overfill", WEB_API_POST_FEED_OVERFILL },
+    { "/api/config", WEB_API_POST_CONFIG },
+    { "/api/display", WEB_API_POST_DISPLAY },
+    { "/api/calibrate", WEB_API_POST_CALIBRATE },
+    { "/api/eaten_reset", WEB_API_POST_EATEN_RESET },
+    { "/api/reboot", WEB_API_POST_REBOOT },
+    { "/api/child_lock", WEB_API_POST_CHILD_LOCK },
+    { "/api/power", WEB_API_POST_POWER },
+    { "/api/portion_cal", WEB_API_POST_PORTION_CAL },
+    { "/api/network", WEB_API_POST_NETWORK },
+    { "/api/password", WEB_API_POST_PASSWORD },
+    { "/api/reprovision", WEB_API_POST_REPROVISION },
+    { "/api/factory_reset", WEB_API_POST_FACTORY_RESET },
+    { "/api/import", WEB_API_POST_IMPORT },
+    { "/api/dispense_amount", WEB_API_POST_DISPENSE_AMOUNT },
+    { "/api/ota_base", WEB_API_POST_OTA_BASE },
+};
+
+#define POST_ROUTE_COUNT (sizeof(s_post_routes) / sizeof(s_post_routes[0]))
+
+static const char *web_api_post_path(web_api_route_t route)
+{
+    size_t i;
+
+    for (i = 0u; i < POST_ROUTE_COUNT; i++) {
+        if (s_post_routes[i].route == route) {
+            return s_post_routes[i].path;
+        }
+    }
+    return "?";
+}
+
 web_api_route_t web_api_classify(const char *method, const char *path)
 {
     bool is_get;
@@ -428,80 +473,10 @@ web_api_route_t web_api_classify(const char *method, const char *path)
         return WEB_API_ROUTE_UNKNOWN;
     }
 
-    if (strcmp(path, "/api/schedule/set") == 0) {
-        return WEB_API_POST_SCHEDULE_SET;
-    }
-    if (strcmp(path, "/api/schedule/delete") == 0) {
-        return WEB_API_POST_SCHEDULE_DELETE;
-    }
-    if (strcmp(path, "/api/schedule/toggle") == 0) {
-        return WEB_API_POST_SCHEDULE_TOGGLE;
-    }
-    if (strcmp(path, "/api/schedule/skip") == 0) {
-        return WEB_API_POST_SCHEDULE_SKIP;
-    }
-    if (strcmp(path, "/api/schedule/enable") == 0) {
-        return WEB_API_POST_SCHEDULE_ENABLE;
-    }
-    if (strcmp(path, "/api/schedule/today") == 0) {
-        return WEB_API_POST_SCHEDULE_TODAY;
-    }
-    if (strcmp(path, "/api/dispense") == 0) {
-        return WEB_API_POST_DISPENSE;
-    }
-    if (strcmp(path, "/api/dispense/cancel") == 0) {
-        return WEB_API_POST_DISPENSE_CANCEL;
-    }
-    if (strcmp(path, "/api/feed/mode") == 0) {
-        return WEB_API_POST_FEED_MODE;
-    }
-    if (strcmp(path, "/api/feed/overfill") == 0) {
-        return WEB_API_POST_FEED_OVERFILL;
-    }
-    if (strcmp(path, "/api/config") == 0) {
-        return WEB_API_POST_CONFIG;
-    }
-    if (strcmp(path, "/api/display") == 0) {
-        return WEB_API_POST_DISPLAY;
-    }
-    if (strcmp(path, "/api/calibrate") == 0) {
-        return WEB_API_POST_CALIBRATE;
-    }
-    if (strcmp(path, "/api/eaten_reset") == 0) {
-        return WEB_API_POST_EATEN_RESET;
-    }
-    if (strcmp(path, "/api/reboot") == 0) {
-        return WEB_API_POST_REBOOT;
-    }
-    if (strcmp(path, "/api/child_lock") == 0) {
-        return WEB_API_POST_CHILD_LOCK;
-    }
-    if (strcmp(path, "/api/power") == 0) {
-        return WEB_API_POST_POWER;
-    }
-    if (strcmp(path, "/api/portion_cal") == 0) {
-        return WEB_API_POST_PORTION_CAL;
-    }
-    if (strcmp(path, "/api/network") == 0) {
-        return WEB_API_POST_NETWORK;
-    }
-    if (strcmp(path, "/api/password") == 0) {
-        return WEB_API_POST_PASSWORD;
-    }
-    if (strcmp(path, "/api/reprovision") == 0) {
-        return WEB_API_POST_REPROVISION;
-    }
-    if (strcmp(path, "/api/factory_reset") == 0) {
-        return WEB_API_POST_FACTORY_RESET;
-    }
-    if (strcmp(path, "/api/import") == 0) {
-        return WEB_API_POST_IMPORT;
-    }
-    if (strcmp(path, "/api/dispense_amount") == 0) {
-        return WEB_API_POST_DISPENSE_AMOUNT;
-    }
-    if (strcmp(path, "/api/ota_base") == 0) {
-        return WEB_API_POST_OTA_BASE;
+    for (size_t i = 0u; i < POST_ROUTE_COUNT; i++) {
+        if (strcmp(path, s_post_routes[i].path) == 0) {
+            return s_post_routes[i].route;
+        }
     }
 
     return WEB_API_ROUTE_UNKNOWN;
@@ -590,6 +565,7 @@ int web_api_handle_post(web_api_route_t route,
 
     /* Optional admin password: first body line "key=<password>". */
     if (!web_admin_unlock(&body, &body_len)) {
+        app_log_info("web", "%s rejected (unauthorized)", web_api_post_path(route));
         return web_api_write_error(resp, resp_len, "unauthorized");
     }
 
@@ -623,6 +599,8 @@ int web_api_handle_post(web_api_route_t route,
         if (err == PORT_OK) {
             return web_api_write_ok(resp, resp_len);
         }
+        app_log_info("web", "%s rejected (%s)", web_api_post_path(route),
+                     err == PORT_ERR_INVALID_ARG ? "invalid" : "io");
         return web_api_write_error(resp, resp_len,
                                    err == PORT_ERR_INVALID_ARG ? "rejected" : "io");
     }
@@ -642,6 +620,7 @@ int web_api_handle_post(web_api_route_t route,
         return web_api_write_ok(resp, resp_len);
     }
 
+    app_log_info("web", "%s rejected (err %d)", web_api_post_path(route), (int)err);
     if (err == PORT_ERR_BUSY) {
         return web_api_write_error(resp, resp_len, "busy");
     }

@@ -239,7 +239,7 @@ static port_err_t web_admin_password(const char *body, size_t len)
     char pass[WEB_ADMIN_PASS_MAX + 1u];
 
     if (cfg == NULL || body == NULL ||
-        !web_admin_field(body, len, "new", pass, sizeof(pass))) {
+        !web_admin_field(body, len, "password", pass, sizeof(pass))) {
         return PORT_ERR_INVALID_ARG;
     }
     if (pass[0] == '\0') {
