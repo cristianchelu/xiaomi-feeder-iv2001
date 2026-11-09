@@ -260,7 +260,7 @@ static void app_log_write_raw(const char *buf, size_t len)
     }
 }
 
-static void app_log_emit(const char *tag, const char *fmt, va_list ap)
+static void app_log_emit(const char *tag, bool keep, const char *fmt, va_list ap)
 {
     char line[APP_LOG_LINE_MAX];
     char ts[20];
@@ -290,7 +290,9 @@ static void app_log_emit(const char *tag, const char *fmt, va_list ap)
 
     line[total++] = '\r';
     line[total++] = '\n';
-    app_log_ring_push(line, total);
+    if (keep) {
+        app_log_ring_push(line, total); /* debug lines would flood the ring */
+    }
     app_log_write_raw(line, total);
 }
 
@@ -318,7 +320,7 @@ void app_log_debug(const char *tag, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    app_log_emit(tag, fmt, ap);
+    app_log_emit(tag, false, fmt, ap);
     va_end(ap);
 #else
     (void)tag;
@@ -332,7 +334,7 @@ void app_log_info(const char *tag, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    app_log_emit(tag, fmt, ap);
+    app_log_emit(tag, true, fmt, ap);
     va_end(ap);
 #else
     (void)tag;
@@ -346,7 +348,7 @@ void app_log_warn(const char *tag, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    app_log_emit(tag, fmt, ap);
+    app_log_emit(tag, true, fmt, ap);
     va_end(ap);
 #else
     (void)tag;
@@ -360,7 +362,7 @@ void app_log_error(const char *tag, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    app_log_emit(tag, fmt, ap);
+    app_log_emit(tag, true, fmt, ap);
     va_end(ap);
 #else
     (void)tag;

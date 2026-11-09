@@ -111,7 +111,8 @@ past v0.
 
 #### Log ring
 
-Every log line also goes to a `[tune]` 3 KB RAM ring placed in a RAM section
+Every info, warn and error log line (not debug: per-second traces would flood
+it) also goes to a `[tune]` 3 KB RAM ring placed in a RAM section
 the startup code does not clear, so it survives a **software** reboot
 (watchdog, `cmd/reboot`, OTA, crash restart); a power cut loses it. On the
 first log line after boot the ring is checked (marker word, indexes in range,

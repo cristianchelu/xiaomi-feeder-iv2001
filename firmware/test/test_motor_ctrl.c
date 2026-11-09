@@ -484,3 +484,34 @@ void test_motor_ctrl_antijam_resume_keeps_counted_pulses(void)
     TEST_ASSERT_FALSE(motor_ctrl_is_active());
     fake_adc_port_set_motor_ma(0u);
 }
+
+/* Device log: 13-portion burst, stall at +26.7 s, "antijam: retry 1/3" then
+ * at once "stuck: session timeout (20000 ms)". The anti-jam phase of a burst
+ * must use the burst session limit, not the 20 s motor maximum. */
+void test_motor_ctrl_late_stall_in_long_burst_gets_antijam(void)
+{
+    char log[16384];
+    FILE *saved;
+    FILE *cap;
+    unsigned i;
+
+    motor_ctrl_test_setup();
+    fake_motor_index_port_set_beam_open(false);
+    TEST_ASSERT_EQUAL(PORT_OK, motor_ctrl_request_burst(13u, MOTOR_BURST_TIMEOUT_MS));
+    motor_ctrl_test_poll();
+    for (i = 0u; i < 3u; i++) {
+        step_ms(6200u);
+        fake_motor_index_port_set_beam_open(true);
+        step_ms(200u);
+        fake_motor_index_port_set_beam_open(false);
+    }
+    step_ms(3000u);                                /* ~22 s into the burst */
+    fake_adc_port_set_motor_ma(280u);
+    capture_stdout_begin(&saved, &cap);
+    step_ms(MOTOR_STALL_MS + MOTOR_ANTI_JAM_REVERSE_MS + 300u);
+    capture_stdout_end(saved, cap, log, sizeof(log));
+    fake_adc_port_set_motor_ma(0u);
+
+    TEST_ASSERT_NOT_NULL(strstr(log, "antijam: retry 1/3"));
+    TEST_ASSERT_NULL(strstr(log, "session timeout"));
+}

@@ -225,7 +225,12 @@ static bool motor_ctrl_session_timed_out(TickType_t now)
 
     /* A burst may legitimately need one index period per pulse (~6.4 s
      * measured); stalls are caught per gap by the index timeout. */
-    if (s_phase == MOTOR_PHASE_RUN_BURST && s_active_cmd.timeout_ms > 0u) {
+    /* The anti-jam phases of a burst share the burst limit: a late stall
+     * must get its retries, not a session timeout at the first reverse. */
+    if ((s_phase == MOTOR_PHASE_RUN_BURST || s_phase == MOTOR_PHASE_ANTIJAM_REV ||
+         s_phase == MOTOR_PHASE_ANTIJAM_WIGGLE_FWD ||
+         s_phase == MOTOR_PHASE_ANTIJAM_WIGGLE_REV) &&
+        s_active_cmd.kind != MOTOR_CMD_PARK && s_active_cmd.timeout_ms > 0u) {
         uint32_t limit = (uint32_t)s_active_cmd.pulse_target * s_active_cmd.timeout_ms + 2000u;
 
         if (limit < MOTOR_RUN_MS_MAX) {

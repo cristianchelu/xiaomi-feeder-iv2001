@@ -70,7 +70,10 @@ Handled inside `motor_index_port` (adapter owns P0.6 / P0.7 sequencing):
 - **Index timeout per gap:** no counted hole within the burst timeout since the
   last pulse (or start) is a jam (anti-jam reverse), not only "0 pulses".
 - **Session limit for bursts:** `pulse_target × burst timeout + 2 s` (at least
-  the 20 s motor maximum), so 5 portions at field speed (~32 s) complete.
+  the 20 s motor maximum), so 5 portions at field speed (~32 s) complete. The
+  same limit covers the anti-jam phases (reverse, wiggle) of a burst: a stall
+  late in a long burst gets its anti-jam retries instead of ending as a
+  session timeout the moment the reverse starts.
 
 ### Jam timeout detection
 

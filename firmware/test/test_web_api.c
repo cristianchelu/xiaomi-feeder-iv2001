@@ -274,3 +274,14 @@ void test_web_api_log_drops_corrupt_retained_ring(void)
     TEST_ASSERT_NULL(strstr(buf, "garbage-marker"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "fresh-marker"));
 }
+
+void test_web_api_log_ring_skips_debug_lines(void)
+{
+    char buf[6144];
+
+    app_log_debug("test", "debug-flood-marker");
+    app_log_info("test", "info-kept-marker");
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
+    TEST_ASSERT_NULL(strstr(buf, "debug-flood-marker"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "info-kept-marker"));
+}
