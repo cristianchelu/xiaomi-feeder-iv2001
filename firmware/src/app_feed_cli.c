@@ -108,7 +108,7 @@ uint8_t feed_cli_run_overfill_g_show(void)
     return 0;
 }
 
-uint8_t feed_cli_run_overfill_g_set(uint8_t threshold_g)
+uint8_t feed_cli_run_overfill_g_set(uint16_t threshold_g)
 {
     if (feed_config_overfill_threshold_g_get() == threshold_g) {
         app_log_info("cli", "feed overfill_g: unchanged");
@@ -135,12 +135,14 @@ static uint8_t feed_cli_overfill_g(uint8_t argc, char *argv[])
     }
 
     parsed = strtoul(argv[0], &end, 10);
-    if (end == argv[0] || *end != '\0' || parsed < 30 || parsed > 100) {
-        app_log_info("cli", "usage: feed overfill_g <30-100>");
+    if (end == argv[0] || *end != '\0' ||
+        parsed < FEED_OVERFILL_THRESHOLD_G_MIN || parsed > FEED_OVERFILL_THRESHOLD_G_MAX) {
+        app_log_info("cli", "usage: feed overfill_g <%u-%u>",
+                     (unsigned)FEED_OVERFILL_THRESHOLD_G_MIN, (unsigned)FEED_OVERFILL_THRESHOLD_G_MAX);
         return 1;
     }
 
-    return feed_cli_run_overfill_g_set((uint8_t)parsed);
+    return feed_cli_run_overfill_g_set((uint16_t)parsed);
 }
 
 cmd_t feed_cli_subcmds[] = {

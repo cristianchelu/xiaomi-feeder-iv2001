@@ -19,11 +19,25 @@
 #include "mqtt_backoff.h"
 #include "mqtt_client.h"
 #include "mqtt_cred.h"
+#include "mqtt_ha_discovery.h"
 #include "mqtt_outbox.h"
 #include "mqtt_port.h"
 #include "mqtt_route.h"
 #include "mqtt_bowl_weight.h"
 #include "mqtt_config.h"
+#include "mqtt_child_lock.h"
+#include "mqtt_display.h"
+#include "mqtt_eaten_today.h"
+#include "mqtt_dispense_amount.h"
+#include "mqtt_wifi_rssi.h"
+#include "mqtt_problem.h"
+#include "task_watch.h"
+#include "feeder_runtime.h"
+#include "feed_limit.h"
+#include "mqtt_dispense_progress.h"
+#include "mqtt_portion.h"
+#include "mqtt_power.h"
+#include "ota_base.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "mqtt_battery.h"
@@ -66,6 +80,52 @@ static volatile bool s_suspended;
 static bool s_log_connect_failures;
 static mqtt_backoff_t s_backoff;
 static TickType_t s_reconnect_at;
+
+/* Dead-session detection (mqtt-protocol.md § Reconnect strategy). */
+#define MQTT_PUBLISH_FAIL_LIMIT 3u
+static const mqtt_port_t *s_tracked_real;
+static mqtt_port_t s_tracked_port;
+static unsigned s_publish_fail_streak;
+
+static port_err_t mqtt_client_publish_tracked(const char *topic,
+                                              const void *payload,
+                                              size_t len,
+                                              uint8_t qos,
+                                              bool retain)
+{
+    port_err_t err = s_tracked_real->publish(topic, payload, len, qos, retain);
+
+    if (err == PORT_OK) {
+        s_publish_fail_streak = 0u;
+    } else if (err == PORT_ERR_IO) {
+        s_publish_fail_streak++;
+    }
+    return err;
+}
+
+/* The port with publish failures counted, for post-connect drains. */
+static const mqtt_port_t *mqtt_client_tracked(const mqtt_port_t *mqtt)
+{
+    s_tracked_real = mqtt;
+    s_tracked_port = *mqtt;
+    s_tracked_port.publish = mqtt_client_publish_tracked;
+    return &s_tracked_port;
+}
+
+/* True when the session was dropped for repeated publish failures. */
+static bool mqtt_client_check_dead_session(const mqtt_port_t *mqtt)
+{
+    if (s_publish_fail_streak < MQTT_PUBLISH_FAIL_LIMIT) {
+        return false;
+    }
+    APP_LOG_E("mqtt", "link lost (%u publishes failed): reconnecting",
+              (unsigned)s_publish_fail_streak);
+    s_publish_fail_streak = 0u;
+    mqtt->disconnect();
+    mqtt_backoff_on_failure(&s_backoff);
+    s_reconnect_at = xTaskGetTickCount() + pdMS_TO_TICKS(mqtt_backoff_current_ms(&s_backoff));
+    return true;
+}
 static char s_device_id[MQTT_DEVICE_ID_MAX_LEN + 1];
 
 static mqtt_session_phase_t s_session_phase = MQTT_SESSION_OFF;
@@ -324,6 +384,7 @@ static port_err_t mqtt_client_do_connect(void)
     mqtt_adapter_yield(200);
 
     mqtt_backoff_on_success(&s_backoff);
+    s_publish_fail_streak = 0u;
     ota_client_set_device_id(s_device_id);
     mqtt_state_set_device_id(s_device_id);
     mqtt_bowl_weight_set_device_id(s_device_id);
@@ -335,6 +396,17 @@ static port_err_t mqtt_client_do_connect(void)
     mqtt_config_set_device_id(s_device_id);
     mqtt_feed_mode_set_device_id(s_device_id);
     mqtt_feed_overfill_set_device_id(s_device_id);
+    mqtt_child_lock_set_device_id(s_device_id);
+    mqtt_display_set_device_id(s_device_id);
+    mqtt_eaten_today_set_device_id(s_device_id);
+    ota_base_set_device_id(s_device_id);
+    mqtt_power_set_device_id(s_device_id);
+    mqtt_portion_set_device_id(s_device_id);
+    mqtt_dispense_amount_set_device_id(s_device_id);
+    mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_problem_set_device_id(s_device_id);
+    mqtt_feed_limit_set_device_id(s_device_id);
+    mqtt_dispense_progress_set_device_id(s_device_id);
     mqtt_timezone_set_device_id(s_device_id);
 
     {
@@ -410,6 +482,7 @@ static void mqtt_client_do_disconnect(const mqtt_port_t *mqtt)
     }
 
     mqtt_outbox_reset();
+    mqtt_ha_discovery_disarm();
     mqtt_state_on_outbox_reset();
     mqtt_bowl_weight_on_outbox_reset();
     mqtt_battery_on_outbox_reset();
@@ -424,10 +497,20 @@ static void mqtt_client_do_disconnect(const mqtt_port_t *mqtt)
     mqtt_client_connect_worker_reset();
 }
 
+bool mqtt_client_is_armed(void)
+{
+    return s_connect_armed;
+}
+
 uint32_t mqtt_client_step(void)
 {
     const mqtt_port_t *mqtt = mqtt_port_get();
     uint32_t delay_ms = 500;
+
+    task_watch_beat(TASK_WATCH_MQTT);
+    if (!feeder_runtime_ota_active()) {
+        (void)task_watch_check(TASK_WATCH_APP, (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
+    }
 
     if (s_disconnect_pending) {
         s_disconnect_pending = false;
@@ -454,9 +537,10 @@ uint32_t mqtt_client_step(void)
 
     if (!s_connect_pending && !s_connect_worker_running && mqtt->is_connected()) {
         mqtt_adapter_yield(50);
-        (void)mqtt_outbox_drain_one(mqtt);
-        (void)mqtt_schedule_drain(mqtt);
+        (void)mqtt_outbox_drain_one(mqtt_client_tracked(mqtt));
+        (void)mqtt_schedule_drain(mqtt_client_tracked(mqtt));
         mqtt_adapter_yield(250);
+        (void)mqtt_client_check_dead_session(mqtt);
         delay_ms = 250;
         goto done;
     }
@@ -477,9 +561,10 @@ uint32_t mqtt_client_step(void)
         s_connect_pending = false;
         s_connect_busy = false;
         mqtt_adapter_yield(50);
-        (void)mqtt_outbox_drain_one(mqtt);
-        (void)mqtt_schedule_drain(mqtt);
+        (void)mqtt_outbox_drain_one(mqtt_client_tracked(mqtt));
+        (void)mqtt_schedule_drain(mqtt_client_tracked(mqtt));
         mqtt_adapter_yield(250);
+        (void)mqtt_client_check_dead_session(mqtt);
         delay_ms = 250;
         goto done;
     }
@@ -561,6 +646,7 @@ void mqtt_client_test_reset(void)
     s_device_id[0] = '\0';
     mqtt_backoff_init(&s_backoff);
     mqtt_outbox_reset();
+    mqtt_ha_discovery_disarm();
     mqtt_outbox_set_accepting(true);
     mqtt_state_test_reset();
     mqtt_bowl_weight_test_reset();
@@ -598,6 +684,17 @@ void mqtt_client_test_set_device_id(const char *device_id)
     mqtt_config_set_device_id(s_device_id);
     mqtt_feed_mode_set_device_id(s_device_id);
     mqtt_feed_overfill_set_device_id(s_device_id);
+    mqtt_child_lock_set_device_id(s_device_id);
+    mqtt_display_set_device_id(s_device_id);
+    mqtt_eaten_today_set_device_id(s_device_id);
+    ota_base_set_device_id(s_device_id);
+    mqtt_power_set_device_id(s_device_id);
+    mqtt_portion_set_device_id(s_device_id);
+    mqtt_dispense_amount_set_device_id(s_device_id);
+    mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_problem_set_device_id(s_device_id);
+    mqtt_feed_limit_set_device_id(s_device_id);
+    mqtt_dispense_progress_set_device_id(s_device_id);
 }
 
 bool mqtt_client_test_is_suspended(void)
@@ -673,6 +770,12 @@ void mqtt_client_stop(void)
 void mqtt_client_notify_wifi_ready(void)
 {
     s_wifi_ready = true;
+}
+
+void mqtt_client_notify_wifi_down(void)
+{
+    mqtt_client_stop();
+    s_wifi_ready = false;
 }
 
 const char *mqtt_client_device_id(void)

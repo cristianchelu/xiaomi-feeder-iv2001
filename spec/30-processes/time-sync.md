@@ -16,7 +16,7 @@ Timezone rule format and NVDM keys: [scheduler-engine.md](scheduler-engine.md)
 
 ## NTP sync
 
-- **Primary:** NTP over Wi-Fi via SNTP (`pool.ntp.org`). `[design]`
+- **Primary:** NTP over Wi-Fi via SNTP. Server from NVDM `time/ntp` (host name: letters, digits, `.`, `-`; ≤ 63 chars), default `pool.ntp.org`, read at every sync request and logged `[time] sntp server <host>`; set from the web page. `[design]`
 - **First sync:** requested when STA reaches DHCP ready
   (`EVT_WIFI_STA_READY` → `time_sync_on_wifi_ready()`).
 - **Periodic re-sync:** every `[tune]` 6 hours while Wi-Fi stays associated

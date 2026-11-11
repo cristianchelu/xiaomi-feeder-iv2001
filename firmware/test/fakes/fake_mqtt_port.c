@@ -15,6 +15,11 @@ void fake_mqtt_port_reset(void)
     s_cb_ctx = NULL;
 }
 
+void fake_mqtt_port_set_fail_publish(bool fail)
+{
+    s_state.fail_publish = fail;
+}
+
 void fake_mqtt_port_set_fail_next_connect(bool fail)
 {
     s_state.fail_next_connect = fail;

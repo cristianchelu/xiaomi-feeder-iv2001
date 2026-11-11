@@ -23,6 +23,8 @@ typedef struct wifi_port {
     port_err_t (*wait_ready)(uint32_t timeout_ms);
     bool (*is_connected)(void);
     port_err_t (*get_ip)(char *buf, size_t len);
+    /* Received signal strength of the current AP link, dBm. */
+    port_err_t (*get_rssi)(int8_t *dbm);
     port_err_t (*start_ap)(const char *ssid, const char *pass, uint8_t channel);
     port_err_t (*stop_ap)(void);
 } wifi_port_t;

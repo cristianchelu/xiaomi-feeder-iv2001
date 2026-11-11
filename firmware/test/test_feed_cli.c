@@ -123,15 +123,15 @@ void test_feed_cli_overfill_g_unchanged(void)
 void test_feed_cli_overfill_g_invalid_usage(void)
 {
     char *argv_low[] = { "20" };
-    char *argv_high[] = { "150" };
+    char *argv_high[] = { "600" };
 
     feed_cli_test_reset();
     TEST_ASSERT_EQUAL_UINT8(1, feed_cli_subcmds[2].fn(1u, argv_low));
-    assert_cli_body("usage: feed overfill_g <30-100>");
+    assert_cli_body("usage: feed overfill_g <30-500>");
 
     feed_cli_test_reset();
     TEST_ASSERT_EQUAL_UINT8(1, feed_cli_subcmds[2].fn(1u, argv_high));
-    assert_cli_body("usage: feed overfill_g <30-100>");
+    assert_cli_body("usage: feed overfill_g <30-500>");
 }
 
 void test_feed_cli_overfill_g_nvdm_write_failed(void)

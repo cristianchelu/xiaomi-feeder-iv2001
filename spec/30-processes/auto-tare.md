@@ -51,10 +51,19 @@ and the runtime dispense-active flag is false (see
 [task-model.md](../40-architecture/task-model.md) § Runtime snapshot):
 
 - **Quiet:** per-sample `|Δraw| ≤ DRIFT_RATE_MAX_DG` (0.1 g)
-- Set `drift_offset_dg = stable_dg − raw_dg` so `presented_dg` stays at
-  `stable_dg`; `stable_dg` is unchanged
-- If `|Δraw| > DRIFT_RATE_MAX_DG`, do not adjust drift (wait for a future
-  activity session when eating monitoring lands)
+- Accumulate the creep: `drift_offset_dg −= Δraw`, so slow drift is cancelled
+  sample by sample
+- If `|Δraw| > DRIFT_RATE_MAX_DG` the change is **real mass** (pet eating, food
+  added): `drift_offset_dg` is unchanged and the step passes through to
+  `presented_dg`
+- After every valid sample `stable_dg = raw_dg + drift_offset_dg` (the presented
+  belief)
+
+Earlier revisions set `drift_offset_dg = stable_dg − raw_dg` on every quiet
+sample. That pinned `presented_dg` to the last anchor, so food eaten between two
+dispenses was erased as soon as the scale went quiet (bowl weight stuck, eaten
+today never counted). With the CS1270's 1 g resolution a single-count change is
+10 dg > `DRIFT_RATE_MAX_DG`, so in practice every visible change passes through.
 
 ## Initial anchor
 

@@ -199,3 +199,39 @@ void test_auto_tare_sync_bowl_error_clears_on_present(void)
     TEST_ASSERT_FALSE(auto_tare_pending_calibration());
     TEST_ASSERT_EQUAL_INT32(150, auto_tare_stable_dg());
 }
+
+/* A real mass change (pet eating) followed by a steady scale must stay visible:
+ * only sub-threshold per-sample drift is compensated, never a step. */
+void test_auto_tare_step_then_steady_is_not_absorbed(void)
+{
+    int i;
+
+    auto_tare_test_reset();
+    auto_tare_anchor(300);
+    for (i = 0; i < 5; i++) {
+        auto_tare_idle_sample(300, true);
+    }
+    for (i = 0; i < 5; i++) {
+        auto_tare_idle_sample(200, true);
+    }
+
+    TEST_ASSERT_EQUAL_INT32(200, auto_tare_present_dg(200, true));
+    TEST_ASSERT_EQUAL_INT32(200, auto_tare_stable_dg());
+}
+
+void test_auto_tare_drift_accumulates_across_samples(void)
+{
+    auto_tare_test_reset();
+    auto_tare_anchor(300);
+    auto_tare_idle_sample(300, true);
+    auto_tare_idle_sample(299, true);
+    auto_tare_idle_sample(298, true);
+    auto_tare_idle_sample(297, true);
+
+    TEST_ASSERT_EQUAL_INT32(3, auto_tare_drift_offset_dg());
+    TEST_ASSERT_EQUAL_INT32(300, auto_tare_present_dg(297, true));
+
+    /* then a 10 g step passes through on top of the compensated drift */
+    auto_tare_idle_sample(197, true);
+    TEST_ASSERT_EQUAL_INT32(200, auto_tare_present_dg(197, true));
+}

@@ -8,6 +8,8 @@
 #include "app_event.h"
 #include "app_event_port.h"
 #include "auto_tare.h"
+#include "eaten_today.h"
+#include "fake_config_port.h"
 #include "fake_display_port.h"
 #include "fake_mqtt_port.h"
 #include "fake_weight_port.h"
@@ -156,4 +158,36 @@ void test_app_mqtt_bowl_weight_holds_presented_during_drift(void)
 
     TEST_ASSERT_EQUAL_INT32(120, auto_tare_present_dg(119, true));
     TEST_ASSERT_EQUAL_UINT(publishes_before, publishes_after);
+}
+
+/* End to end through the app: 30 g in the bowl, the pet eats 10 g, the scale
+ * flickers by one count like the real CS1270. Bowl weight must follow and
+ * eaten today must count the meal. */
+void test_app_meal_lowers_bowl_weight_and_counts_eaten(void)
+{
+    uint32_t t = 500u;
+    unsigned i;
+
+    app_auto_tare_test_reset();
+    fake_config_port_reset();
+    eaten_today_test_reset();
+    eaten_today_init(0u);
+    fake_weight_port_set_read_dg(300);
+    app_auto_tare_test_boot_idle();
+    app_auto_tare_test_anchor_quiet(300, t);
+    t += 2000u;
+
+    for (i = 0u; i < 16u; i++, t += 500u) {
+        fake_weight_port_set_read_dg((i % 2u) ? 310 : 300);
+        post_display_tick(t);
+    }
+    for (i = 0u; i < 16u; i++, t += 500u) {
+        fake_weight_port_set_read_dg((i % 2u) ? 210 : 200);
+        post_display_tick(t);
+    }
+    fake_weight_port_set_read_dg(200);
+    post_display_tick(t);
+
+    TEST_ASSERT_EQUAL_INT32(200, auto_tare_present_dg(200, true));
+    TEST_ASSERT_INT32_WITHIN(10, 100, eaten_today_total_dg());
 }

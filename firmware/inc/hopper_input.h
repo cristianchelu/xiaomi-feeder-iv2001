@@ -23,7 +23,7 @@ typedef struct {
 #define HOPPER_INPUT_DEBOUNCE_INTERVAL_MS    1000u
 #define HOPPER_INPUT_LOW_STREAK_REQUIRED     6u
 #define HOPPER_INPUT_NORMAL_STREAK_REQUIRED  3u
-#define HOPPER_INPUT_BACKGROUND_INTERVAL_MS  60000u
+#define HOPPER_INPUT_BACKGROUND_INTERVAL_MS  10000u
 #define HOPPER_INPUT_TRANSITION_QUEUE_DEPTH  4u
 
 void hopper_input_init(const hopper_ir_port_t *port);
@@ -31,6 +31,8 @@ void hopper_input_reset(void);
 void hopper_input_notify_dispense_complete(void);
 void hopper_input_poll(uint32_t now_ms, bool background_enabled);
 hopper_level_t hopper_input_get_level(void);
+/* -1 none yet, 0 beam clear, 1 beam blocked (pre-debounce). */
+int8_t hopper_input_last_raw(void);
 bool hopper_input_almost_empty(void);
 bool hopper_input_pop_transition(hopper_level_transition_t *tr);
 

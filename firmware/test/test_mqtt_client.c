@@ -8,6 +8,7 @@
 #include "fake_time.h"
 #include "fake_adc_port.h"
 #include "fake_power_source_port.h"
+#include "mqtt_ha_discovery.h"
 #include "mqtt_outbox.h"
 #include "fake_wifi_port.h"
 #include <string.h>
@@ -135,6 +136,32 @@ void test_request_connect_requires_wifi(void)
     TEST_ASSERT_FALSE(mqtt_client_connect_in_progress());
 }
 
+/* Drain the outbox while display ticks pump paced HA discovery.
+ * Returns the number of HA discovery configs published. */
+static unsigned drain_with_discovery(const fake_mqtt_port_state_t *mqtt, unsigned max_iter)
+{
+    unsigned discovery = 0;
+    unsigned last_calls = mqtt->publish_calls;
+    unsigned i;
+
+    for (i = 0; i < max_iter; i++) {
+        fake_time_advance_ms(101u);
+        mqtt_client_step();
+        if (mqtt->publish_calls != last_calls) {
+            last_calls = mqtt->publish_calls;
+            if (strncmp(mqtt->last_publish_topic, "homeassistant/", 14) == 0) {
+                discovery++;
+            }
+        }
+        post_display_tick(i);
+        app_step();
+        if (mqtt_outbox_pending() == 0u && mqtt_ha_discovery_remaining() == 0u) {
+            break;
+        }
+    }
+    return discovery;
+}
+
 void test_connect_subscribes_and_publishes_online(void)
 {
     const fake_mqtt_port_state_t *mqtt;
@@ -156,138 +183,19 @@ void test_connect_subscribes_and_publishes_online(void)
     TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/cmd/#", mqtt->last_subscribe_topic);
     TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/connection", mqtt->last_publish_topic);
     TEST_ASSERT_EQUAL_STRING("online", mqtt->last_publish_payload);
-    TEST_ASSERT_EQUAL_UINT(22, mqtt_outbox_pending());
+    /* Discovery is paced: the connect burst leaves room in the ring. */
+    TEST_ASSERT_EQUAL_UINT(17, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), mqtt_ha_discovery_remaining());
     TEST_ASSERT_TRUE(mqtt->connected);
 
     mqtt_client_step();
     TEST_ASSERT_EQUAL_UINT(4, mqtt->publish_calls);
     TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/schedule/next", mqtt->last_publish_topic);
 
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(5, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/hopper", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("normal", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(6, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/mains", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("OFF", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(7, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/battery_voltage", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("0", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(8, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/battery", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("unknown", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(9, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/button/petfeeder_ddeeff/dispense/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(10, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/binary_sensor/petfeeder_ddeeff/bowl_error/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(11, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/bowl_weight/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(12, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/battery/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(13, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/battery_voltage/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(14, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/binary_sensor/petfeeder_ddeeff/mains/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(15, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/hopper_level/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(16, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/petfeeder_ddeeff/device_timezone/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(17, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/feeding_schedule/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(18, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/event/petfeeder_ddeeff/dispense_completed/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(19, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/weight_compensation/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(20, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/switch/petfeeder_ddeeff/overfill_protection/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(21, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("homeassistant/number/petfeeder_ddeeff/overfill_threshold_g/config",
-                             mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(22, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/timezone", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("UTC0", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(23, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/config", mqtt->last_publish_topic);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(24, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/feed/mode", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("open_loop", mqtt->last_publish_payload);
-
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    TEST_ASSERT_EQUAL_UINT(25, mqtt->publish_calls);
-    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/feed/overfill", mqtt->last_publish_topic);
-    TEST_ASSERT_EQUAL_STRING("{\"enabled\":false,\"threshold_g\":50}", mqtt->last_publish_payload);
+    TEST_ASSERT_EQUAL_UINT(mqtt_ha_discovery_entity_count(), drain_with_discovery(mqtt, 400u));
+    TEST_ASSERT_EQUAL_UINT(20u + mqtt_ha_discovery_entity_count(), mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_ha_discovery_remaining());
 }
 
 void test_connected_session_survives_yield_steps(void)
@@ -326,53 +234,11 @@ void test_connected_step_drains_enqueued_item(void)
     mqtt_client_step();
     app_step();
 
-    TEST_ASSERT_EQUAL_UINT(22, mqtt_outbox_pending());
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-    fake_time_advance_ms(101u);
-    mqtt_client_step();
-
+    TEST_ASSERT_EQUAL_UINT(17, mqtt_outbox_pending());
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_EQUAL_UINT(25, mqtt->publish_calls);
+    mqtt_client_step();
+    (void)drain_with_discovery(mqtt, 400u);
+    TEST_ASSERT_EQUAL_UINT(20u + mqtt_ha_discovery_entity_count(), mqtt->publish_calls);
     TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
 }
 
@@ -609,4 +475,43 @@ void test_suspend_for_ota_disconnects_without_reconnect(void)
     TEST_ASSERT_FALSE(mqtt->connected);
 
     mqtt_client_resume_after_ota();
+}
+
+/* Device log: "publish failed topic=…/wifi_rssi, schedule/state, schedule/next"
+ * every 250 ms for an hour; the session stayed "connected" and never
+ * reconnected. Consecutive publish failures must drop and redo the session. */
+void test_publish_failures_force_reconnect(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    unsigned i;
+
+    fake_time_reset();
+    fake_mqtt_port_reset();
+    seed_broker_config();
+    mqtt_client_test_bootstrap();
+    setup_wifi_up();
+    TEST_ASSERT_TRUE(mqtt_client_request_connect());
+    mqtt_client_step();
+    app_step();
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_UINT(1, mqtt->connect_calls);
+
+    fake_mqtt_port_set_fail_publish(true);
+    mqtt_log_capture_begin();
+    for (i = 0u; i < 20u && mqtt->disconnect_calls == 0u; i++) {
+        fake_time_advance_ms(260u);
+        mqtt_client_step();
+    }
+    mqtt_log_capture_end();
+    TEST_ASSERT_EQUAL_UINT(1, mqtt->disconnect_calls);
+    TEST_ASSERT_NOT_NULL(strstr(s_log_capture, "link lost"));
+
+    fake_mqtt_port_set_fail_publish(false);
+    for (i = 0u; i < 100u && mqtt->connect_calls < 2u; i++) {
+        fake_time_advance_ms(200u);
+        mqtt_client_step();
+        app_step();
+    }
+    TEST_ASSERT_EQUAL_UINT(2, mqtt->connect_calls);
+    TEST_ASSERT_TRUE(mqtt->connected);
 }

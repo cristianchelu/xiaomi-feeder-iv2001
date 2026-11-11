@@ -53,6 +53,27 @@ Handled inside `motor_index_port` (adapter owns P0.6 / P0.7 sequencing):
   intermediate holes do not stop the motor — count only until the last hole
   stops the auger.
 - Two portions without a separate park step: `[tune]` 2 pulses (full revolution).
+- **Baseline at session start:** the auger normally rests parked with a hole in
+  the beam (beam open). After the IR LED turns on, wait `[tune]` 5 ms, then read
+  the beam, retrying up to `[tune]` 5 times 10 ms apart while the GPIO expander is
+  busy. If it stays unreadable, assume the parked state (beam open). A pulse is
+  only counted on an observed closed → open transition, so a parked hole is
+  never counted as the first portion (previous behaviour: a failed baseline read
+  defaulted to "closed" and a 1-portion burst stopped almost at once).
+- **Minimum closed stretch:** an open edge counts only if the beam stayed closed
+  for at least `[tune]` 1500 ms before it, timed from motor start when the
+  baseline is closed. Field trace (mains): one hole every ~6.4 s, beam open
+  ~0.2 s, ~9 g per hole. When the motor stops, the loaded auger springs back out
+  of the hole; on the next start it re-enters it within ~160 ms. Counting that
+  re-entry stopped 1-portion bursts with nothing delivered (10 g, the dispense
+  button).
+- **Index timeout per gap:** no counted hole within the burst timeout since the
+  last pulse (or start) is a jam (anti-jam reverse), not only "0 pulses".
+- **Session limit for bursts:** `pulse_target × burst timeout + 2 s` (at least
+  the 20 s motor maximum), so 5 portions at field speed (~32 s) complete. The
+  same limit covers the anti-jam phases (reverse, wiggle) of a burst: a stall
+  late in a long burst gets its anti-jam retries instead of ending as a
+  session timeout the moment the reverse starts.
 
 ### Jam timeout detection
 

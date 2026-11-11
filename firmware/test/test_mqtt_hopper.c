@@ -164,3 +164,38 @@ void test_mqtt_hopper_on_outbox_reset_allows_republish(void)
     mqtt = fake_mqtt_port_state();
     TEST_ASSERT_EQUAL_UINT(2, mqtt->publish_calls);
 }
+
+void test_mqtt_hopper_ir_publishes_on_change_only(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+
+    setup_mqtt_hopper();
+    mqtt_hopper_ir_sync(-1);
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+
+    mqtt_hopper_ir_sync(1);
+    drain_hopper_outbox();
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_STRING("petfeeder/ddeeff/hopper_ir", mqtt->last_publish_topic);
+    TEST_ASSERT_EQUAL_STRING("blocked", mqtt->last_publish_payload);
+    TEST_ASSERT_TRUE(mqtt->last_publish_retain);
+
+    mqtt_hopper_ir_sync(1);
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+
+    mqtt_hopper_ir_sync(0);
+    drain_hopper_outbox();
+    TEST_ASSERT_EQUAL_STRING("clear", fake_mqtt_port_state()->last_publish_payload);
+}
+
+void test_mqtt_hopper_ir_connect_snapshot_republishes(void)
+{
+    setup_mqtt_hopper();
+    mqtt_hopper_ir_sync(0);
+    drain_hopper_outbox();
+    mqtt_hopper_ir_connect_snapshot(0);
+    TEST_ASSERT_EQUAL_UINT(1, mqtt_outbox_pending());
+    drain_hopper_outbox();
+    mqtt_hopper_ir_connect_snapshot(-1);
+    TEST_ASSERT_EQUAL_UINT(0, mqtt_outbox_pending());
+}

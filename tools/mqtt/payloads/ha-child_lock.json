@@ -1,0 +1,21 @@
+{
+  "name": "Child lock",
+  "unique_id": "petfeeder_DEVICE_ID_child_lock",
+  "state_topic": "petfeeder/DEVICE_ID/child_lock",
+  "state_on": "ON",
+  "state_off": "OFF",
+  "command_topic": "petfeeder/DEVICE_ID/cmd/child_lock",
+  "payload_on": "ON",
+  "payload_off": "OFF",
+  "optimistic": false,
+  "entity_category": "config",
+  "availability_topic": "petfeeder/DEVICE_ID/connection",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["petfeeder_DEVICE_ID"],
+    "name": "Pet Feeder DEVICE_ID",
+    "manufacturer": "Xiaomi",
+    "model": "Smart Pet Food Feeder 2"
+  }
+}

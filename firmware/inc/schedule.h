@@ -18,6 +18,7 @@ typedef enum {
     SCHEDULE_STATE_TO_BE_SKIPPED,
     SCHEDULE_STATE_SKIPPED,
     SCHEDULE_STATE_SKIPPED_FULL,
+    SCHEDULE_STATE_SKIPPED_LIMIT,
     SCHEDULE_STATE_DISPENSING,
     SCHEDULE_STATE_DISPENSED,
     SCHEDULE_STATE_FAILED,
@@ -52,6 +53,7 @@ typedef enum {
     SCHEDULE_FIRE_BUSY,
     SCHEDULE_FIRE_REJECTED,
     SCHEDULE_FIRE_SKIPPED_FULL,
+    SCHEDULE_FIRE_SKIPPED_LIMIT,
 } schedule_fire_result_t;
 
 typedef schedule_fire_result_t (*schedule_fire_fn)(uint8_t hour,
@@ -90,6 +92,21 @@ bool schedule_set_global_enabled(bool enabled);
 bool schedule_set_today_enabled(bool enabled);
 
 void schedule_poll(uint32_t now_ms);
+
+/* Feed next meal (scheduler-engine.md § Feed next meal). */
+typedef enum {
+    SCHEDULE_FEED_NEXT_OK = 0,
+    SCHEDULE_FEED_NEXT_NONE,       /* no pending slot left today */
+    SCHEDULE_FEED_NEXT_LIMIT,
+    SCHEDULE_FEED_NEXT_BOWL_FULL,
+    SCHEDULE_FEED_NEXT_BUSY,
+} schedule_feed_next_t;
+
+/* Side-effect-free check before a requested meal: OK, SKIPPED_LIMIT or SKIPPED_FULL. */
+typedef schedule_fire_result_t (*schedule_precheck_fn)(void);
+void schedule_set_precheck_fn(schedule_precheck_fn fn);
+schedule_feed_next_t schedule_feed_next(void);
+const char *schedule_feed_next_reason(schedule_feed_next_t r);
 void schedule_on_dispense_complete(const schedule_dispense_result_t *result);
 
 bool schedule_active_slot(uint8_t *hour_out, uint8_t *min_out);

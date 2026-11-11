@@ -13,11 +13,22 @@
 #include "mqtt_bowl_weight.h"
 #include "mqtt_battery.h"
 #include "mqtt_battery_voltage.h"
+#include "hopper_input.h"
 #include "mqtt_hopper.h"
 #include "mqtt_mains.h"
 #include "mqtt_timezone.h"
 #include "mqtt_schedule.h"
 #include "mqtt_config.h"
+#include "mqtt_child_lock.h"
+#include "mqtt_display.h"
+#include "mqtt_eaten_today.h"
+#include "mqtt_dispense_amount.h"
+#include "mqtt_problem.h"
+#include "feed_limit.h"
+#include "mqtt_dispense_progress.h"
+#include "mqtt_portion.h"
+#include "mqtt_power.h"
+#include "ota_base.h"
 #include "mqtt_feed_mode.h"
 #include "mqtt_feed_overfill.h"
 #include "hopper_level.h"
@@ -53,6 +64,17 @@ void app_mqtt_on_connected(void)
     mqtt_config_connect_snapshot();
     mqtt_feed_mode_connect_snapshot();
     mqtt_feed_overfill_connect_snapshot();
+    mqtt_child_lock_connect_snapshot();
+    mqtt_display_connect_snapshot();
+    ota_base_connect_snapshot();
+    mqtt_power_connect_snapshot();
+    mqtt_portion_connect_snapshot();
+    mqtt_dispense_amount_connect_snapshot();
+    mqtt_dispense_progress_connect_snapshot();
+    mqtt_problem_connect_snapshot();
+    mqtt_feed_limit_connect_snapshot();
+    mqtt_eaten_today_connect_snapshot();
+    mqtt_hopper_ir_connect_snapshot(hopper_input_last_raw());
 }
 
 void app_mqtt_dispatch(const char *topic,
@@ -82,6 +104,18 @@ void app_mqtt_dispatch(const char *topic,
     case MQTT_ROUTE_CMD_CONFIG:
     case MQTT_ROUTE_CMD_FEED_MODE:
     case MQTT_ROUTE_CMD_FEED_OVERFILL:
+    case MQTT_ROUTE_CMD_CHILD_LOCK:
+    case MQTT_ROUTE_CMD_DISPLAY:
+    case MQTT_ROUTE_CMD_CALIBRATE:
+    case MQTT_ROUTE_CMD_REBOOT:
+    case MQTT_ROUTE_CMD_EATEN_RESET:
+    case MQTT_ROUTE_CMD_OTA_BASE:
+    case MQTT_ROUTE_CMD_POWER:
+    case MQTT_ROUTE_CMD_PORTION_CAL:
+    case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
+    case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
+    case MQTT_ROUTE_CMD_SCHEDULE_FEED_NEXT:
+    case MQTT_ROUTE_CMD_FEED_LIMIT:
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:
     case MQTT_ROUTE_CMD_SCHEDULE_TOGGLE:

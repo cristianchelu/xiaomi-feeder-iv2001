@@ -78,3 +78,18 @@ device is doing and whether it needs attention.
 - Publishes a low-battery warning when the level is critically low (future).
 - At very low battery the feeder disables non-critical functions
   (display, Wi-Fi) and preserves power for scheduled feeding (future).
+
+## Problems and history
+
+- The feeder keeps its last 20 meals with the result and the reason of any
+  failure, readable on the web page even after a power cut.
+- When something needs attention (failed or empty-handed meal, empty hopper,
+  bowl missing during a meal, connection lost, clock not set, daily limit
+  reached, the pet has not eaten, firmware task stuck) Home Assistant shows a
+  **Problem** sensor with the reason, the web page shows a banner, and the
+  front panel alternates `Err` and a code with the bowl weight. The user
+  clears it with **Clear problem**.
+- The user can set a **not-eaten alert**: a problem is raised when the bowl has
+  not gone down some hours after a meal.
+- The feeder never restarts itself on a fault; it reports and waits for the
+  user. Details: [health-monitoring.md](../30-processes/health-monitoring.md).

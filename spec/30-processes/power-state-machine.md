@@ -67,6 +67,17 @@ power FSM and MQTT `source` field. Confirmed state and UART log always update on
 a debounced transition; `pop_transition` may drop events when the transition
 queue is full.
 
+### Implementation status
+
+Implemented: `power/battery_wifi` policy (`power_policy.c`: Wi-Fi connected on
+mains; on battery per setting; `scheduled_only` = up from 2 min before the next
+scheduled dispense until 2 min after a dispense), low-battery conservation
+(< 15 % on battery: `on` behaves as `scheduled_only`, screen off after ≤ 10 s),
+soft sleep (rear power long press: panel off, Wi-Fi policy off, scheduler paused;
+refused while dispensing; any rear power press wakes by rebooting), pin-hole
+long press (7 s) factory reset. **Not implemented:** hardware low-power sleep of
+the MT7682, pin-hole short press temporary AP, TLS.
+
 ### Normal → Battery
 
 1. P1.1 IRQ fires (mains removed).

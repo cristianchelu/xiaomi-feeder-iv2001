@@ -28,4 +28,13 @@ bool wifi_cred_is_stored(const config_port_t *cfg);
 
 bool wifi_cred_is_open_network(const char *pass);
 
+/* Trial credentials (web "change Wi-Fi"): tried once at the next connect,
+ * committed on success, dropped on failure so the old network comes back. */
+port_err_t wifi_cred_trial_save(const config_port_t *cfg, const char *ssid, const char *pass);
+port_err_t wifi_cred_trial_load(const config_port_t *cfg,
+                                char *ssid, size_t ssid_len,
+                                char *pass, size_t pass_len);
+port_err_t wifi_cred_trial_commit(const config_port_t *cfg);
+void wifi_cred_trial_drop(const config_port_t *cfg);
+
 #endif /* WIFI_CRED_H */

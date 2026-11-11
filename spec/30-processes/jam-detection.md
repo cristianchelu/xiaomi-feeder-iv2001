@@ -28,6 +28,16 @@ select P1.7 = low. During dispense, the mux stays on motor path.
 - Sampled at sub-millisecond intervals during motor run.
 - Uses a rolling timer: reset whenever ADC drops below threshold.
 
+### Stall (forcing without turning)
+
+Burst only: load between `[tune]` 220 mA and the sustained threshold for
+`[tune]` 2 s → jam (anti-jam reverse). Field trace: a stalled auger draws
+~280 mA with the beam frozen; normal rotation is 70–150 mA. Without this rule
+the stall was only caught by the 8 s index timeout. The stock firmware has no
+reverse in its feeding service (log strings: "motor run too short, ignore this
+trigger", "bowl weigh not change too mach time, feed out abort", "stuck grain");
+its reverse appears only in the factory aging test.
+
 ## Index-pulse timeout
 
 Applies to **dispense bursts only** (`MOTOR_PHASE_RUN_BURST`), not seal parking.
@@ -57,6 +67,10 @@ On jam signal from either path:
 | 4 | De-assert EN, re-check ADC | — |
 | 5 | If jam persists: toggle forward/reverse (wiggle sequence) | `[tune]` 500 ms each |
 | 6 | Repeat up to `[tune]` 3 retries total | — |
+
+After a successful recovery the **same burst resumes with its pulse count
+kept**: holes already turned stay counted (resetting them made every jam add
+extra portions).
 
 ## UART bring-up logging
 

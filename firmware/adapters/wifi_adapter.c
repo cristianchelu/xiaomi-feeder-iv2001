@@ -376,6 +376,14 @@ static port_err_t wifi_port_stop_ap(void)
     return PORT_OK;
 }
 
+static port_err_t wifi_port_get_rssi(int8_t *dbm)
+{
+    if (dbm == NULL) {
+        return PORT_ERR_INVALID_ARG;
+    }
+    return wifi_connection_get_rssi(dbm) >= 0 ? PORT_OK : PORT_ERR_IO;
+}
+
 static const wifi_port_t s_wifi_port = {
     .disconnect = wifi_port_disconnect,
     .radio_up = wifi_port_radio_up,
@@ -385,6 +393,7 @@ static const wifi_port_t s_wifi_port = {
     .wait_ready = wifi_port_wait_ready,
     .is_connected = wifi_port_is_connected,
     .get_ip = wifi_port_get_ip,
+    .get_rssi = wifi_port_get_rssi,
     .start_ap = wifi_port_start_ap,
     .stop_ap = wifi_port_stop_ap,
 };

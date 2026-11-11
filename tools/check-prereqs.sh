@@ -28,6 +28,10 @@ case "$mode" in
         require_cmd arm-none-eabi-g++
         require_cmd arm-none-eabi-objcopy
         sysroot="$(arm-none-eabi-gcc -print-sysroot 2>/dev/null || true)"
+        # Debian/Ubuntu report an empty sysroot and install newlib under /usr/lib/arm-none-eabi.
+        if [ -z "$sysroot" ] && [ -f /usr/lib/arm-none-eabi/include/stdio.h ]; then
+            sysroot=/usr/lib/arm-none-eabi
+        fi
         if [ -z "$sysroot" ] || [ ! -f "$sysroot/include/stdio.h" ]; then
             missing+=("arm-none-eabi newlib headers (stdio.h in sysroot)")
         fi

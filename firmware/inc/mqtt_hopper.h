@@ -6,6 +6,7 @@
 #define MQTT_HOPPER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "hopper_level.h"
 
@@ -14,6 +15,9 @@ void mqtt_hopper_sync(hopper_level_state_t level);
 void mqtt_hopper_connect_snapshot(hopper_level_state_t level);
 void mqtt_hopper_on_mqtt_connected(void);
 void mqtt_hopper_on_outbox_reset(void);
+/* raw: -1 unknown, 0 clear, 1 blocked. Publishes only on change. */
+void mqtt_hopper_ir_sync(int8_t raw);
+void mqtt_hopper_ir_connect_snapshot(int8_t raw);
 bool mqtt_hopper_format_wire(char *buf, size_t len);
 
 void mqtt_hopper_test_reset(void);

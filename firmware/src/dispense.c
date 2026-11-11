@@ -4,12 +4,25 @@
 
 #include "dispense.h"
 
+#include <stdio.h>
+#include <string.h>
+#include "motor_ctrl.h"
+#include "mqtt_dispense_progress.h"
+#include "mqtt_portion.h"
+#include "portion_estimate.h"
+
 #include "app.h"
 #include "app_event.h"
 #include "app_log.h"
 #include "auto_tare.h"
 #include "bowl_error.h"
 #include "dispense_cli.h"
+#include "eaten_today.h"
+#include "feed_history.h"
+#include "feed_limit.h"
+#include "mqtt_port.h"
+#include "problem.h"
+#include "time_sync.h"
 #include "display_dispense_indicator.h"
 #include "feed_config.h"
 #include "feeder_runtime.h"
@@ -38,6 +51,9 @@ static dispense_outcome_t s_outcome;
 static dispense_source_t s_source;
 static uint8_t s_portions;
 static uint8_t s_total_portions;
+static uint8_t s_batch_portions;   /* portions of the batch being weighed */
+static bool s_cal_requested;       /* next portions job is a portion calibration */
+static bool s_portion_cal;         /* current job is a portion calibration */
 static uint16_t s_target_grams;
 static weight_dg_t s_target_dg;
 static bool s_gram_job;
@@ -48,10 +64,220 @@ static weight_dg_t s_last_settle_dg;
 static bool s_baseline_valid;
 static uint32_t s_settle_start_ms;
 static uint8_t s_zero_delta_streak;
+static motor_run_stats_t s_job_motor;   /* accumulated over the job's bursts */
+static bool s_bowl_at_start;
+
+static void dispense_accumulate_motor(void)
+{
+    motor_run_stats_t r;
+
+    motor_ctrl_last_run(&r);
+    s_job_motor.pulses = (uint8_t)(s_job_motor.pulses + r.pulses);
+    s_job_motor.antijam = (uint8_t)(s_job_motor.antijam + r.antijam);
+    s_job_motor.poll_ok = (uint16_t)(s_job_motor.poll_ok + r.poll_ok);
+    s_job_motor.poll_busy = (uint16_t)(s_job_motor.poll_busy + r.poll_busy);
+    s_job_motor.poll_err = (uint16_t)(s_job_motor.poll_err + r.poll_err);
+    s_job_motor.dur_ms += r.dur_ms;
+    if (r.max_ma > s_job_motor.max_ma) {
+        s_job_motor.max_ma = r.max_ma;
+    }
+    if (r.why != NULL && strcmp(r.why, "-") != 0) {
+        s_job_motor.why = r.why;
+    }
+    if (r.jam != NULL && strcmp(r.jam, "-") != 0) {
+        s_job_motor.jam = r.jam;
+    }
+}
+
+static void dispense_job_stats_begin(void)
+{
+    memset(&s_job_motor, 0, sizeof(s_job_motor));
+    s_job_motor.why = "-";
+    s_job_motor.jam = "-";
+}
+
+static char dispense_source_char(dispense_source_t src)
+{
+    switch (src) {
+    case DISPENSE_SOURCE_SCHEDULE:
+        return 's';
+    case DISPENSE_SOURCE_BUTTON:
+        return 'b';
+    default:
+        return 'm';
+    }
+}
+
+static const char *dispense_outcome_label(dispense_outcome_t o)
+{
+    switch (o) {
+    case DISPENSE_OUTCOME_SUCCESS:
+        return "ok";
+    case DISPENSE_OUTCOME_UNDERFILL:
+        return "underfill";
+    case DISPENSE_OUTCOME_STUCK:
+        return "stuck";
+    case DISPENSE_OUTCOME_EMPTY_HOPPER:
+        return "empty_hopper";
+    default:
+        return "aborted";
+    }
+}
+
+static void dispense_record_base(feed_record_t *r, dispense_source_t src, uint16_t want_g)
+{
+    const mqtt_port_t *mqtt = mqtt_port_get();
+    int64_t epoch = 0;
+
+    memset(r, 0, sizeof(*r));
+    if (time_sync_get_utc_epoch(&epoch) && epoch > 0) {
+        r->t = (uint32_t)epoch;
+    }
+    r->day = eaten_today_day_key_now();
+    r->src = dispense_source_char(src);
+    r->want = want_g;
+    strcpy(r->why, "-");
+    strcpy(r->jam, "-");
+    r->mqtt = mqtt != NULL && mqtt->is_connected != NULL && mqtt->is_connected();
+    r->bowl = true;
+}
+
+void dispense_record_refused(dispense_source_t src, uint16_t want_g)
+{
+    feed_record_t r;
+
+    dispense_record_base(&r, src, want_g);
+    strcpy(r.res, "limit");
+    feed_history_add(&r);
+    feed_counter_inc(FEED_COUNTER_FAILED);
+    problem_raise(PROBLEM_DAILY_LIMIT, "limit reached");
+    app_log_info("dispense", "daily limit reached: %u g refused", (unsigned)want_g);
+    mqtt_feed_limit_sync();
+}
+
+/* Daily limit before a job (health-monitoring.md § Daily limit).
+ * Returns false when refused; *portions_io is shortened when needed. */
+static bool dispense_limit_gate(dispense_source_t src, uint16_t want_g, uint8_t *portions_io)
+{
+    uint32_t rem;
+    weight_dg_t est = portion_estimate_dg();
+    uint32_t want_dg = (uint32_t)*portions_io * (uint32_t)est;
+
+    if (src == DISPENSE_SOURCE_UART || !feed_limit_remaining_g(&rem)) {
+        return true;
+    }
+    if (rem == 0u) {
+        dispense_record_refused(src, want_g);
+        return false;
+    }
+    if (want_dg > (uint32_t)WEIGHT_G_TO_DG(rem)) {
+        uint32_t p = (uint32_t)WEIGHT_G_TO_DG(rem) / (uint32_t)est;
+
+        *portions_io = (uint8_t)(p < 1u ? 1u : p);
+        problem_raise(PROBLEM_DAILY_LIMIT, "meal shortened");
+        app_log_info("dispense", "daily limit: %lu g left, %u portion(s)",
+                     (unsigned long)rem, (unsigned)*portions_io);
+    }
+    return true;
+}
+
+static void dispense_note_bowl_at_start(void)
+{
+    const weight_port_t *wp = weight_port_get();
+    weight_cal_status_t cal = (wp != NULL && wp->get_cal_status != NULL) ? wp->get_cal_status()
+                                                                       : WEIGHT_CAL_UNCALIBRATED;
+
+    s_bowl_at_start = !(s_baseline_valid &&
+                        bowl_error_eval(cal, true, s_baseline_dg) == BOWL_ERROR_BOWL_MISSING);
+    if (!s_bowl_at_start) {
+        problem_raise(PROBLEM_BOWL_MISSING, NULL);
+        app_log_info("dispense", "bowl missing at start: dispensing anyway");
+    }
+}
+
+/* History, counters, problems, learning, not-eaten (health-monitoring.md). */
+static void dispense_after_job(uint32_t now_ms, int32_t grams, bool measured, int32_t raw_delta,
+                               bool was_calibration)
+{
+    feed_record_t r;
+    bool ok = s_outcome == DISPENSE_OUTCOME_SUCCESS || s_outcome == DISPENSE_OUTCOME_UNDERFILL;
+
+    if (s_source == DISPENSE_SOURCE_UART) {
+        return;
+    }
+    dispense_record_base(&r, s_source, s_gram_job ? s_target_grams : 0u);
+    r.got = (int16_t)grams;
+    r.meas = measured;
+    (void)snprintf(r.res, sizeof(r.res), "%s", dispense_outcome_label(s_outcome));
+    r.por = s_total_portions;
+    r.pul = s_job_motor.pulses;
+    r.aj = s_job_motor.antijam;
+    (void)snprintf(r.why, sizeof(r.why), "%s", s_job_motor.why != NULL ? s_job_motor.why : "-");
+    (void)snprintf(r.jam, sizeof(r.jam), "%s", s_job_motor.jam != NULL ? s_job_motor.jam : "-");
+    r.ok = s_job_motor.poll_ok;
+    r.busy = s_job_motor.poll_busy;
+    r.err = s_job_motor.poll_err;
+    r.ma = s_job_motor.max_ma;
+    r.dur = (uint16_t)((s_job_motor.dur_ms + 500u) / 1000u);
+    r.bowl = s_bowl_at_start;
+    feed_history_add(&r);
+
+    feed_counter_inc(ok ? FEED_COUNTER_OK : FEED_COUNTER_FAILED);
+    feed_counter_add(FEED_COUNTER_JAMS, s_job_motor.antijam);
+
+    if (!ok) {
+        problem_raise(PROBLEM_FEED_FAILED, r.res);
+    } else if (measured && raw_delta < 10) {
+        problem_raise(PROBLEM_FEED_FAILED, "nothing fell");
+    } else if (s_outcome == DISPENSE_OUTCOME_SUCCESS) {
+        problem_clear(PROBLEM_FEED_FAILED);
+    }
+
+    if (!was_calibration && measured && s_outcome == DISPENSE_OUTCOME_SUCCESS && raw_delta > 0 &&
+        portion_estimate_learn((weight_dg_t)raw_delta, s_total_portions)) {
+        mqtt_portion_sync();
+    }
+    if (measured && raw_delta > 0) {
+        feed_not_eaten_on_feed((weight_dg_t)raw_delta, now_ms);
+    }
+    mqtt_feed_limit_sync();
+}
+
+static void dispense_progress_publish(void)
+{
+    uint8_t before = (uint8_t)(s_total_portions - s_batch_portions);
+    uint8_t done;
+
+    switch (s_phase) {
+    case DISPENSE_PHASE_MOTOR:
+        done = (uint8_t)(before + motor_ctrl_pulses());
+        if (done > s_total_portions) {
+            done = s_total_portions;
+        }
+        mqtt_dispense_progress_update("running", done, s_total_portions,
+                                      (weight_dg_t)done * portion_estimate_dg());
+        break;
+    case DISPENSE_PHASE_SETTLE:
+        mqtt_dispense_progress_update("weighing", s_total_portions, s_total_portions,
+                                      (weight_dg_t)s_total_portions * portion_estimate_dg());
+        break;
+    default:
+        mqtt_dispense_progress_update("idle", 0u, 0u, 0);
+        break;
+    }
+}
+
+void dispense_progress_poll(void)
+{
+    if (s_phase == DISPENSE_PHASE_MOTOR) {
+        dispense_progress_publish();
+    }
+}
 
 static void dispense_sync_runtime_active(void)
 {
     feeder_runtime_set_dispense_active(s_job_pending || s_phase != DISPENSE_PHASE_NONE);
+    dispense_progress_publish();
 }
 
 static bool dispense_capture_baseline(uint32_t now_ms)
@@ -179,10 +405,26 @@ static void dispense_publish_terminal(uint32_t now_ms,
 {
     dispense_completion_t completion;
 
+    bool was_calibration = s_portion_cal;
+
     s_outcome = hopper_level_on_dispense_finished(s_outcome,
                                                   raw_delta,
                                                   measured,
                                                   now_ms);
+
+    if (s_portion_cal) {
+        if (measured && raw_delta > 0 && s_outcome == DISPENSE_OUTCOME_SUCCESS) {
+            (void)portion_estimate_calibrate((weight_dg_t)raw_delta, s_total_portions);
+        } else {
+            app_log_info("dispense", "portion calibration failed (measured %d delta %ld outcome %d)",
+                         (int)measured, (long)raw_delta, (int)s_outcome);
+            portion_estimate_calibration_failed();
+        }
+        s_portion_cal = false;
+        mqtt_portion_sync();
+    }
+
+    dispense_after_job(now_ms, event_grams, measured, raw_delta, was_calibration);
 
     completion.grams = event_grams;
     completion.grams_estimated = !measured;
@@ -302,9 +544,13 @@ static void dispense_after_settle(uint32_t now_ms)
             raw_delta_dg = 0;
             batch_delta_dg = 0;
         }
-        dg_delivered = (weight_dg_t)s_total_portions * (weight_dg_t)DISPENSE_GRAMS_PER_PORTION_DG;
-        event_grams = (int32_t)s_total_portions * (int32_t)DISPENSE_GRAMS_PER_PORTION;
+        dg_delivered = (weight_dg_t)s_total_portions * portion_estimate_dg();
+        event_grams = WEIGHT_DG_TO_G_ROUND(dg_delivered);
     }
+
+    app_log_info("dispense", "settle: base %ld post %ld dg (valid %d/%d) measured %d portions %u batch %u",
+                 (long)s_baseline_dg, (long)post_dg, (int)s_baseline_valid, (int)post_valid,
+                 (int)measured, (unsigned)s_total_portions, (unsigned)s_batch_count);
 
     if (s_outcome == DISPENSE_OUTCOME_STUCK) {
         dispense_publish_terminal(now_ms, event_grams, measured, raw_delta_dg);
@@ -345,7 +591,7 @@ static void dispense_after_settle(uint32_t now_ms)
         uint8_t extra;
         port_err_t err;
 
-        extra = (uint8_t)(deficit_dg / (weight_dg_t)DISPENSE_GRAMS_PER_PORTION_DG);
+        extra = portion_estimate_portions_for_dg(deficit_dg, DISPENSE_PORTIONS_MAX);
         if (extra < 1u) {
             extra = 1u;
         }
@@ -361,11 +607,24 @@ static void dispense_after_settle(uint32_t now_ms)
         }
 
         s_total_portions = (uint8_t)(s_total_portions + extra);
+        s_batch_portions = extra;
         s_batch_count++;
         s_phase = DISPENSE_PHASE_MOTOR;
         s_settle_start_ms = 0u;
         dispense_sync_runtime_active();
     }
+}
+
+dispense_submit_result_t dispense_submit_portion_cal(dispense_source_t source)
+{
+    dispense_submit_result_t r;
+
+    s_cal_requested = true;
+    r = dispense_submit_portions(PORTION_CAL_PORTIONS, source);
+    if (r != DISPENSE_SUBMIT_OK) {
+        s_cal_requested = false;
+    }
+    return r;
 }
 
 dispense_submit_result_t dispense_submit_portions(uint8_t portions,
@@ -479,20 +738,27 @@ void dispense_start_from_request(const app_dispense_request_t *req)
             return;
         }
 
-        portions = (uint8_t)((grams + DISPENSE_GRAMS_PER_PORTION - 1u) /
-                             DISPENSE_GRAMS_PER_PORTION);
+        portions = portion_estimate_portions_for_dg(WEIGHT_G_TO_DG(grams), DISPENSE_PORTIONS_MAX);
         if (portions < DISPENSE_PORTIONS_MIN) {
             portions = DISPENSE_PORTIONS_MIN;
         }
         if (portions > DISPENSE_PORTIONS_MAX) {
             portions = DISPENSE_PORTIONS_MAX;
         }
+        if (!dispense_limit_gate(req->source, grams, &portions)) {
+            dispense_cli_cancel_wait();
+            s_job_pending = false;
+            dispense_sync_runtime_active();
+            return;
+        }
+        dispense_job_stats_begin();
 
         s_target_grams = grams;
         s_target_dg = WEIGHT_G_TO_DG(grams);
         s_gram_job = true;
         s_portions = portions;
         s_total_portions = portions;
+        s_batch_portions = portions;
         s_source = req->source;
         s_mode = dispense_resolve_mode(req);
         s_batch_count = 1u;
@@ -504,6 +770,7 @@ void dispense_start_from_request(const app_dispense_request_t *req)
         now_ms = (uint32_t)(xTaskGetTickCount() * (TickType_t)portTICK_PERIOD_MS);
         (void)dispense_capture_baseline(now_ms);
         s_last_settle_dg = s_baseline_valid ? s_baseline_dg : 0;
+        dispense_note_bowl_at_start();
 
         if (display_dispense_indicator_active() != PORT_OK) {
             app_log_info("dispense", "indicator unavailable");
@@ -540,14 +807,32 @@ void dispense_start_from_request(const app_dispense_request_t *req)
         return;
     }
 
+    {
+        uint16_t want_g = (uint16_t)WEIGHT_DG_TO_G_ROUND((weight_dg_t)portions * portion_estimate_dg());
+
+        if (!s_cal_requested && !dispense_limit_gate(req->source, want_g, &portions)) {
+            dispense_cli_cancel_wait();
+            s_job_pending = false;
+            dispense_sync_runtime_active();
+            return;
+        }
+    }
+    dispense_job_stats_begin();
     s_job_pending = false;
     s_gram_job = false;
     s_portions = portions;
     s_total_portions = portions;
-    s_target_grams = (uint16_t)portions * DISPENSE_GRAMS_PER_PORTION;
-    s_target_dg = WEIGHT_G_TO_DG(s_target_grams);
+    s_batch_portions = portions;
+    s_target_dg = (weight_dg_t)portions * portion_estimate_dg();
+    s_target_grams = (uint16_t)WEIGHT_DG_TO_G_ROUND(s_target_dg);
     s_source = req->source;
     s_mode = dispense_resolve_mode(req);
+    s_portion_cal = s_cal_requested;
+    s_cal_requested = false;
+    if (s_portion_cal) {
+        s_mode = DISPENSE_MODE_OPEN_LOOP;   /* weigh exactly the holes turned */
+        app_log_info("dispense", "portion calibration: %u portions", (unsigned)portions);
+    }
     s_batch_count = 1u;
     s_zero_delta_streak = 0u;
     s_phase = DISPENSE_PHASE_MOTOR;
@@ -556,6 +841,7 @@ void dispense_start_from_request(const app_dispense_request_t *req)
     now_ms = (uint32_t)(xTaskGetTickCount() * (TickType_t)portTICK_PERIOD_MS);
     (void)dispense_capture_baseline(now_ms);
     s_last_settle_dg = s_baseline_valid ? s_baseline_dg : 0;
+    dispense_note_bowl_at_start();
 
     if (display_dispense_indicator_active() != PORT_OK) {
         app_log_info("dispense", "indicator unavailable");
@@ -577,6 +863,7 @@ bool dispense_on_burst_done(void)
         return false;
     }
 
+    dispense_accumulate_motor();
     dispense_begin_settle(DISPENSE_OUTCOME_SUCCESS);
     return true;
 }
@@ -587,6 +874,7 @@ bool dispense_on_motor_fault(void)
         return false;
     }
 
+    dispense_accumulate_motor();
     dispense_begin_settle(DISPENSE_OUTCOME_STUCK);
     return true;
 }
@@ -616,12 +904,16 @@ uint8_t dispense_test_zero_delta_streak(void)
 
 void dispense_test_reset(void)
 {
+    portion_estimate_test_reset();
+    s_cal_requested = false;
+    s_portion_cal = false;
     s_job_pending = false;
     s_phase = DISPENSE_PHASE_NONE;
     s_outcome = DISPENSE_OUTCOME_SUCCESS;
     s_source = DISPENSE_SOURCE_MQTT;
     s_portions = 0u;
     s_total_portions = 0u;
+    s_batch_portions = 0u;
     s_gram_job = false;
     s_mode = DISPENSE_MODE_OPEN_LOOP;
     s_batch_count = 0u;

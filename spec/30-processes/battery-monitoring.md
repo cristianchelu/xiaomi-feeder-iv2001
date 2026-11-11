@@ -75,6 +75,13 @@ new enum value and knot table. Runtime selection via NVDM `power/batt_chemistry`
 Interpolate linearly between knots; clamp below/above range. Refine with bench
 measurements. `[tune]`
 
+### Plausibility
+
+The pack is 4×AA (≤ ~6.4 V). A conversion above `[tune]` 7500 mV is a
+mis-read (floating mux pin near ADC full scale): it is discarded, the last
+good value is kept and `[battery] battery read implausible <mV> mV (mains
+<on|off>): ignored` is logged.
+
 ## Sample interval
 
 | Power source | Interval | Source |
@@ -96,7 +103,7 @@ Power source from debounced `power_source_input` ([power-state-machine.md](power
 
 | Topic | Payload | When |
 |-------|---------|------|
-| `.../battery` | Plain integer `0`–`100`, or `unknown` when pack ADC is 0 mV | After ADC sample when % changes ≥ 1 pt, known ↔ unknown transition, connect snapshot, or forced resample |
+| `.../battery` | Plain integer `0`–`100`, or `unknown` when pack ADC reads under 1500 mV (no pack / floating holder) | After ADC sample when % changes ≥ 1 pt, known ↔ unknown transition, connect snapshot, or forced resample |
 | `.../battery_voltage` | Plain integer pack mV (including `0`) | Same sample tick as `.../battery` |
 | `.../mains` | `ON` / `OFF` | Immediately on debounced mains connect/loss; connect snapshot |
 

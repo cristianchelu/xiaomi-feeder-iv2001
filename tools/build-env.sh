@@ -91,6 +91,10 @@ if ! command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 fi
 
 ARM_GCC_SYSROOT="$(arm-none-eabi-gcc -print-sysroot 2>/dev/null || true)"
+# Debian/Ubuntu report an empty sysroot and install newlib under /usr/lib/arm-none-eabi.
+if [ -z "$ARM_GCC_SYSROOT" ] && [ -f /usr/lib/arm-none-eabi/include/stdio.h ]; then
+    ARM_GCC_SYSROOT=/usr/lib/arm-none-eabi
+fi
 if [ -z "$ARM_GCC_SYSROOT" ] || [ ! -f "$ARM_GCC_SYSROOT/include/stdio.h" ]; then
     echo "ERROR: arm-none-eabi-gcc sysroot lacks newlib headers (stdio.h)"
     echo "Run: ./tools/check-prereqs.sh target"

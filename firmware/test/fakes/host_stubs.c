@@ -32,7 +32,14 @@ int wifi_config_get_mac_address(wifi_hal_port_t port, uint8_t mac[6])
     return 0;
 }
 
+static bool s_host_provision_active;
+
+void host_stub_set_provision_active(bool active)
+{
+    s_host_provision_active = active;
+}
+
 bool provision_is_active(void)
 {
-    return false;
+    return s_host_provision_active;
 }

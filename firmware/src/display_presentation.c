@@ -42,6 +42,7 @@ static struct {
     uint32_t steady_icons;
     uint8_t brightness;
     bool powered;
+    bool blanked;
 
     display_blink_slot_t blinks[DISPLAY_PRESENTATION_MAX_BLINKS];
     display_pattern_slot_t patterns[DISPLAY_PRESENTATION_MAX_PATTERNS];
@@ -60,6 +61,9 @@ static struct {
 
     uint32_t last_now_ms;
     bool scene_dirty;
+
+    bool overlay_active;
+    uint8_t overlay[3];
 } s_pres;
 
 static void presentation_mark_scene_dirty(void)
@@ -276,6 +280,24 @@ port_err_t display_presentation_clear_digits(void)
     return PORT_OK;
 }
 
+port_err_t display_presentation_set_overlay(const uint8_t segs[3])
+{
+    if (segs == NULL) {
+        if (s_pres.overlay_active) {
+            s_pres.overlay_active = false;
+            presentation_mark_scene_dirty();
+        }
+        return PORT_OK;
+    }
+    if (s_pres.overlay_active && memcmp(s_pres.overlay, segs, 3u) == 0) {
+        return PORT_OK;
+    }
+    memcpy(s_pres.overlay, segs, 3u);
+    s_pres.overlay_active = true;
+    presentation_mark_scene_dirty();
+    return PORT_OK;
+}
+
 port_err_t display_presentation_set_unit(display_unit_t unit)
 {
     s_pres.unit = unit;
@@ -308,6 +330,9 @@ port_err_t display_presentation_set_brightness(uint8_t level)
     }
 
     s_pres.brightness = level;
+    if (s_pres.blanked && !s_pres.ota_active) {
+        return PORT_OK;
+    }
     if (dp == NULL || dp->set_brightness == NULL) {
         return PORT_ERR_IO;
     }
@@ -555,6 +580,27 @@ port_err_t display_presentation_power_off(void)
     return err;
 }
 
+port_err_t display_presentation_set_blanked(bool blanked)
+{
+    const display_port_t *dp = display_port_get();
+    port_err_t err;
+
+    s_pres.blanked = blanked;
+    if (!blanked) {
+        presentation_mark_scene_dirty();
+        return display_presentation_refresh();
+    }
+
+    if (dp == NULL) {
+        return PORT_ERR_IO;
+    }
+    err = dp->power_off();
+    if (err == PORT_OK) {
+        s_pres.powered = false;
+    }
+    return err;
+}
+
 port_err_t display_presentation_refresh(void)
 {
     const display_port_t *dp = display_port_get();
@@ -563,6 +609,17 @@ port_err_t display_presentation_refresh(void)
 
     if (dp == NULL || dp->show_grids == NULL) {
         return PORT_ERR_IO;
+    }
+
+    if (s_pres.blanked && !s_pres.ota_active) {
+        if (s_pres.powered) {
+            err = dp->power_off();
+            if (err != PORT_OK) {
+                return err;
+            }
+            s_pres.powered = false;
+        }
+        return PORT_OK;
     }
 
     err = presentation_ensure_power();
@@ -581,6 +638,14 @@ port_err_t display_presentation_refresh(void)
         presentation_compose_ota_grids(grids);
     } else if (s_pres.anim_running && s_pres.anim != NULL) {
         memcpy(grids, s_pres.anim->frames[s_pres.anim_frame], sizeof(grids));
+    } else if (s_pres.overlay_active) {
+        /* Problem code (display-presentation.md § Problem code): digits
+         * replaced, gram unit hidden, icons unchanged. */
+        display_compose_grids(false, 0u, DISPLAY_UNIT_NONE,
+                              presentation_effective_icon_mask(), grids);
+        grids[0] = s_pres.overlay[0];
+        grids[1] = s_pres.overlay[1];
+        grids[2] = s_pres.overlay[2];
     } else if (s_pres.digits_valid && s_pres.digits_dash) {
         uint32_t icons = presentation_effective_icon_mask();
 

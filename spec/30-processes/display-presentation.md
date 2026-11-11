@@ -38,6 +38,13 @@ for `[tune]` 1000 ms, then black. Driver provides `show_fill` / `blank`; policy
 lives here and in `display_boot.c`. Hardware steps:
 [display-driver.md](display-driver.md) § Boot self-test.
 
+## Problem code
+
+While a problem is active the digits cycle `Err` → `E <code>` → normal content
+([health-monitoring.md](health-monitoring.md) § Problem state). The overlay
+replaces only the three digit grids and hides the gram unit; it never shows
+during a dispense, OTA, animation or idle blank.
+
 ## Wi-Fi indicator
 
 `display_wifi_indicator.c` drives `DISPLAY_ICON_WIFI`. Wi-Fi lifecycle
@@ -109,6 +116,14 @@ first on-phase is visible before the next `EVT_DISPLAY_TICK`.
 In **compensated** gram dispense, the job (and blink) remain active through
 post-motor weigh settle until bowl grams are stabilized and the display is
 updated — see [weight-compensation.md](weight-compensation.md).
+
+## Status lightbar health
+
+With the broker connected the bar shows device health: **green** when healthy,
+**steady orange** while any problem is active — bowl error (missing bowl or
+calibration incomplete), hopper `low`/`empty`, or battery below 15 % **while running on battery**. The
+connecting blink and error pattern below take precedence when MQTT is not
+connected. `display_mqtt_indicator_set_problem()` is fed by `app`.
 
 ## MQTT indicator (status lightbar)
 
@@ -211,7 +226,7 @@ or pin masks.
 | `display_presentation_clear_digits()` | Blanks grids 0–2 until the next `set_digits` |
 | `display_presentation_set_unit(unit)` | `NONE`, `PERCENT`, or `GRAM` — lights unit pictograph on grid 3 |
 | `display_presentation_icon_set(icon, on)` | Toggle one pictograph by `display_icon_t` label |
-| `display_presentation_set_brightness(level)` | 1–4; default `[tune]` 4 |
+| `display_presentation_set_brightness(level)` | 1–4; default `[tune]` 4 (app maps persisted brightness 0 to `set_blanked(true)`) |
 
 Values above 999 are rejected with `PORT_ERR_INVALID_ARG`.
 
@@ -335,7 +350,7 @@ on** all three digit grids (`0x40` OR'd into each grid byte). Grids 3–4 are
 
 | Mode | Content | When | Update rate |
 |------|---------|------|-------------|
-| **Weight** | Presented bowl mass when calibrated and sampled (auto-tare — see [auto-tare.md](auto-tare.md)): **whole grams rounded** from internal tenth-grams (e.g. 423 dg → `  42g`); uncalibrated → `---g`; calibrated bowl missing → `-  g`; calibrated, no sample yet → blank digits + `g` | Default idle (hardcoded in `app` until `cmd/display` lands) | `[tune]` 500 ms (2 Hz) |
+| **Weight** | Presented bowl mass when calibrated and sampled (auto-tare — see [auto-tare.md](auto-tare.md)): **whole grams rounded** from internal tenth-grams (e.g. 423 dg → `  42g`); uncalibrated → `---g`; calibrated bowl missing → `-  g`; calibrated, no sample yet → blank digits + `g` | Default idle mode (persisted `display/mode`) | `[tune]` 500 ms (2 Hz) |
 | **Eaten today** | Cumulative grams consumed since midnight (e.g. `  85g`) | User-selected idle alternative | `[tune]` 500 ms (2 Hz) |
 | **Off** | All segments blank | Sleep or user preference | — |
 
@@ -356,6 +371,37 @@ local midnight per [monitoring.md](../20-stories/monitoring.md).
   [display-driver.md](display-driver.md)).
 - Configurable via MQTT `cmd/display`; default `[tune]` level 4 `[probe]`.
 - Stored in NVDM `display/brightness`.
+
+## Blanked panel (mode `off`)
+
+`display_presentation_set_blanked(true)` powers the panel down and makes
+`display_presentation_refresh()` a no-op that keeps it dark; scene state
+(digits, icons, blinks) keeps updating in memory so `set_blanked(false)`
+restores the current scene immediately. Exception: while the OTA indicator is
+active the panel is powered and shown; when the OTA indicator stops, a blanked
+panel is powered down again on the next refresh. `display_presentation_set_brightness`
+while blanked stores the level without powering the panel. `app` applies the
+persisted mode and brightness on boot (after `display_presentation_reset`) and
+after every successful `cmd/display`.
+
+## Idle blank on battery
+
+On battery the panel is the largest avoidable draw, so it blanks after
+inactivity (`display_idle`, pure logic over `display_presentation_set_blanked`):
+
+- Setting `display/battery_off_s` (0–600 s, default `[tune]` 60; **0 =
+  disabled**), set through `cmd/display` key `battery_off_s`.
+- Setting `display/mains_off_s` (0–3600 s, default 0 = never), set through
+  `cmd/display` key `mains_off_s`.
+- Blank when no *activity* for the delay of the current debounced power
+  source (`battery_off_s` on battery, `mains_off_s` on mains); a delay of 0
+  never blanks.
+- *Activity* = any button edge, a dispense in progress, the OTA indicator,
+  a `cmd/display` change, or a power-source change. Any activity wakes the panel
+  within one display tick (50 ms).
+- Idle blank and mode `off` combine with OR: the panel is blanked when either
+  is true. Idle blank never changes the stored mode.
+- MQTT bowl state keeps publishing while blanked (same as mode `off`).
 
 ## Lock indicator
 

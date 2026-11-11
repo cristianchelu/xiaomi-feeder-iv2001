@@ -9,6 +9,8 @@
 #include "timers.h"
 
 #include "app.h"
+#include "feed_history.h"
+#include "task_watch.h"
 #include "app_event.h"
 #include "app_event_port.h"
 #include "aw9523_irq_adapter.h"
@@ -74,6 +76,11 @@ static schedule_fire_result_t app_schedule_fire(uint8_t hour, uint8_t min, uint8
     return feed_schedule_fire(g, now_ms);
 }
 
+static schedule_fire_result_t app_schedule_precheck(void)
+{
+    return feed_schedule_precheck((uint32_t)(xTaskGetTickCount() * (TickType_t)portTICK_PERIOD_MS));
+}
+
 static void app_timers_start(void)
 {
     display_presentation_reset();
@@ -120,6 +127,7 @@ static void app_task_fn(void *param)
     for (;;) {
         /* power-state-machine.md § Watchdog: one feed per loop iteration. */
         wdt_adapter_feed();
+        task_watch_beat(TASK_WATCH_APP);
 
         if (!app_event_receive(&ev, APP_DISPLAY_TICK_MS)) {
             app_dispatch_display_tick(
@@ -133,13 +141,16 @@ static void app_task_fn(void *param)
 
 void app_start(void)
 {
+    app_lock_init();
     app_event_port_init();
     wdt_adapter_log_reset_reason();
+    feed_counter_inc(FEED_COUNTER_BOOTS);
     time_sync_init();
     tz_rule_init();
     schedule_init();
     schedule_set_changed_fn(mqtt_schedule_request_publish);
     schedule_set_fire_fn(app_schedule_fire);
+    schedule_set_precheck_fn(app_schedule_precheck);
 
     if (s_app_task == NULL) {
         if (xTaskCreate(app_task_fn,

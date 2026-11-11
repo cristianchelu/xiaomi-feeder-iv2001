@@ -182,7 +182,7 @@ bool feed_config_mode_set(dispense_mode_t mode)
     return cfg->write(CONFIG_GROUP_FEED, CONFIG_KEY_FEED_MODE, stored) == PORT_OK;
 }
 
-static uint8_t feed_config_clamp_overfill_threshold(uint8_t threshold_g)
+static uint16_t feed_config_clamp_overfill_threshold(unsigned long threshold_g)
 {
     if (threshold_g < FEED_OVERFILL_THRESHOLD_G_MIN) {
         return FEED_OVERFILL_THRESHOLD_G_MIN;
@@ -192,7 +192,7 @@ static uint8_t feed_config_clamp_overfill_threshold(uint8_t threshold_g)
         return FEED_OVERFILL_THRESHOLD_G_MAX;
     }
 
-    return threshold_g;
+    return (uint16_t)threshold_g;
 }
 
 static bool feed_config_overfill_enabled_load(bool *out)
@@ -246,7 +246,7 @@ bool feed_config_overfill_enabled_set(bool enabled)
                       enabled ? "1" : "0") == PORT_OK;
 }
 
-static bool feed_config_overfill_threshold_load(uint8_t *out)
+static bool feed_config_overfill_threshold_load(uint16_t *out)
 {
     const config_port_t *cfg = config_port_get();
     char buf[8];
@@ -272,13 +272,13 @@ static bool feed_config_overfill_threshold_load(uint8_t *out)
     }
 
     parsed = strtoul(buf, NULL, 10);
-    *out = feed_config_clamp_overfill_threshold((uint8_t)parsed);
+    *out = feed_config_clamp_overfill_threshold(parsed);
     return true;
 }
 
-uint8_t feed_config_overfill_threshold_g_get(void)
+uint16_t feed_config_overfill_threshold_g_get(void)
 {
-    uint8_t threshold_g = FEED_OVERFILL_THRESHOLD_G_DEFAULT;
+    uint16_t threshold_g = FEED_OVERFILL_THRESHOLD_G_DEFAULT;
 
     if (!feed_config_overfill_threshold_load(&threshold_g)) {
         return FEED_OVERFILL_THRESHOLD_G_DEFAULT;
@@ -287,7 +287,7 @@ uint8_t feed_config_overfill_threshold_g_get(void)
     return threshold_g;
 }
 
-bool feed_config_overfill_threshold_g_set(uint8_t threshold_g)
+bool feed_config_overfill_threshold_g_set(uint16_t threshold_g)
 {
     const config_port_t *cfg = config_port_get();
     char buf[8];
