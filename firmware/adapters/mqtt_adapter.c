@@ -19,7 +19,7 @@
 #include "mqtt_adapter.h"
 #include "mqtt_port.h"
 
-#define MQTT_CMD_TIMEOUT_MS     12000
+#define MQTT_CMD_TIMEOUT_MS     4000   /* [tune] mqtt-protocol.md § Broker wait */
 #define MQTT_MUTEX_WAIT_MS      12000
 #define MQTT_TX_BUF_SIZE        1024
 #define MQTT_RX_BUF_SIZE        512

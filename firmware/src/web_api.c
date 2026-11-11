@@ -21,6 +21,7 @@
 #include "feed_history.h"
 #include "feed_limit.h"
 #include "problem.h"
+#include "task_watch.h"
 #include "dispense.h"
 #include "feed_config.h"
 #include "eaten_today.h"
@@ -297,6 +298,43 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
             if (off < 0) {
                 return -1;
             }
+        }
+    }
+
+    {
+        /* static: keeps the httpd task stack small (one httpd task) */
+        static char codes[64];
+        static char text[256];
+        static char lim[96];
+
+        (void)problem_format_codes(codes, sizeof(codes));
+        (void)problem_format_text(text, sizeof(text));
+        off = web_api_append(buf, len, off,
+                             ",\"problem\":{\"active\":%s,\"codes\":%s,\"text\":\"%s\"}",
+                             problem_active() ? "true" : "false", codes, text);
+        if (off < 0) {
+            return -1;
+        }
+        if (mqtt_feed_limit_format(lim, sizeof(lim)) > 0) {
+            off = web_api_append(buf, len, off, ",\"limit\":%s", lim);
+            if (off < 0) {
+                return -1;
+            }
+        }
+        off = web_api_append(buf, len, off,
+                             ",\"health\":{\"feeds_ok\":%lu,\"feeds_failed\":%lu,\"jams\":%lu,"
+                             "\"mqtt_lost\":%lu,\"boots\":%lu,\"stalls\":%lu,"
+                             "\"uptime_s\":%lu,\"reset\":\"%s\"}",
+                             (unsigned long)feed_counter_get(FEED_COUNTER_OK),
+                             (unsigned long)feed_counter_get(FEED_COUNTER_FAILED),
+                             (unsigned long)feed_counter_get(FEED_COUNTER_JAMS),
+                             (unsigned long)feed_counter_get(FEED_COUNTER_MQTT_LOST),
+                             (unsigned long)feed_counter_get(FEED_COUNTER_BOOTS),
+                             (unsigned long)feed_counter_get(FEED_COUNTER_STALLS),
+                             (unsigned long)(xTaskGetTickCount() * portTICK_PERIOD_MS / 1000u),
+                             boot_info_reset_reason());
+        if (off < 0) {
+            return -1;
         }
     }
 

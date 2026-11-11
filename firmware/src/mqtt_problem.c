@@ -28,8 +28,8 @@ void mqtt_problem_set_device_id(const char *device_id)
 
 int mqtt_problem_format(char *buf, size_t len)
 {
-    char codes[64];
-    char text[256];
+    static char codes[64];
+    static char text[256];
     feed_record_t r;
     int n;
 
@@ -69,7 +69,7 @@ int mqtt_problem_format(char *buf, size_t len)
 
 static void mqtt_problem_publish(bool force)
 {
-    char payload[MQTT_PROBLEM_PAYLOAD_MAX];
+    static char payload[MQTT_PROBLEM_PAYLOAD_MAX];   /* app task only */
 
     if (s_topic[0] == '\0' || mqtt_problem_format(payload, sizeof(payload)) < 0) {
         return;

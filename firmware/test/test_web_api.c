@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "unity.h"
+#include "feed_history.h"
+#include "problem.h"
 #include "app_log.h"
 
 #include "bowl_mass_present.h"
@@ -203,7 +205,7 @@ void test_web_api_post_display_sets_brightness_zero(void)
 
 void test_web_api_status_includes_settings(void)
 {
-    char buf[768];
+    char buf[4096];
 
     setup_status_synced();
     setup_status_telemetry();
@@ -229,7 +231,7 @@ void test_web_api_get_log_returns_recent_lines(void)
 void test_web_api_post_dispense_amount_and_ota_base(void)
 {
     char resp[64];
-    char buf[1536];
+    char buf[4096];
     const char amt[] = "{\"g\":25}";
     const char url[] = "http://10.0.0.5:8123/local/feeder";
 
@@ -284,4 +286,23 @@ void test_web_api_log_ring_skips_debug_lines(void)
     TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_LOG, buf, sizeof(buf)));
     TEST_ASSERT_NULL(strstr(buf, "debug-flood-marker"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "info-kept-marker"));
+}
+
+void test_web_api_status_has_problem_limit_health_and_history(void)
+{
+    char buf[4096];
+
+    fake_config_port_reset();
+    feed_history_test_reset();
+    problem_test_reset();
+    problem_raise(PROBLEM_FEED_FAILED, "stuck");
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_STATUS, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"problem\":{\"active\":true,\"codes\":[\"E1\"],\"text\":\"Feed failed (stuck)\"}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"limit\":{\"daily_max_g\":0,"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"health\":{\"feeds_ok\":0,"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"reset\":\""));
+    TEST_ASSERT_EQUAL(WEB_API_GET_HISTORY, web_api_classify("GET", "/api/history"));
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_HISTORY, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("[]", buf);
+    problem_test_reset();
 }
