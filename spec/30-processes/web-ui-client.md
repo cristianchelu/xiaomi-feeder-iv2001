@@ -86,7 +86,7 @@ produces the sorted `repeat_days` array for the POST body.
 
 ## Page layout
 
-Sticky tab bar (**Home** · **Schedule** · **Settings** · **System**); one pane
+Sticky tab bar (**Home** · **Schedule** · **Settings** · **System** · **Help**); one pane
 visible at a time (CSS `:checked` on hidden radios — no framework). Each pane is
 a column of titled cards; every card saves its own fields with one button.
 
@@ -121,6 +121,7 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 | Block | Behavior |
 |-------|----------|
 | Master toggles | Schedule / Today |
+| Feed next meal | `POST /api/schedule/feed_next`; refusal shown in words (no meal left today, daily limit, bowl full, busy) |
 | **+ Add feed** | Opens bottom-sheet editor with empty form |
 | Slot cards | `HH:MM · Ng` headline · day letters · **`state` from API**; `.slot-main` at 55% opacity when disabled or `to_be_skipped`; row actions stay full contrast |
 | Day letters | Off days plain text; scheduled days filled accent dot; **today** when off gets bordered badge |
@@ -140,7 +141,7 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 
 | Card | Fields |
 |------|--------|
-| Feeding | Feed mode; Dispense-button amount (`POST /api/dispense_amount`); daily limit and not-eaten alert (`POST /api/feed_limit`, `formatHistoryRow`-independent); grams dispensed today; child lock (saved on toggle) |
+| Feeding | Feed mode; HA Dispense-button amount in grams (empty = one portion, placeholder shows the portion size in g) (`POST /api/dispense_amount`); daily limit and not-eaten alert (`POST /api/feed_limit`, `formatHistoryRow`-independent); grams dispensed today; child lock (saved on toggle) |
 | Overfill protection | Toggle + 30–500 g threshold (threshold disabled when off) |
 | Portion | Portion size and calibration status; Calibrate / Reset to 10 g |
 | Screen | Mode, brightness, screen-off delay on battery and on mains (seconds, 0 = never) |
@@ -155,10 +156,29 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 | Network | Wi-Fi SSID / password, MQTT host / port / user / password — current values prefilled except passwords (blank keeps the stored one); Wi-Fi signal (`formatRssi`). Saving any field other than NTP reboots; a failing new Wi-Fi falls back to the previous one |
 | Security | Web password set / change / remove |
 | Backup | Download settings (`GET /api/export`), restore from a file (`POST /api/import`) |
-| Firmware | Version (`fw`), firmware folder URL (`POST /api/ota_base`) |
+| Firmware | Version (`fw`), active bank, update state/progress (`ota`), firmware folder URL (`POST /api/ota_base`), **Install firmware update** (`POST /api/ota_install`) |
 | Device | Reboot; Wi-Fi setup again (`/api/reprovision`); Factory reset (`/api/factory_reset`, typed confirmation `RESET`) |
 | Feed history | `GET /api/history` when the tab opens or on Refresh; one line per meal (`formatHistoryRow`: when · source · wanted → got, result badge, holes/time/current and failure notes) |
 | Diagnostics | Health counters (`health`, `formatUptime`); recent log (`GET /api/log`) on demand |
+
+### Edited fields
+
+A field the user has changed is *dirty*: status refreshes never overwrite it
+until its card is saved (then it takes the device value again) or the page is
+reloaded. Untouched fields follow the device.
+
+### Language
+
+All labels exist in English and French. The language is `status.lang`; when
+unset, French if the browser language starts with `fr`, else English. A
+selector in **System → Language** saves it (`POST /api/lang`) for every
+browser.
+
+### Help tab
+
+Static text in the page language: how a meal works (schedule, modes, portion
+learning, overfill, daily limit, not-eaten alert, calibrations), the slot
+states, and every problem code (E1–E9) with what to do.
 
 ### Password
 

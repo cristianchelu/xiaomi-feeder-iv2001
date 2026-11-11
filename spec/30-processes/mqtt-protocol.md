@@ -55,6 +55,7 @@ event; the retained `.../dispense/progress` topic is a best-effort live view.
 | `.../cmd/schedule/delete` | `{"hour":8,"min":0}` | 1 |
 | `.../cmd/schedule/toggle` | `{"hour":8,"min":0}` | 1 |
 | `.../cmd/schedule/skip` | `{"hour":8,"min":0,"skip":true}` | 1 |
+| `.../cmd/schedule/feed_next` | (empty) — serve the next meal now ([scheduler-engine.md](scheduler-engine.md) § Feed next meal) | 1 |
 | `.../cmd/schedule/enable` | `{"enabled":true}` | 1 |
 | `.../cmd/schedule/today` | `{"enabled":true}` | 1 |
 | `.../cmd/calibrate` | `{"action": "zero"}` or `{"action": "span"}` — see [Calibrate command](#calibrate-command) | 1 |
@@ -199,6 +200,7 @@ clear the config topic (empty retained payload) and republish, or use
 | sensor | wifi_rssi | `signal_strength` | `diagnostic` | "Wi-Fi signal", unit dBm |
 | binary_sensor | problem | `problem` | — | "Problem"; attributes from `.../problem` |
 | button | problem_clear | — | — | "Clear problem" → `cmd/problem_clear` |
+| button | feed_next | — | — | "Feed next meal" → `cmd/schedule/feed_next` |
 | number | daily_limit | — | `config` | "Daily limit", g, 0–2000 step 10 (0 = off) |
 | number | not_eaten_h | — | `config` | "Not eaten alert", h, 0–24 (0 = off) |
 | sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |

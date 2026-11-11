@@ -104,6 +104,10 @@ sensor reads from the HTTP handler.
 | `problem` | always | `{active, codes, text}` |
 | `limit` | always | `{daily_max_g, today_g, not_eaten_h}` |
 | `health` | always | counters — [health-monitoring.md](health-monitoring.md) § Health counters |
+| `lang` | always | `fr`, `en`, or `""` (unset: the page follows the browser) |
+| `battery_mv` | after the first valid read | pack voltage in mV |
+| `hopper_ir` | after the first read | `blocked` / `clear` |
+| `ota` | always | `{state, pct, error, bank}` (`.../ota/status`) |
 | `progress` | always | `{state, portions, of, g}` (`.../dispense/progress`) |
 | `ota_base` | when set | firmware base URL (`.../ota/base`) |
 | `child_lock` | always | boolean |
@@ -164,6 +168,9 @@ POST body is the exact MQTT command payload for the equivalent topic.
 | POST | `/api/portion_cal` | `cmd/portion_cal` |
 | POST | `/api/dispense_amount` | `cmd/dispense_amount` `{"g":N}` |
 | POST | `/api/problem_clear` | `cmd/problem_clear` |
+| POST | `/api/schedule/feed_next` | `cmd/schedule/feed_next`; refusal reasons in `error` |
+| POST | `/api/ota_install` | Same as `cmd/ota {"install":true}` (installs `<firmware URL>/petfeeder_<inactive bank>.bin`) |
+| POST | `/api/lang` | `{"lang":"fr"\|"en"}` — page language, NVDM `system/lang` |
 | POST | `/api/feed_limit` | `cmd/feed_limit` |
 | POST | `/api/ota_base` | `cmd/ota_base` plain-text URL |
 
