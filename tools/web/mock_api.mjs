@@ -160,6 +160,9 @@ function statusPayload(state) {
     body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60, mains_off_s: 0 };
     body.network = { ssid: 'HomeNet', mqtt_host: '192.168.1.10', mqtt_port: 1883, mqtt_user: 'feeder', ntp: state.ntp || 'pool.ntp.org', password: !!state.web_pw };
     body.rssi = -58;
+    body.problem = state.problem_cleared ? { active: false, codes: [], text: '' } : { active: true, codes: ['E1'], text: 'Feed failed (stuck)' };
+    body.limit = { daily_max_g: state.daily_max_g || 0, today_g: 45, not_eaten_h: state.not_eaten_h || 0 };
+    body.health = { feeds_ok: 12, feeds_failed: 2, jams: 3, mqtt_lost: 1, boots: 4, stalls: 0, uptime_s: 7260, reset: 'software' };
     body.fw = 'v1.2.0-dev';
     body.dispense_g = state.dispense_g || 0;
     body.progress = state.dispense_busy ? { state: 'running', portions: 1, of: 3, g: '8.5' } : { state: 'idle', portions: 0, of: 0, g: '0.0' };
@@ -232,7 +235,7 @@ export function createMockApiHandler(getState, setState) {
             pre = await readBody(req);
             const nl = pre.indexOf('\n');
             const after = pre.startsWith('key=') ? (nl < 0 ? '' : pre.slice(nl + 1)) : pre;
-            const readPaths = ['/api/status', '/api/schedule/state', '/api/feed/mode', '/api/feed/overfill', '/api/config', '/api/log', '/api/export'];
+            const readPaths = ['/api/history', '/api/status', '/api/schedule/state', '/api/feed/mode', '/api/feed/overfill', '/api/config', '/api/log', '/api/export'];
             if (readPaths.includes(path) && pre.startsWith('key=') && after === '') {
                 const pw = getState().web_pw;
                 if (pw && pre !== `key=${pw}\n`) return json(res, 200, { ok: false, error: 'unauthorized' });
@@ -253,6 +256,12 @@ export function createMockApiHandler(getState, setState) {
         }
         if (method2 === 'GET' && path === '/api/feed/overfill') {
             return json(res, 200, { enabled: false, threshold_g: 50 });
+        }
+        if (method2 === 'GET' && path === '/api/history') {
+            return json(res, 200, [
+                { t: 1794219015, day: 20261111, src: 's', want: 30, got: 0, meas: 1, res: 'stuck', por: 3, pul: 1, aj: 3, why: 'antijam', jam: 'stall', ok: 40, busy: 2, err: 0, ma: 282, dur: 31, mqtt: 0, bowl: 1 },
+                { t: 1794190000, day: 20261111, src: 'm', want: 20, got: 21, meas: 1, res: 'ok', por: 2, pul: 2, aj: 0, why: '-', jam: '-', ok: 30, busy: 0, err: 0, ma: 140, dur: 13, mqtt: 1, bowl: 1 },
+            ]);
         }
         if (method2 === 'GET' && path === '/api/log') {
             return text(res, 200, '[00:00:01.000] [app] mock log line\n');
@@ -308,6 +317,14 @@ export function createMockApiHandler(getState, setState) {
             if (body.battery_off_s !== undefined) d.battery_off_s = body.battery_off_s;
             if (body.mains_off_s !== undefined) d.mains_off_s = body.mains_off_s;
             setState({ ...state, display: d });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/problem_clear') {
+            setState({ ...state, problem_cleared: true });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/feed_limit') {
+            setState({ ...state, daily_max_g: body.daily_max_g, not_eaten_h: body.not_eaten_h });
             return json(res, 200, { ok: true });
         }
         if (path === '/api/unlock') {

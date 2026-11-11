@@ -11,8 +11,10 @@ const SLOT_TONE = {
     missed: 'bad',
     skipped: 'muted',
     skipped_full: 'muted',
+    skipped_limit: 'warn',
+    failed: 'bad',
 };
-const SKIP_HIDE = new Set(['dispensed', 'failed', 'skipped_full', 'dispensing', 'skipped']);
+const SKIP_HIDE = new Set(['dispensed', 'failed', 'skipped_full', 'skipped_limit', 'dispensing', 'skipped']);
 
 export function indicesToMask(indices) {
     let mask = 0;
@@ -319,4 +321,48 @@ export function buildDisplayBody({ mode, brightness, battery_off_s, mains_off_s 
         battery_off_s: Number(battery_off_s),
         mains_off_s: Number(mains_off_s),
     };
+}
+
+const HIST_SRC = { s: 'Schedule', m: 'App', b: 'Button' };
+const HIST_WHY = {
+    antijam: 'jam not cleared after 3 tries',
+    session: 'took too long',
+    io: 'rotation sensor unreadable',
+    driver: 'motor did not start/stop',
+    led: 'rotation sensor LED',
+};
+
+/* One feed-history record (health-monitoring.md § Feed history) for display. */
+export function formatHistoryRow(r) {
+    const when = r.t ? new Date(r.t * 1000).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    const tone = r.res === 'ok' ? 'ok' : r.res === 'underfill' || r.res === 'limit' ? 'warn' : 'bad';
+    const notes = [];
+    if (r.why && r.why !== '-') notes.push(HIST_WHY[r.why] || r.why);
+    if (r.jam && r.jam !== '-') notes.push(`last jam: ${r.jam}`);
+    if (r.aj) notes.push(`${r.aj} anti-jam`);
+    if (r.busy) notes.push(`${r.busy} sensor reads refused`);
+    if (r.err) notes.push(`${r.err} sensor errors`);
+    if (!r.bowl) notes.push('bowl missing');
+    if (!r.mqtt) notes.push('offline');
+    return {
+        when,
+        source: HIST_SRC[r.src] || r.src,
+        want: r.want ? `${r.want} g` : `${r.por} portion(s)`,
+        got: `${r.got} g${r.meas ? '' : ' (est.)'}`,
+        result: String(r.res || '').replace(/_/g, ' '),
+        detail: [`${r.pul}/${r.por} holes`, `${r.dur} s`, `${r.ma} mA max`].concat(notes).join(' · '),
+        tone,
+    };
+}
+
+export function formatUptime(s) {
+    const n = Number(s) || 0;
+    const d = Math.floor(n / 86400);
+    const h = Math.floor((n % 86400) / 3600);
+    const m = Math.floor((n % 3600) / 60);
+    return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+}
+
+export function buildFeedLimitBody({ daily_max_g, not_eaten_h }) {
+    return { daily_max_g: Number(daily_max_g) || 0, not_eaten_h: Number(not_eaten_h) || 0 };
 }

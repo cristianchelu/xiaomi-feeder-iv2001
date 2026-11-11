@@ -224,4 +224,4 @@ starting average: the estimate follows the kibble actually delivered.
 - `{"action":"reset"}` restores 10 g.
 - Gram targets use the **nearest** whole number of portions (at least 1);
   compensated top-ups and open-loop estimates use the same value.
-- Result: retained `.../portion`, HA sensor *Portion size*, web page.
+- Result: retained `.../portion` (`status`: `default`, `ok` calibrated, `learned` refined from meals, `failed`, `running`), HA sensor *Portion size*, web page.

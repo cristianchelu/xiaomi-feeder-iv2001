@@ -96,6 +96,7 @@ a column of titled cards; every card saves its own fields with one button.
 |-------|--------|
 | Next feed | `/api/status` `next` — two-line hero (`formatNextFeedParts`) |
 | Problem alerts | `/api/status` — time not synced, `bowl_error` |
+| Problem banner | `problem` — red card `E1 E3 — <text>` with **Clear** (`POST /api/problem_clear`), hidden when inactive |
 | Live dispense | `progress` (`formatProgress`), shown only while a dispense runs |
 | **Current state** grid | `/api/status` telemetry fields — see below |
 | Feed now | `POST /api/dispense`; the grams field starts at `dispense_g` (or 10) |
@@ -139,7 +140,7 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 
 | Card | Fields |
 |------|--------|
-| Feeding | Feed mode; Dispense-button amount (`POST /api/dispense_amount`); child lock |
+| Feeding | Feed mode; Dispense-button amount (`POST /api/dispense_amount`); daily limit and not-eaten alert (`POST /api/feed_limit`, `formatHistoryRow`-independent); grams dispensed today; child lock (saved on toggle) |
 | Overfill protection | Toggle + 30–500 g threshold (threshold disabled when off) |
 | Portion | Portion size and calibration status; Calibrate / Reset to 10 g |
 | Screen | Mode, brightness, screen-off delay on battery and on mains (seconds, 0 = never) |
@@ -156,7 +157,8 @@ Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 | Backup | Download settings (`GET /api/export`), restore from a file (`POST /api/import`) |
 | Firmware | Version (`fw`), firmware folder URL (`POST /api/ota_base`) |
 | Device | Reboot; Wi-Fi setup again (`/api/reprovision`); Factory reset (`/api/factory_reset`, typed confirmation `RESET`) |
-| Diagnostics | Recent log (`GET /api/log`) on demand |
+| Feed history | `GET /api/history` when the tab opens or on Refresh; one line per meal (`formatHistoryRow`: when · source · wanted → got, result badge, holes/time/current and failure notes) |
+| Diagnostics | Health counters (`health`, `formatUptime`); recent log (`GET /api/log`) on demand |
 
 ### Password
 

@@ -872,6 +872,34 @@ body.locked :is(.tabs, .tab-body, #refreshBtn) {
   display: none;
 }
 
+.problem {
+  border-color: var(--bad-bd);
+  background: var(--bad-bg);
+
+  & p {
+    margin: 0;
+    color: var(--bad);
+    font-weight: 600;
+  }
+}
+
+.hist {
+  & .h {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: .85rem;
+  }
+
+  & .h:last-child {
+    border-bottom: 0;
+  }
+
+  & small {
+    display: block;
+    color: var(--muted);
+  }
+}
+
 pre.log {
   margin: 10px 0 0;
   max-height: 22rem;
@@ -955,6 +983,12 @@ pre.log {
 <p class="progress" id="progress"></p>
 <div class="alerts" id="statusAlerts"></div>
 </section>
+<section class="panel problem" id="problemBox" hidden>
+<div class="row between">
+<p id="problemText"></p>
+<button id="problemClear" class="sm">Clear</button>
+</div>
+</section>
 <section class="panel">
 <h2>Status</h2>
 <div class="state-grid" id="stateGrid"></div>
@@ -994,7 +1028,14 @@ pre.log {
 <label>Dispense button (g)
 <input type="number" id="btnG" min="5" max="150" placeholder="1 portion">
 </label>
+<label>Daily limit (g, 0 = off)
+<input type="number" id="dailyMax" min="0" max="2000" step="10">
+</label>
+<label>Not-eaten alert (h, 0 = off)
+<input type="number" id="notEatenH" min="0" max="24">
+</label>
 </div>
+<p class="hint" id="todayG"></p>
 <div class="row between">
 <label class="tog"><input type="checkbox" id="childLock"> Child lock</label>
 <button id="saveFeed" class="pri sm">Save</button>
@@ -1143,7 +1184,13 @@ pre.log {
 </div>
 </section>
 <section class="panel">
+<h2>Feed history</h2>
+<div id="histList" class="hist"></div>
+<div class="card-foot"><button id="histBtn" class="sm">Refresh</button></div>
+</section>
+<section class="panel">
 <h2>Diagnostics</h2>
+<div id="healthKv"></div>
 <div class="card-foot"><button id="logBtn" class="sm">Show recent log</button></div>
 <pre class="log" id="logOut"></pre>
 </section>
@@ -1348,7 +1395,7 @@ function renderSettings(st) {
   if (st.power) setIfIdle('battWifi', st.power.battery_wifi);
   if (st.portion) {
     $('portionG').textContent = st.portion.g;
-    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'failed' ? '(last calibration failed)' : st.portion.status === 'running' ? '(calibrating…)' : '(default)';
+    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'learned' ? '(learned from meals)' : st.portion.status === 'failed' ? '(last calibration failed)' : st.portion.status === 'running' ? '(calibrating…)' : '(default)';
   }
   if (st.scale) $('scaleSt').textContent = st.scale === 'calibrated' ? 'done' : st.scale === 'zero_only' ? 'zero done, span missing' : 'not calibrated';
   if (document.activeElement !== $('childLock')) $('childLock').checked = !!st.child_lock;
@@ -1356,6 +1403,34 @@ function renderSettings(st) {
   $('rssi').textContent = formatRssi(st.rssi);
   $('fwVer').textContent = st.fw || '—';
   $('pwSt').textContent = st.network && st.network.password ? 'set' : 'none';
+  const pb = st.problem || {};
+  $('problemBox').hidden = !pb.active;
+  $('problemText').textContent = pb.active ? `${(pb.codes || []).join(' ')} — ${pb.text}` : '';
+  if (st.limit) {
+    setIfIdle('dailyMax', st.limit.daily_max_g);
+    setIfIdle('notEatenH', st.limit.not_eaten_h);
+    $('todayG').textContent = `Dispensed today: ${st.limit.today_g} g`;
+  }
+  const h = st.health;
+  if (h) {
+    $('healthKv').innerHTML = [
+      ['Meals ok / failed', `${h.feeds_ok} / ${h.feeds_failed}`],
+      ['Jams', h.jams],
+      ['MQTT drops', h.mqtt_lost],
+      ['Boots', h.boots],
+      ['Stalled tasks', h.stalls],
+      ['Up for', formatUptime(h.uptime_s)],
+      ['Last reset', h.reset],
+    ].map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
+}
+async function loadHistory() {
+  const rows = await read('/api/history');
+  if (!Array.isArray(rows)) return;
+  $('histList').innerHTML = rows.length ? rows.map((r) => {
+    const f = formatHistoryRow(r);
+    return `<div class="h"><div class="row between"><span>${f.when} · ${f.source} · ${f.want} → ${f.got}</span>${badge(f.result, f.tone)}</div><small>${f.detail}</small></div>`;
+  }).join('') : '<p class="hint">No meal yet.</p>';
 }
 function renderOnce(st) {
   const n = st.network || {};
@@ -1519,6 +1594,7 @@ $('slotEditorForm').addEventListener('submit', async (e) => {
 });
 $('saveFeed').onclick = async () => {
   if (!await postSave('/api/feed/mode', $('feedMode').value, 'Saved')) return;
+  if (!await postSave('/api/feed_limit', buildFeedLimitBody({daily_max_g: $('dailyMax').value, not_eaten_h: $('notEatenH').value}), 'Saved', 'Limit not saved')) return;
   const g = $('btnG').value;
   if (g !== '') await postSave('/api/dispense_amount', {g: Number(g)}, 'Feeding settings saved');
   loadStatus();
@@ -1598,6 +1674,9 @@ $('factoryBtn').onclick = () => {
   if ($('resetConfirm').value !== 'RESET') { toast('Type RESET to confirm'); return; }
   postSave('/api/factory_reset', '{}', 'Factory reset — restarting in setup mode…');
 };
+$('problemClear').onclick = () => postSave('/api/problem_clear', '{}', 'Problem cleared').then(loadStatus);
+$('histBtn').onclick = loadHistory;
+$('tab-system').addEventListener('change', loadHistory);
 $('logBtn').onclick = async () => {
   $('logOut').textContent = await readRaw('/api/log');
 };
