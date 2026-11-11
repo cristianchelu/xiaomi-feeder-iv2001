@@ -38,6 +38,13 @@ for `[tune]` 1000 ms, then black. Driver provides `show_fill` / `blank`; policy
 lives here and in `display_boot.c`. Hardware steps:
 [display-driver.md](display-driver.md) § Boot self-test.
 
+## Problem code
+
+While a problem is active the digits cycle `Err` → `E <code>` → normal content
+([health-monitoring.md](health-monitoring.md) § Problem state). The overlay
+replaces only the three digit grids and hides the gram unit; it never shows
+during a dispense, OTA, animation or idle blank.
+
 ## Wi-Fi indicator
 
 `display_wifi_indicator.c` drives `DISPLAY_ICON_WIFI`. Wi-Fi lifecycle

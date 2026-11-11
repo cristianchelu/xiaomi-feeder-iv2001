@@ -30,7 +30,9 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../display` | `{"mode": "weight", "brightness": 4, "battery_off_s": 60, "mains_off_s": 0}` | 1 |
 | `.../feed/dispense_amount` | `{"g":25}` — Dispense-button amount, `0` = one portion; see [Dispense amount](#dispense-amount) | 1 |
 | `.../dispense/progress` | `{"state":"running","portions":2,"of":5,"g":"17.3"}` — see [Dispense progress](#dispense-progress) | 0 |
-| `.../wifi_rssi` | `-58` — plain integer dBm, every `[tune]` 60 s | 1 |
+| `.../wifi_rssi` | `-58` — plain integer dBm; checked every `[tune]` 60 s, published every `[tune]` 10 min or on a change ≥ `[tune]` 5 dB | 0 |
+| `.../problem` | Problem state — see [health-monitoring.md](health-monitoring.md) § Problem state | 1 |
+| `.../feed/limit` | `{"daily_max_g":0,"today_g":45,"not_eaten_h":0}` — daily limit and not-eaten alert | 1 |
 | `.../eaten_today` | `85.3` — plain string, one decimal (0.1 g); see [Eaten today](#eaten-today) | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
 
@@ -67,6 +69,8 @@ event; the retained `.../dispense/progress` topic is a best-effort live view.
 | `.../cmd/eaten_reset` | `{}` — zero today's eaten total | 1 |
 | `.../cmd/portion_cal` | `{}` — turn 3 portions open-loop, weigh once, set grams per portion; `{"action":"reset"}` → 10 g. Result retained on `.../portion` `{"g":"8.5","status":"ok"\|"failed"\|"default"}` | 1 |
 | `.../cmd/power` | `{"battery_wifi":"on"\|"off"\|"scheduled_only"}`; retained on `.../power` | 1 |
+| `.../cmd/problem_clear` | (empty) — clears latched problems | 1 |
+| `.../cmd/feed_limit` | `{"daily_max_g":N}` and/or `{"not_eaten_h":N}` | 1 |
 | `.../cmd/dispense_amount` | `{"g": 25}` (5–150; `0` = one portion) — see [Dispense amount](#dispense-amount) | 1 |
 
 ### Reboot command
@@ -143,8 +147,8 @@ be auto-added to dashboards.
 
 | Category | Entities |
 |----------|----------|
-| (primary controls) | `dispense`, `dispense_amount`, `feeding_schedule`, `child_lock` |
-| (primary sensors) | `bowl_weight`, `eaten_today`, `bowl_error`, `battery`, `mains`, `hopper_level`, `portion_size`, `dispense_progress`, `dispense_completed` |
+| (primary controls) | `dispense`, `problem_clear`, `dispense_amount`, `feeding_schedule`, `child_lock` |
+| (primary sensors) | `problem`, `bowl_weight`, `eaten_today`, `bowl_error`, `battery`, `mains`, `hopper_level`, `portion_size`, `dispense_progress`, `dispense_completed` |
 | `config` | feeding, overfill, screen, scale, portion, battery Wi-Fi and firmware settings |
 | `diagnostic` | `battery_voltage`, `device_timezone`, `wifi_rssi`, `hopper_ir`, `ota_state`, `firmware_bank` |
 
@@ -193,6 +197,10 @@ clear the config topic (empty retained payload) and republish, or use
 | button | ota_install | `update` | `config` | `cmd/ota {"install":true}` |
 | sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear`; `enabled_by_default`: false |
 | sensor | wifi_rssi | `signal_strength` | `diagnostic` | "Wi-Fi signal", unit dBm |
+| binary_sensor | problem | `problem` | — | "Problem"; attributes from `.../problem` |
+| button | problem_clear | — | — | "Clear problem" → `cmd/problem_clear` |
+| number | daily_limit | — | `config` | "Daily limit", g, 0–2000 step 10 (0 = off) |
+| number | not_eaten_h | — | `config` | "Not eaten alert", h, 0–24 (0 = off) |
 | sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |
 | sensor | firmware_bank | — | `diagnostic` | `value_json.bank` of `.../ota/status` (`A` or `B`) |
 | sensor | battery_voltage | `voltage` | `diagnostic` | Unit: mV; `enabled_by_default`: false |
@@ -597,6 +605,9 @@ Exponential backoff on disconnect:
 - Multiply by 2 on each failure.
 - Cap at `[tune]` 60 s.
 - Reset to initial delay on successful connect.
+
+**Broker wait.** A QoS 1 publish waits at most `[tune]` 4 s for the broker's
+acknowledgement.
 
 **Dead session.** The TCP link can die while the client library still reports
 the session as connected (every publish then fails, nothing reconnects).

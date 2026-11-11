@@ -30,7 +30,11 @@ MT7682 NVDM (Non-Volatile Data Management) — SDK-provided key-value flash stor
 | display | battery_off_s | uint16 | 60 | Seconds of inactivity before the panel blanks on battery (0 = never, max 600) |
 | display | mains_off_s | uint16 | 0 | Same on mains (0 = never, max 3600) |
 | feed | button_g | uint16 | absent | Dispense-button grams (5–150); absent = one portion |
-| feed | portion_dg | uint16 | 100 | Grams per portion ×10, set by portion calibration |
+| feed | portion_dg | uint16 | 100 | Grams per portion ×10: learned from weighed feeds, set by calibration |
+| feed | daily_max_g | uint16 | 0 | Daily dispense limit in grams (0 = off) |
+| feed | not_eaten_h | uint8 | 0 | Not-eaten alert delay in hours (0 = off) |
+| hist | f0…f19, next | string | absent | Feed history ring ([health-monitoring.md](health-monitoring.md)) |
+| hist | counters | string | absent | Health counters CSV |
 | time | ntp | string | `pool.ntp.org` | SNTP server host |
 | wifi | ssid_new / pass_new | string | absent | Trial Wi-Fi from the web page; committed on success, erased on failure |
 | system | web_pass | string | absent | Web page password (4–32 chars) |

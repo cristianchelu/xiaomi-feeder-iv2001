@@ -85,6 +85,7 @@ future-today.
 | `pending` | Applies today, not skipped, not yet dispensed this cycle |
 | `to_be_skipped` | `skip_today=true` and dispense time is still in the future |
 | `skipped` | `skip_today=true` and time passed; OR due minute missed; OR `today_enabled=false` for a future today entry |
+| `skipped_limit` | Daily limit already reached at fire time — no dispense ([health-monitoring.md](health-monitoring.md) § Daily limit) |
 | `skipped_full` | Overfill protection enabled, bowl mass known, and `bowl_g >= overfill_threshold_g` at fire time — no dispense job submitted |
 | `dispensing` | Gram job submitted for this slot and dispense supervisor active |
 | `dispensed` | Terminal dispense event with `event_type=success` or `underfill` |

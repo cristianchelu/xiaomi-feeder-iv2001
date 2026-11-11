@@ -69,6 +69,7 @@ Read payloads match retained MQTT state / command wire formats in
 | GET | `/api/feed/overfill` | JSON `{"enabled":false,"threshold_g":50}` (same as `.../feed/overfill`) |
 | GET | `/api/status` | Composite JSON — see [Status composite](#status-composite) |
 | GET | `/api/log` | Plain text log — see [Log ring](#log-ring) |
+| GET | `/api/history` | Feed history JSON ([health-monitoring.md](health-monitoring.md) § Feed history) |
 | GET | `/api/export` | Settings backup JSON — see [Administration](#administration) |
 
 #### Status composite
@@ -100,6 +101,9 @@ sensor reads from the HTTP handler.
 | `rssi` | after the first RSSI read | dBm integer (`.../wifi_rssi`) |
 | `fw` | always | firmware version string (`git describe`) |
 | `dispense_g` | always | Dispense-button amount in grams, `0` = one portion (`.../feed/dispense_amount`) |
+| `problem` | always | `{active, codes, text}` |
+| `limit` | always | `{daily_max_g, today_g, not_eaten_h}` |
+| `health` | always | counters — [health-monitoring.md](health-monitoring.md) § Health counters |
 | `progress` | always | `{state, portions, of, g}` (`.../dispense/progress`) |
 | `ota_base` | when set | firmware base URL (`.../ota/base`) |
 | `child_lock` | always | boolean |
@@ -159,6 +163,8 @@ POST body is the exact MQTT command payload for the equivalent topic.
 | POST | `/api/power` | `cmd/power` `{"battery_wifi":…}` |
 | POST | `/api/portion_cal` | `cmd/portion_cal` |
 | POST | `/api/dispense_amount` | `cmd/dispense_amount` `{"g":N}` |
+| POST | `/api/problem_clear` | `cmd/problem_clear` |
+| POST | `/api/feed_limit` | `cmd/feed_limit` |
 | POST | `/api/ota_base` | `cmd/ota_base` plain-text URL |
 
 Excluded from web API (MQTT-only): `cmd/ota` (the admin HTTP server is
