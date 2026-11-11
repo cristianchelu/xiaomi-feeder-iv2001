@@ -21,7 +21,8 @@ Record (one CSV line, ≤ 120 chars):
 | Field | Meaning |
 |-------|---------|
 | `t` | UTC epoch seconds at completion (`0` = time not synced) |
-| `src` | `s` schedule, `m` MQTT/HA, `w` web, `b` button |
+| `day` | Local date `YYYYMMDD` at completion (`0` = unknown) — daily limit sum |
+| `src` | `s` schedule, `m` MQTT/HA/web, `b` front button |
 | `want` | Target grams (`0` = portion job) |
 | `got` | Delivered grams (measured, or estimated when not measured) |
 | `meas` | `1` measured by the scale, `0` estimated |
@@ -104,8 +105,8 @@ screen-off) the panel stays off.
 ## Daily limit
 
 NVDM `feed/daily_max_g` (0 = off, 10–2000, default 0). The feeder sums the
-grams delivered today (history `got` of jobs completed since local midnight,
-any source except UART). Before a job starts:
+grams delivered today (history `got` of records whose `day` is today's local
+date). Before a job starts:
 
 - delivered today ≥ limit → the job is refused: history record `res=limit`,
   `got=0`, E6, a schedule slot goes to state `skipped_limit`, MQTT/web callers

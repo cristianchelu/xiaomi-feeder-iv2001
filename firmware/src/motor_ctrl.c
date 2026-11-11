@@ -18,6 +18,8 @@
 #include "app_log.h"
 #include "gpio_expander_port.h"
 #include "motor_ctrl.h"
+
+#include <string.h>
 #include "motor_driver.h"
 #include "motor_index_adapter.h"
 #include "motor_index_port.h"
@@ -118,6 +120,56 @@ static bool motor_ctrl_tick_elapsed(TickType_t since, uint32_t ms)
     return (motor_ctrl_tick_now() - since) >= pdMS_TO_TICKS(ms);
 }
 
+static motor_run_stats_t s_stats;
+static TickType_t s_stats_start_tick;
+
+static void motor_ctrl_stats_begin(void)
+{
+    memset(&s_stats, 0, sizeof(s_stats));
+    s_stats.why = "-";
+    s_stats.jam = "-";
+    s_stats_start_tick = xTaskGetTickCount();
+}
+
+static const char *motor_ctrl_jam_short(motor_jam_reason_t reason)
+{
+    switch (reason) {
+    case MOTOR_JAM_STALL:
+        return "stall";
+    case MOTOR_JAM_INDEX_TIMEOUT:
+        return "index";
+    case MOTOR_JAM_SESSION_TIMEOUT:
+        return "session";
+    case MOTOR_JAM_ADC_ISR:
+    case MOTOR_JAM_ADC_INSTANT:
+    case MOTOR_JAM_ADC_SUSTAINED:
+        return "adc";
+    default:
+        return "-";
+    }
+}
+
+static void motor_ctrl_stats_end(const char *why)
+{
+    s_stats.pulses = s_pulses;
+    s_stats.antijam = s_antijam_retries;
+    s_stats.why = why;
+    s_stats.dur_ms = (uint32_t)((xTaskGetTickCount() - s_stats_start_tick) * portTICK_PERIOD_MS);
+}
+
+void motor_ctrl_last_run(motor_run_stats_t *out)
+{
+    if (out != NULL) {
+        *out = s_stats;
+        if (out->why == NULL) {
+            out->why = "-";
+        }
+        if (out->jam == NULL) {
+            out->jam = "-";
+        }
+    }
+}
+
 static const char *motor_ctrl_jam_reason_label(motor_jam_reason_t reason)
 {
     switch (reason) {
@@ -146,6 +198,7 @@ static const char *motor_ctrl_cmd_label(void)
 static void motor_ctrl_log_jam(motor_jam_reason_t reason)
 {
     s_last_jam_reason = reason;
+    s_stats.jam = motor_ctrl_jam_short(reason);
 
     switch (reason) {
     case MOTOR_JAM_ADC_ISR:
@@ -183,6 +236,18 @@ static void motor_ctrl_log_jam(motor_jam_reason_t reason)
 
 static void motor_ctrl_finish_fault(motor_fault_reason_t reason)
 {
+    static const char *const why[] = {
+        [MOTOR_FAULT_ANTIJAM_EXHAUSTED] = "antijam",
+        [MOTOR_FAULT_SESSION_TIMEOUT] = "session",
+        [MOTOR_FAULT_IO] = "io",
+        [MOTOR_FAULT_DRIVER_STOP] = "driver",
+        [MOTOR_FAULT_DRIVER_START] = "driver",
+        [MOTOR_FAULT_INDEX_LED] = "led",
+    };
+
+    motor_ctrl_stats_end(((size_t)reason < sizeof(why) / sizeof(why[0]) && why[reason] != NULL)
+                             ? why[reason]
+                             : "driver");
     switch (reason) {
     case MOTOR_FAULT_ANTIJAM_EXHAUSTED:
         app_log_info("motor",
@@ -335,6 +400,7 @@ static void motor_ctrl_finish_burst_done(void)
         return;
     }
 
+    motor_ctrl_stats_end("-");
     motor_ctrl_session_teardown();
     motor_ctrl_post_app_event(EVT_BURST_DONE);
 }
@@ -512,6 +578,9 @@ static motor_jam_reason_t motor_ctrl_detect_jam(TickType_t now)
 
     if (motor_ctrl_adc_sample(&ma)) {
         s_jam_ma = ma;
+        if (ma > s_stats.max_ma) {
+            s_stats.max_ma = ma;
+        }
 
         if (ma > MOTOR_JAM_INSTANT_MA) {
             return MOTOR_JAM_ADC_INSTANT;
@@ -782,18 +851,21 @@ static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
     err = motor_ctrl_poll_beam_open(&beam_open);
     if (err == PORT_ERR_BUSY) {
         s_trace_busy++;
+        s_stats.poll_busy++;
         motor_ctrl_trace(now, s_prev_beam_open);
         return;
     }
 
     if (err != PORT_OK) {
         s_trace_err++;
+        s_stats.poll_err++;
         motor_ctrl_trace(now, s_prev_beam_open);
         motor_ctrl_note_io_failure();
         return;
     }
 
     s_trace_ok++;
+    s_stats.poll_ok++;
     motor_ctrl_trace(now, beam_open);
 
     motor_ctrl_note_io_success();
@@ -912,6 +984,7 @@ static void motor_ctrl_handle_cmd(const motor_cmd_t *cmd)
 
     s_active_cmd = *cmd;
     s_antijam_retries = 0u;
+    motor_ctrl_stats_begin();
 
     if (cmd->kind == MOTOR_CMD_PARK) {
         const motor_index_port_t *idx = motor_index_port_get();
