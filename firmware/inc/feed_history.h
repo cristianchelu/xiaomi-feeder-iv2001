@@ -55,6 +55,7 @@ int feed_history_format_json(char *buf, size_t len);
 uint32_t feed_history_grams_on_day(uint32_t day);
 
 void feed_counter_inc(feed_counter_t c);
+void feed_counter_add(feed_counter_t c, uint32_t n);
 uint32_t feed_counter_get(feed_counter_t c);
 
 void feed_history_test_reset(void);

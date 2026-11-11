@@ -245,14 +245,19 @@ uint32_t feed_history_grams_on_day(uint32_t day)
 
 void feed_counter_inc(feed_counter_t c)
 {
+    feed_counter_add(c, 1u);
+}
+
+void feed_counter_add(feed_counter_t c, uint32_t n)
+{
     const config_port_t *cfg = config_port_get();
     char line[HIST_LINE_MAX];
 
-    if ((unsigned)c >= FEED_COUNTER_COUNT) {
+    if ((unsigned)c >= FEED_COUNTER_COUNT || n == 0u) {
         return;
     }
     hist_load();
-    s_counters[c]++;
+    s_counters[c] += n;
     if (cfg != NULL) {
         (void)snprintf(line, sizeof(line), "%lu,%lu,%lu,%lu,%lu,%lu",
                        (unsigned long)s_counters[0], (unsigned long)s_counters[1],

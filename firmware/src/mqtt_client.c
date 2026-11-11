@@ -32,6 +32,7 @@
 #include "mqtt_wifi_rssi.h"
 #include "mqtt_problem.h"
 #include "task_watch.h"
+#include "feeder_runtime.h"
 #include "feed_limit.h"
 #include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
@@ -507,7 +508,9 @@ uint32_t mqtt_client_step(void)
     uint32_t delay_ms = 500;
 
     task_watch_beat(TASK_WATCH_MQTT);
-    (void)task_watch_check(TASK_WATCH_APP, (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
+    if (!feeder_runtime_ota_active()) {
+        (void)task_watch_check(TASK_WATCH_APP, (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
+    }
 
     if (s_disconnect_pending) {
         s_disconnect_pending = false;

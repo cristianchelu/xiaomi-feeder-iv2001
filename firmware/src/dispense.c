@@ -200,7 +200,6 @@ static void dispense_after_job(uint32_t now_ms, int32_t grams, bool measured, in
                                bool was_calibration)
 {
     feed_record_t r;
-    unsigned i;
     bool ok = s_outcome == DISPENSE_OUTCOME_SUCCESS || s_outcome == DISPENSE_OUTCOME_UNDERFILL;
 
     if (s_source == DISPENSE_SOURCE_UART) {
@@ -224,9 +223,7 @@ static void dispense_after_job(uint32_t now_ms, int32_t grams, bool measured, in
     feed_history_add(&r);
 
     feed_counter_inc(ok ? FEED_COUNTER_OK : FEED_COUNTER_FAILED);
-    for (i = 0u; i < s_job_motor.antijam; i++) {
-        feed_counter_inc(FEED_COUNTER_JAMS);
-    }
+    feed_counter_add(FEED_COUNTER_JAMS, s_job_motor.antijam);
 
     if (!ok) {
         problem_raise(PROBLEM_FEED_FAILED, r.res);

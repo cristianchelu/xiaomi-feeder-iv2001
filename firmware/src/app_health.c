@@ -13,6 +13,7 @@
 #include "eaten_today.h"
 #include "feed_history.h"
 #include "feed_limit.h"
+#include "feeder_runtime.h"
 #include "hopper_level.h"
 #include "mqtt_problem.h"
 #include "problem.h"
@@ -97,8 +98,10 @@ void app_health_tick(uint32_t now_ms, const app_health_inputs_t *in)
         s_started = true;
         s_start_ms = now_ms;
     }
-    (void)task_watch_check(TASK_WATCH_MOTOR, now_ms);
-    (void)task_watch_check(TASK_WATCH_MQTT, now_ms);
+    if (!feeder_runtime_ota_active()) {   /* OTA hands the radio and CPU to the updater */
+        (void)task_watch_check(TASK_WATCH_MOTOR, now_ms);
+        (void)task_watch_check(TASK_WATCH_MQTT, now_ms);
+    }
 
     problem_set_live(PROBLEM_HOPPER_EMPTY, hopper_level_get() == HOPPER_LEVEL_STATE_EMPTY);
     problem_set_live(PROBLEM_TIME, (uint32_t)(now_ms - s_start_ms) >= APP_HEALTH_TIME_GRACE_MS &&
