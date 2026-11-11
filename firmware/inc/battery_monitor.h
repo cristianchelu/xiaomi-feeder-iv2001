@@ -19,6 +19,8 @@ void battery_monitor_force_sample(void);
 /* 4 fresh alkaline cells read ~6.4 V; anything above this is a bad read. */
 #define BATTERY_MONITOR_MAX_PLAUSIBLE_MV  7500u
 uint8_t battery_monitor_pct(void);
+/* Last valid pack voltage in mV, 0 before the first read. */
+uint16_t battery_monitor_last_mv(void);
 
 void battery_monitor_test_reset(void);
 

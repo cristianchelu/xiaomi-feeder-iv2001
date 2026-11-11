@@ -54,6 +54,9 @@ mqtt_route_kind_t mqtt_route_classify(const char *topic, const char *device_id)
     if (topic_matches_cmd(topic, device_id, "schedule/toggle")) {
         return MQTT_ROUTE_CMD_SCHEDULE_TOGGLE;
     }
+    if (topic_matches_cmd(topic, device_id, "schedule/feed_next")) {
+        return MQTT_ROUTE_CMD_SCHEDULE_FEED_NEXT;
+    }
     if (topic_matches_cmd(topic, device_id, "schedule/skip")) {
         return MQTT_ROUTE_CMD_SCHEDULE_SKIP;
     }
@@ -153,6 +156,8 @@ const char *mqtt_route_label(mqtt_route_kind_t route)
         return "dispense_amount";
     case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
         return "problem_clear";
+    case MQTT_ROUTE_CMD_SCHEDULE_FEED_NEXT:
+        return "schedule/feed_next";
     case MQTT_ROUTE_CMD_FEED_LIMIT:
         return "feed_limit";
     case MQTT_ROUTE_CMD_POWER:

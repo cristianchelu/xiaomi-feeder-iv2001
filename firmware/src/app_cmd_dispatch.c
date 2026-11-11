@@ -135,6 +135,16 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
     case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
         return mqtt_problem_handle_clear();
 
+    case MQTT_ROUTE_CMD_SCHEDULE_FEED_NEXT: {
+        schedule_feed_next_t r = schedule_feed_next();
+
+        if (r == SCHEDULE_FEED_NEXT_OK) {
+            mqtt_schedule_request_publish();
+            return PORT_OK;
+        }
+        return r == SCHEDULE_FEED_NEXT_BUSY ? PORT_ERR_BUSY : PORT_ERR_NOT_SUPPORTED;
+    }
+
     case MQTT_ROUTE_CMD_FEED_LIMIT:
         return mqtt_feed_limit_handle(payload, len);
 

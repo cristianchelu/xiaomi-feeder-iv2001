@@ -306,3 +306,24 @@ void test_web_api_status_has_problem_limit_health_and_history(void)
     TEST_ASSERT_EQUAL_STRING("[]", buf);
     problem_test_reset();
 }
+
+void test_web_api_feed_next_reports_reason_and_new_routes(void)
+{
+    char resp[96];
+    char buf[4096];
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(WEB_API_POST_FEED_NEXT, web_api_classify("POST", "/api/schedule/feed_next"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_OTA_INSTALL, web_api_classify("POST", "/api/ota_install"));
+    TEST_ASSERT_EQUAL(WEB_API_POST_LANG, web_api_classify("POST", "/api/lang"));
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_FEED_NEXT, "{}", 2u, resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"no_meal_today\"}", resp);   /* clock unknown */
+
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_LANG, "{\"lang\":\"fr\"}", 13u, resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":true}", resp);
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_post(WEB_API_POST_LANG, "{\"lang\":\"de\"}", 13u, resp, sizeof(resp)));
+    TEST_ASSERT_EQUAL_STRING("{\"ok\":false,\"error\":\"rejected\"}", resp);
+    TEST_ASSERT_GREATER_THAN(0, web_api_handle_get(WEB_API_GET_STATUS, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"lang\":\"fr\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"ota\":{\"state\":\""));
+}

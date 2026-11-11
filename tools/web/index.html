@@ -103,9 +103,9 @@ h1 {
   & label {
     flex: 1;
     text-align: center;
-    padding: 10px 8px;
+    padding: 10px 4px;
     border-radius: 999px;
-    font-size: .84rem;
+    font-size: .8rem;
     font-weight: 600;
     color: var(--muted);
     cursor: pointer;
@@ -120,7 +120,8 @@ h1 {
 #tab-now:checked ~ .tabs label[for="tab-now"],
 #tab-sched:checked ~ .tabs label[for="tab-sched"],
 #tab-settings:checked ~ .tabs label[for="tab-settings"],
-#tab-system:checked ~ .tabs label[for="tab-system"] {
+#tab-system:checked ~ .tabs label[for="tab-system"],
+#tab-help:checked ~ .tabs label[for="tab-help"] {
   background: var(--card);
   color: var(--fg);
   box-shadow: var(--shadow-sm);
@@ -133,7 +134,8 @@ h1 {
 #tab-now:checked ~ .tab-body #pane-now,
 #tab-sched:checked ~ .tab-body #pane-sched,
 #tab-settings:checked ~ .tab-body #pane-settings,
-#tab-system:checked ~ .tab-body #pane-system {
+#tab-system:checked ~ .tab-body #pane-system,
+#tab-help:checked ~ .tab-body #pane-help {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -900,6 +902,43 @@ body.locked :is(.tabs, .tab-body, #refreshBtn) {
   }
 }
 
+.help {
+  font-size: .9rem;
+  line-height: 1.5;
+
+  & h3 {
+    margin: 16px 0 4px;
+    font-size: .95rem;
+  }
+
+  & p, & ul, & dl {
+    margin: 0 0 8px;
+  }
+
+  & ul {
+    padding-left: 18px;
+  }
+
+  & dt {
+    margin-top: 8px;
+    font-weight: 700;
+  }
+
+  & dd {
+    margin: 0 0 0 0;
+    color: var(--muted);
+  }
+
+  & code {
+    font-size: .8rem;
+  }
+}
+
+body:not(.fr) .help[data-lang="fr"],
+body.fr .help[data-lang="en"] {
+  display: none;
+}
+
 pre.log {
   margin: 10px 0 0;
   max-height: 22rem;
@@ -969,11 +1008,13 @@ pre.log {
 <input type="radio" name="tab" id="tab-sched" class="tab-radios">
 <input type="radio" name="tab" id="tab-settings" class="tab-radios">
 <input type="radio" name="tab" id="tab-system" class="tab-radios">
+<input type="radio" name="tab" id="tab-help" class="tab-radios">
 <nav class="tabs">
 <label for="tab-now">Home</label>
 <label for="tab-sched">Schedule</label>
 <label for="tab-settings">Settings</label>
 <label for="tab-system">System</label>
+<label for="tab-help">Help</label>
 </nav>
 <div class="tab-body">
 <div id="pane-now" class="tab-pane">
@@ -1011,6 +1052,7 @@ pre.log {
 </div>
 <button type="button" class="pri sm" id="addSlotBtn">+ Add feed</button>
 </div>
+<div class="card-foot"><button type="button" class="sm" id="feedNextBtn">Feed next meal</button></div>
 </section>
 <div id="slotList" class="slot-list"></div>
 <p class="empty" id="noSlots" hidden>No feeding times yet.</p>
@@ -1025,8 +1067,8 @@ pre.log {
 <option value="compensated">Compensated</option>
 </select>
 </label>
-<label>Dispense button (g)
-<input type="number" id="btnG" min="5" max="150" placeholder="1 portion">
+<label>Dispense button amount (HA)
+<input type="number" id="btnG" min="5" max="150">
 </label>
 <label>Daily limit (g, 0 = off)
 <input type="number" id="dailyMax" min="0" max="2000" step="10">
@@ -1035,6 +1077,7 @@ pre.log {
 <input type="number" id="notEatenH" min="0" max="24">
 </label>
 </div>
+<p class="hint">Amount given by the Dispense button in Home Assistant. Empty = one portion.</p>
 <p class="hint" id="todayG"></p>
 <div class="row between">
 <label class="tog"><input type="checkbox" id="childLock"> Child lock</label>
@@ -1142,6 +1185,17 @@ pre.log {
 <div class="card-foot"><button id="saveNet" class="pri sm">Save &amp; reboot</button></div>
 </section>
 <section class="panel">
+<h2>Language</h2>
+<div class="fields">
+<label class="wide">Language
+<select id="langSel">
+<option value="fr">Français</option>
+<option value="en">English</option>
+</select>
+</label>
+</div>
+</section>
+<section class="panel">
 <h2>Security</h2>
 <div class="kv"><span>Web password</span><b id="pwSt">—</b></div>
 <div class="fields">
@@ -1163,13 +1217,14 @@ pre.log {
 <section class="panel">
 <h2>Firmware</h2>
 <div class="kv"><span>Version</span><b id="fwVer">—</b></div>
+<div class="kv"><span>Active bank</span><b id="fwBank">—</b></div>
+<div class="kv"><span>Update</span><b id="otaSt">—</b></div>
 <div class="fields">
 <label class="wide">Firmware folder URL
 <input type="text" id="otaBase" placeholder="http://host:8123/local/feeder">
 </label>
 </div>
-<p class="hint">Updates are installed from Home Assistant (Firmware → Install).</p>
-<div class="card-foot"><button id="saveOta" class="pri sm">Save</button></div>
+<div class="card-foot"><button id="saveOta" class="sm">Save</button><button id="otaInstall" class="pri sm">Install firmware update</button></div>
 </section>
 <section class="panel">
 <h2>Device</h2>
@@ -1193,6 +1248,72 @@ pre.log {
 <div id="healthKv"></div>
 <div class="card-foot"><button id="logBtn" class="sm">Show recent log</button></div>
 <pre class="log" id="logOut"></pre>
+</section>
+</div>
+<div id="pane-help" class="tab-pane">
+<section class="panel help" data-lang="fr">
+<h2>Comment ça marche</h2>
+<h3>Un repas</h3>
+<p>À l'heure prévue, la vis tourne d'un « trou » par portion (≈10 g au départ). Un capteur compte les trous ; la balance pèse avant et après. En mode <b>Compensé</b>, s'il manque des grammes, la gamelle rajoute des portions (2 compléments maximum). En mode <b>Simple</b>, elle ne pèse que pour l'historique.</p>
+<p>La <b>taille de portion</b> s'ajuste toute seule à chaque repas pesé réussi (moyenne glissante). <b>Calibrer</b> la fixe directement.</p>
+<h3>Si la vis force</h3>
+<p>Si le moteur force sans tourner (≈280 mA) ou ne voit plus de trou, il recule 1 s puis repart (3 essais). Après 3 échecs, le repas est noté <b>bloqué</b>.</p>
+<h3>Protections</h3>
+<ul>
+<li><b>Gamelle pleine</b> : un repas planifié est sauté si la gamelle contient déjà le poids réglé.</li>
+<li><b>Plafond par jour</b> : au-delà, les repas sont réduits puis refusés (toutes sources).</li>
+<li><b>N'a pas mangé</b> : alerte si la gamelle n'a pas baissé de 5 g X heures après un repas.</li>
+<li><b>Verrou enfant</b> : bloque les boutons de la gamelle (reset + distribution 3 s pour le retirer).</li>
+</ul>
+<h3>Planning</h3>
+<p><b>Servir le prochain repas</b> distribue tout de suite le prochain repas d'aujourd'hui ; il ne sera pas resservi à son heure. Refusé s'il n'en reste plus, si le plafond est atteint ou si la gamelle est pleine.</p>
+<p>États : <b>à venir</b>, <b>sera sauté</b> (sauté aujourd'hui), <b>en cours</b>, <b>servi</b>, <b>échec</b>, <b>sauté</b> (heure passée sans distribution, ex. gamelle éteinte), <b>sauté (gamelle pleine)</b>, <b>sauté (plafond)</b>.</p>
+<h3>Codes d'erreur</h3>
+<p>L'écran alterne <b>Err</b>, <b>E</b> + code et le poids. Home Assistant affiche le capteur <b>Problem</b>. <b>Effacer</b> (ou « Clear problem ») acquitte les codes mémorisés.</p>
+<dl>
+<dt>E1 Repas raté</dt><dd>Bloqué, réservoir vide ou rien n'est tombé. Regarde Système → Historique (raison) ; vérifie qu'aucune croquette ne coince la vis. S'efface au prochain repas réussi.</dd>
+<dt>E2 Réservoir vide</dt><dd>Remplis le réservoir ; disparaît tout seul.</dd>
+<dt>E3 Gamelle absente</dt><dd>Un repas a été servi sans gamelle sur la balance. Remets-la.</dd>
+<dt>E4 Connexion perdue</dt><dd>MQTT coupé plus de 5 min (la durée s'affiche au retour). Vérifie le Wi-Fi et le broker.</dd>
+<dt>E5 Heure non synchronisée</dt><dd>Sans heure, le planning ne tourne pas. Vérifie le Wi-Fi et le serveur NTP (Système → Heure).</dd>
+<dt>E6 Plafond atteint</dt><dd>Un repas a été réduit ou refusé. S'efface à minuit.</dd>
+<dt>E7 N'a pas mangé</dt><dd>La gamelle n'a pas baissé après un repas. S'efface dès que l'animal mange.</dd>
+<dt>E9 Tâche bloquée</dt><dd>Une partie du firmware ne répond plus. Envoie le journal (Système → Diagnostic) puis redémarre.</dd>
+</dl>
+<h3>Mises à jour</h3>
+<p>Copie <code>petfeeder_a.bin</code> et <code>petfeeder_b.bin</code> dans le dossier firmware puis <b>Installer la mise à jour</b> (ici ou dans HA). La gamelle écrit l'autre banque et redémarre dessus ; en cas d'échec elle reste sur l'actuelle.</p>
+</section>
+<section class="panel help" data-lang="en">
+<h2>How it works</h2>
+<h3>A meal</h3>
+<p>At the scheduled time the auger turns one "hole" per portion (≈10 g to start). A sensor counts the holes; the scale weighs before and after. In <b>Compensated</b> mode, missing grams are topped up with extra portions (2 top-ups at most). In <b>Open loop</b> mode it weighs only for the history.</p>
+<p>The <b>portion size</b> adjusts itself after every weighed successful meal (moving average). <b>Calibrate</b> sets it directly.</p>
+<h3>When the auger jams</h3>
+<p>If the motor pulls hard without turning (≈280 mA) or sees no hole, it reverses 1 s and starts again (3 tries). After 3 failures the meal is marked <b>stuck</b>.</p>
+<h3>Safeguards</h3>
+<ul>
+<li><b>Overfill</b>: a scheduled meal is skipped while the bowl already holds the set weight.</li>
+<li><b>Daily limit</b>: above it, meals are shortened then refused (all sources).</li>
+<li><b>Not eaten</b>: alert when the bowl has not gone down by 5 g X hours after a meal.</li>
+<li><b>Child lock</b>: disables the feeder buttons (reset + dispense 3 s to remove).</li>
+</ul>
+<h3>Schedule</h3>
+<p><b>Feed next meal</b> serves today's next meal now; it is not served again at its time. Refused when none is left, the daily limit is reached or the bowl is full.</p>
+<p>States: <b>pending</b>, <b>to be skipped</b>, <b>dispensing</b>, <b>dispensed</b>, <b>failed</b>, <b>skipped</b> (time passed without a meal, e.g. feeder off), <b>skipped full</b>, <b>skipped limit</b>.</p>
+<h3>Error codes</h3>
+<p>The screen alternates <b>Err</b>, <b>E</b> + code and the weight. Home Assistant shows the <b>Problem</b> sensor. <b>Clear</b> (or "Clear problem") acknowledges the latched codes.</p>
+<dl>
+<dt>E1 Feed failed</dt><dd>Stuck, hopper empty or nothing fell. See System → Feed history (reason); check that no kibble wedges the auger. Clears on the next good meal.</dd>
+<dt>E2 Hopper empty</dt><dd>Refill the hopper; clears by itself.</dd>
+<dt>E3 Bowl missing</dt><dd>A meal was served without the bowl on the scale. Put it back.</dd>
+<dt>E4 Connection lost</dt><dd>MQTT down for more than 5 min (the length shows once back). Check Wi-Fi and the broker.</dd>
+<dt>E5 Time not synced</dt><dd>Without time the schedule cannot run. Check Wi-Fi and the NTP server (System → Time).</dd>
+<dt>E6 Daily limit reached</dt><dd>A meal was shortened or refused. Clears at midnight.</dd>
+<dt>E7 Not eaten</dt><dd>The bowl did not go down after a meal. Clears as soon as the pet eats.</dd>
+<dt>E9 Task stalled</dt><dd>Part of the firmware stopped responding. Send the log (System → Diagnostics) then reboot.</dd>
+</dl>
+<h3>Updates</h3>
+<p>Copy <code>petfeeder_a.bin</code> and <code>petfeeder_b.bin</code> to the firmware folder, then <b>Install firmware update</b> (here or in HA). The feeder writes the other bank and restarts on it; if anything fails it stays on the current one.</p>
 </section>
 </div>
 </div>
@@ -1233,6 +1354,37 @@ const SVG = {
 };
 let editKey = null, editSlotEnabled = true, todayDow = null, deviceLocalTime = null;
 let webPw = '', progressActive = false, pollTimer = null;
+let LANG = 'en', lastPanel = null, portionG = 10;
+const T = (x) => tr(x, LANG);
+const ask = (m) => confirm(T(m));
+const dirty = new Set();
+/* Static text, captured once in English, re-translated on language change. */
+const STATIC_TEXT = [];
+const STATIC_ATTR = [];
+(function collectStatic() {
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement.closest('.help, script, #toast') || !n.data.trim()) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) STATIC_TEXT.push([n, n.data.trim(), n.data]);
+  document.querySelectorAll('[placeholder],[title],[aria-label]').forEach((el) => {
+    for (const a of ['placeholder', 'title', 'aria-label']) if (el.hasAttribute(a)) STATIC_ATTR.push([el, a, el.getAttribute(a)]);
+  });
+})();
+function applyLang(lang) {
+  LANG = lang;
+  document.documentElement.lang = lang;
+  document.body.classList.toggle('fr', lang === 'fr');
+  for (const [n, key, raw] of STATIC_TEXT) n.data = raw.replace(key, T(key));
+  for (const [el, a, v] of STATIC_ATTR) el.setAttribute(a, T(v));
+  document.querySelectorAll('#days .chip span').forEach((sp, i) => { sp.textContent = T(DAYS[i])[0]; sp.title = T(DAYS[i]); });
+  $('langSel').value = lang;
+}
+document.addEventListener('click', (e) => { lastPanel = e.target.closest('.panel') || lastPanel; }, true);
+for (const ev of ['input', 'change']) {
+  document.addEventListener(ev, (e) => {
+    if (e.target.id && e.target.closest('#pane-settings, #pane-system') && e.target.type !== 'checkbox') dirty.add(e.target.id);
+  }, true);
+}
 try { webPw = localStorage.getItem('feederPw') || ''; } catch (e) { webPw = ''; }
 const editorOverlay = $('slotEditor');
 DAYS.forEach((d, i) => {
@@ -1248,9 +1400,10 @@ TIMEZONES.forEach((t) => {
   $('tzSel').appendChild(o);
 });
 $('tzSel').insertAdjacentHTML('beforeend', '<option value="">Custom…</option>');
+$('langSel').value = '';
 function toast(text, ok) {
   const s = $('toast');
-  s.textContent = text || '';
+  s.textContent = text ? T(text) : '';
   s.className = ok ? 'ok' : text ? 'err' : '';
 }
 function badge(text, tone) {
@@ -1265,7 +1418,7 @@ function slotKey(h, m) {
 }
 function setIfIdle(id, v) {
   const el = $(id);
-  if (el && document.activeElement !== el && v !== undefined && v !== null) el.value = v;
+  if (el && !dirty.has(id) && document.activeElement !== el && v !== undefined && v !== null) el.value = v;
 }
 function syncRowSelection() {
   const v = $('slotTime').value;
@@ -1312,16 +1465,16 @@ function openEditSlotEditor(s) {
 }
 function renderStatus(st) {
   const parts = formatNextFeedParts(st.next);
-  $('nextMeta').textContent = parts.headline;
+  $('nextMeta').textContent = T(parts.headline);
   const main = $('nextMain');
   main.textContent = parts.detail || '';
   main.hidden = !parts.detail;
   const prog = formatProgress(st.progress);
-  $('progress').textContent = prog || '';
+  $('progress').textContent = prog ? T(prog) : '';
   progressActive = !!prog;
-  $('statusAlerts').innerHTML = formatStatusAlerts(st).map((a) => badge(a.text, a.tone)).join(' ');
+  $('statusAlerts').innerHTML = formatStatusAlerts(st).map((a) => badge(T(a.text), a.tone)).join(' ');
   $('stateGrid').innerHTML = statusStateRows(st)
-    .map((r) => `<div class="state-item"><dt class="eyebrow">${r.label}</dt><dd class="${r.tone}">${r.value}</dd></div>`)
+    .map((r) => `<div class="state-item"><dt class="eyebrow">${T(r.label)}</dt><dd class="${r.tone}">${T(r.value)}</dd></div>`)
     .join('');
   $('deviceTime').textContent = formatDeviceTime(st);
   $('sysTime').textContent = formatDeviceTime(st);
@@ -1378,7 +1531,7 @@ function bindSlotActions(card, s, skipCtrl) {
   }
   card.querySelector('[data-del]').onclick = async (e) => {
     e.stopPropagation();
-    if (!confirm(`Delete the ${formatSlotClock(s.time)} feed?`)) return;
+    if (!ask(`Delete the ${formatSlotClock(s.time)} feed?`)) return;
     await post('/api/schedule/delete', buildScheduleDeleteBody(t[0], t[1]));
     if (editKey === slotKey(t[0], t[1])) closeEditor();
     loadSchedule();
@@ -1395,21 +1548,31 @@ function renderSettings(st) {
   if (st.power) setIfIdle('battWifi', st.power.battery_wifi);
   if (st.portion) {
     $('portionG').textContent = st.portion.g;
-    $('portionSt').textContent = st.portion.status === 'ok' ? '(calibrated)' : st.portion.status === 'learned' ? '(learned from meals)' : st.portion.status === 'failed' ? '(last calibration failed)' : st.portion.status === 'running' ? '(calibrating…)' : '(default)';
+    portionG = st.portion.g;
+    $('btnG').placeholder = `${st.portion.g} g`;
+    const ps = { ok: ['calibrated', 'calibrée'], learned: ['learned from meals', 'apprise des repas'], failed: ['last calibration failed', 'dernière calibration ratée'], running: ['calibrating…', 'calibration…'] }[st.portion.status] || ['default', 'par défaut'];
+    $('portionSt').textContent = `(${ps[LANG === 'fr' ? 1 : 0]})`;
   }
-  if (st.scale) $('scaleSt').textContent = st.scale === 'calibrated' ? 'done' : st.scale === 'zero_only' ? 'zero done, span missing' : 'not calibrated';
+  if (st.scale) {
+    const sc = { calibrated: ['done', 'faite'], zero_only: ['zero done, span missing', 'zéro fait, étalon manquant'] }[st.scale] || ['not calibrated', 'non calibrée'];
+    $('scaleSt').textContent = sc[LANG === 'fr' ? 1 : 0];
+  }
   if (document.activeElement !== $('childLock')) $('childLock').checked = !!st.child_lock;
   $('eatenVal').textContent = st.eaten_today !== undefined && st.eaten_today !== '' ? st.eaten_today : '—';
-  $('rssi').textContent = formatRssi(st.rssi);
+  $('rssi').textContent = T(formatRssi(st.rssi));
   $('fwVer').textContent = st.fw || '—';
-  $('pwSt').textContent = st.network && st.network.password ? 'set' : 'none';
+  if (st.ota) {
+    $('fwBank').textContent = st.ota.bank;
+    $('otaSt').textContent = `${T(st.ota.state)}${st.ota.pct ? ` ${st.ota.pct}%` : ''}${st.ota.error ? ` — ${st.ota.error}` : ''}`;
+  }
+  $('pwSt').textContent = st.network && st.network.password ? (LANG === 'fr' ? 'défini' : 'set') : (LANG === 'fr' ? 'aucun' : 'none');
   const pb = st.problem || {};
   $('problemBox').hidden = !pb.active;
-  $('problemText').textContent = pb.active ? `${(pb.codes || []).join(' ')} — ${pb.text}` : '';
+  $('problemText').textContent = pb.active ? `${(pb.codes || []).join(' ')} — ${T(pb.text)}` : '';
   if (st.limit) {
     setIfIdle('dailyMax', st.limit.daily_max_g);
     setIfIdle('notEatenH', st.limit.not_eaten_h);
-    $('todayG').textContent = `Dispensed today: ${st.limit.today_g} g`;
+    $('todayG').textContent = T(`Dispensed today: ${st.limit.today_g} g`);
   }
   const h = st.health;
   if (h) {
@@ -1419,9 +1582,11 @@ function renderSettings(st) {
       ['MQTT drops', h.mqtt_lost],
       ['Boots', h.boots],
       ['Stalled tasks', h.stalls],
-      ['Up for', formatUptime(h.uptime_s)],
-      ['Last reset', h.reset],
-    ].map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
+      ['Up for', T(formatUptime(h.uptime_s))],
+      ['Last reset', T(h.reset)],
+      ['Battery voltage', st.battery_mv ? `${(st.battery_mv / 1000).toFixed(2)} V` : '—'],
+      ['Hopper IR beam', st.hopper_ir ? T(st.hopper_ir) : '—'],
+    ].map(([k, v]) => `<div class="kv"><span>${T(k)}</span><b>${v}</b></div>`).join('');
   }
 }
 async function loadHistory() {
@@ -1429,8 +1594,8 @@ async function loadHistory() {
   if (!Array.isArray(rows)) return;
   $('histList').innerHTML = rows.length ? rows.map((r) => {
     const f = formatHistoryRow(r);
-    return `<div class="h"><div class="row between"><span>${f.when} · ${f.source} · ${f.want} → ${f.got}</span>${badge(f.result, f.tone)}</div><small>${f.detail}</small></div>`;
-  }).join('') : '<p class="hint">No meal yet.</p>';
+    return `<div class="h"><div class="row between"><span>${f.when} · ${T(f.source)} · ${T(f.want)} → ${T(f.got)}</span>${badge(T(f.result), f.tone)}</div><small>${f.detail.split(' · ').map(T).join(' · ')}</small></div>`;
+  }).join('') : `<p class="hint">${T('No meal yet.')}</p>`;
 }
 function renderOnce(st) {
   const n = st.network || {};
@@ -1447,6 +1612,10 @@ async function loadStatus() {
   const st = await read('/api/status');
   if (!st || st.locked || st.error === 'unauthorized') { lock(true); return null; }
   lock(false);
+  {
+    const want = pickLang(st.lang, navigator.language);
+    if (want !== LANG || document.documentElement.lang !== want) applyLang(want);
+  }
   const newDow = st.time_synced ? weekdayFromLocalTime(st.local_time) : null;
   const dowChanged = newDow !== todayDow;
   todayDow = newDow;
@@ -1474,15 +1643,15 @@ async function loadSchedule() {
     card.innerHTML = `<div class="slot-main">
 <div class="slot-top row between">
 <span class="slot-when">${formatSlotSummary(s.time, s.g)}</span>
-${badge(formatSlotState(s.state), slotStateTone(s.state))}
+${badge(T(formatSlotState(s.state)), slotStateTone(s.state))}
 </div>
 <div class="day-dots">${slotDayBadges(s.repeat_days, todayDow).map((d) =>
-  `<span class="${dayDotClass(d)}" title="${d.today ? d.label + ' (today)' : d.label}">${d.letter}</span>`).join('')}</div>
+  `<span class="${dayDotClass(d)}" title="${T(d.label)}">${T(d.label)[0]}</span>`).join('')}</div>
 </div>
 <div class="slot-foot row between">
 <div class="slot-actions">
 <label class="tog slot-en"><input type=checkbox data-toggle${s.enabled ? ' checked' : ''} aria-label=Enabled></label>
-${skipCtrl ? `<button type=button class="icon skip${skipCtrl.active ? ' on' : ''}" data-skip aria-label="${skipCtrl.label}" title="${skipCtrl.label}">${SVG.skip}</button>` : ''}
+${skipCtrl ? `<button type=button class="icon skip${skipCtrl.active ? ' on' : ''}" data-skip aria-label="${T(skipCtrl.label)}" title="${T(skipCtrl.label)}">${SVG.skip}</button>` : ''}
 </div>
 <div class="slot-tools">
 <button type=button class="icon" data-edit aria-label="Edit">${SVG.pen}</button>
@@ -1529,9 +1698,10 @@ async function loadAll() {
 }
 async function postSave(path, body, okMsg, failMsg) {
   const r = await post(path, body);
-  const m = mutationMessage(r, okMsg, failMsg);
-  toast(m.text, m.ok);
-  return m.ok;
+  const ok = !!(r && r.ok);
+  toast(ok ? T(okMsg) : `${T(failMsg || 'Not saved')}: ${T(errorWords(r && r.error || 'unknown'))}`, ok);
+  if (ok && lastPanel) lastPanel.querySelectorAll('[id]').forEach((el) => dirty.delete(el.id));
+  return ok;
 }
 function poll() {
   clearTimeout(pollTimer);
@@ -1574,7 +1744,7 @@ $('dispBtn').onclick = async () => {
   btn.disabled = false;
   poll();
 };
-$('eatenReset').onclick = () => confirm('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
+$('eatenReset').onclick = () => ask('Reset eaten today to 0?') && postSave('/api/eaten_reset', '{}', 'Eaten today reset').then(loadStatus);
 $('schedEn').onchange = async (e) => {
   await post('/api/schedule/enable', buildScheduleEnableBody(e.target.checked));
   loadAll();
@@ -1604,16 +1774,16 @@ $('overfillEn').onchange = () => { $('overfillG').disabled = !$('overfillEn').ch
 $('saveOverfill').onclick = () => postSave('/api/feed/overfill', buildFeedOverfillBody({
   enabled: $('overfillEn').checked, threshold_g: $('overfillG').value,
 }), 'Overfill protection saved').then(loadOverfill);
-$('portionCal').onclick = () => confirm('Dispense 3 portions (~25 g) into the bowl to measure them?') && postSave('/api/portion_cal', '{}', 'Calibrating… (~25 s)').then(poll);
-$('portionReset').onclick = () => confirm('Reset portion size to 10 g?') && postSave('/api/portion_cal', {action: 'reset'}, 'Portion size reset').then(loadStatus);
+$('portionCal').onclick = () => ask('Dispense 3 portions (~25 g) into the bowl to measure them?') && postSave('/api/portion_cal', '{}', 'Calibrating… (~25 s)').then(poll);
+$('portionReset').onclick = () => ask('Reset portion size to 10 g?') && postSave('/api/portion_cal', {action: 'reset'}, 'Portion size reset').then(loadStatus);
 $('saveDisp').onclick = () => postSave('/api/display', buildDisplayBody({
   mode: $('dispMode').value,
   brightness: $('dispBright').value,
   battery_off_s: $('dispOff').value,
   mains_off_s: $('dispMainsOff').value,
 }), 'Screen saved').then(loadStatus);
-$('calZero').onclick = () => confirm('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');
-$('calSpan').onclick = () => confirm('Empty 350 g bowl installed?') && postSave('/api/calibrate', {action: 'span'}, 'Span captured');
+$('calZero').onclick = () => ask('Bowl removed from the scale?') && postSave('/api/calibrate', {action: 'zero'}, 'Zero captured');
+$('calSpan').onclick = () => ask('Empty 350 g bowl installed?') && postSave('/api/calibrate', {action: 'span'}, 'Span captured');
 $('saveBattWifi').onclick = () => postSave('/api/power', {battery_wifi: $('battWifi').value}, 'Saved').then(loadStatus);
 $('tzSel').onchange = () => {
   const custom = $('tzSel').value === '';
@@ -1636,7 +1806,7 @@ $('saveNet').onclick = async () => {
     mqtt_user: $('netUser').value.trim(),
     mqtt_pass: $('netMqttPass').value,
   });
-  if (!confirm('Save the network settings and reboot the feeder?')) return;
+  if (!ask('Save the network settings and reboot the feeder?')) return;
   await postSave('/api/network', body, 'Saved — rebooting…', 'Not saved');
 };
 $('savePw').onclick = async () => {
@@ -1664,15 +1834,33 @@ $('importFile').onchange = async () => {
   if (!f) return;
   const text = (await f.text()).trim();
   $('importFile').value = '';
-  if (!confirm('Restore these settings on the feeder?')) return;
+  if (!ask('Restore these settings on the feeder?')) return;
   if (await postSave('/api/import', text, 'Settings restored')) loadAll();
 };
 $('saveOta').onclick = () => postSave('/api/ota_base', $('otaBase').value.trim(), 'Firmware URL saved');
-$('rebootBtn').onclick = () => confirm('Reboot the feeder?') && postSave('/api/reboot', '{}', 'Rebooting…');
-$('reprovBtn').onclick = () => confirm('Erase the Wi-Fi settings and restart in setup mode (access point)?') && postSave('/api/reprovision', '{}', 'Restarting in setup mode…');
+$('rebootBtn').onclick = () => ask('Reboot the feeder?') && postSave('/api/reboot', '{}', 'Rebooting…');
+$('reprovBtn').onclick = () => ask('Erase the Wi-Fi settings and restart in setup mode (access point)?') && postSave('/api/reprovision', '{}', 'Restarting in setup mode…');
 $('factoryBtn').onclick = () => {
   if ($('resetConfirm').value !== 'RESET') { toast('Type RESET to confirm'); return; }
   postSave('/api/factory_reset', '{}', 'Factory reset — restarting in setup mode…');
+};
+$('feedNextBtn').onclick = async () => {
+  if (!ask('Serve the next scheduled meal now? It will not be served again at its time.')) return;
+  if (await postSave('/api/schedule/feed_next', '{}', 'Next meal served now', 'Not served')) poll();
+  loadSchedule();
+};
+$('otaInstall').onclick = async () => {
+  if (!ask('Install the firmware from the firmware folder? The feeder reboots when done.')) return;
+  await postSave('/api/ota_install', '{}', 'Update started');
+  poll();
+};
+$('langSel').onchange = async () => {
+  const lang = $('langSel').value;
+  if (await postSave('/api/lang', {lang}, 'Language saved')) {
+    applyLang(lang);
+    toast('Language saved', true);
+    loadAll();
+  }
 };
 $('problemClear').onclick = () => postSave('/api/problem_clear', '{}', 'Problem cleared').then(loadStatus);
 $('histBtn').onclick = loadHistory;

@@ -89,6 +89,7 @@ int mqtt_ha_format_wifi_rssi_config(char *buf, size_t len, const char *device_id
 int mqtt_ha_format_problem_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_problem_clear_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_daily_limit_config(char *buf, size_t len, const char *device_id);
+int mqtt_ha_format_feed_next_config(char *buf, size_t len, const char *device_id);
 int mqtt_ha_format_not_eaten_config(char *buf, size_t len, const char *device_id);
 /* Device page link shown in HA device info (configuration_url). */
 void mqtt_ha_discovery_set_ip(const char *ip);

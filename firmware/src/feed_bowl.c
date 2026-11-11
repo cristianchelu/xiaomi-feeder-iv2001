@@ -59,6 +59,19 @@ bool feed_overfill_should_skip_schedule(uint32_t now_ms)
     return bowl_g >= feed_config_overfill_threshold_g_get();
 }
 
+schedule_fire_result_t feed_schedule_precheck(uint32_t now_ms)
+{
+    uint32_t rem;
+
+    if (feed_limit_remaining_g(&rem) && rem == 0u) {
+        return SCHEDULE_FIRE_SKIPPED_LIMIT;
+    }
+    if (feed_overfill_should_skip_schedule(now_ms)) {
+        return SCHEDULE_FIRE_SKIPPED_FULL;
+    }
+    return SCHEDULE_FIRE_OK;
+}
+
 schedule_fire_result_t feed_schedule_fire(uint8_t g, uint32_t now_ms)
 {
     dispense_submit_result_t result;

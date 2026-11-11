@@ -473,3 +473,34 @@ int web_admin_export(char *buf, size_t len)
     }
     return off + w;
 }
+
+static char s_lang[4];
+static bool s_lang_loaded;
+
+const char *web_admin_lang(void)
+{
+    const config_port_t *cfg = config_port_get();
+
+    if (!s_lang_loaded) {
+        s_lang_loaded = true;
+        s_lang[0] = '\0';
+        if (cfg == NULL || cfg->read(CONFIG_GROUP_SYSTEM, "lang", s_lang, sizeof(s_lang)) != PORT_OK ||
+            (strcmp(s_lang, "fr") != 0 && strcmp(s_lang, "en") != 0)) {
+            s_lang[0] = '\0';
+        }
+    }
+    return s_lang;
+}
+
+bool web_admin_set_lang(const char *lang)
+{
+    const config_port_t *cfg = config_port_get();
+
+    if (lang == NULL || (strcmp(lang, "fr") != 0 && strcmp(lang, "en") != 0) || cfg == NULL ||
+        cfg->write(CONFIG_GROUP_SYSTEM, "lang", lang) != PORT_OK) {
+        return false;
+    }
+    (void)snprintf(s_lang, sizeof(s_lang), "%s", lang);
+    s_lang_loaded = true;
+    return true;
+}

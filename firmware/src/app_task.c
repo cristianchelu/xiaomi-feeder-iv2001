@@ -76,6 +76,11 @@ static schedule_fire_result_t app_schedule_fire(uint8_t hour, uint8_t min, uint8
     return feed_schedule_fire(g, now_ms);
 }
 
+static schedule_fire_result_t app_schedule_precheck(void)
+{
+    return feed_schedule_precheck((uint32_t)(xTaskGetTickCount() * (TickType_t)portTICK_PERIOD_MS));
+}
+
 static void app_timers_start(void)
 {
     display_presentation_reset();
@@ -145,6 +150,7 @@ void app_start(void)
     schedule_init();
     schedule_set_changed_fn(mqtt_schedule_request_publish);
     schedule_set_fire_fn(app_schedule_fire);
+    schedule_set_precheck_fn(app_schedule_precheck);
 
     if (s_app_task == NULL) {
         if (xTaskCreate(app_task_fn,

@@ -575,3 +575,12 @@ void test_mqtt_ha_format_problem_entities(void)
     assert_common(buf, "not_eaten_h");
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":24"));
 }
+
+void test_mqtt_ha_format_feed_next_button(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_feed_next_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "feed_next");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/schedule/feed_next\""));
+}

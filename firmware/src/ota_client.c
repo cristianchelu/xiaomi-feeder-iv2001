@@ -241,3 +241,26 @@ uint32_t ota_client_poll_ms(void)
 {
     return ota_slot_health_poll_ms();
 }
+
+void ota_client_request_install(void)
+{
+    static const char body[] = "{\"install\":true}";
+    char topic[96];
+
+    if (s_device_id[0] == '\0' ||
+        mqtt_topic_format(topic, sizeof(topic), s_device_id, "cmd/ota") != PORT_OK) {
+        app_log_error("ota", "install from web: device_id unset");
+        return;
+    }
+    app_log_info("ota", "install requested from the web page");
+    ota_client_on_mqtt_message(topic, body, sizeof(body) - 1u);
+}
+
+int ota_client_format_status(char *buf, size_t len)
+{
+    int n = snprintf(buf, len, "{\"state\":\"%s\",\"pct\":%u,\"error\":\"%s\",\"bank\":\"%c\"}",
+                     s_last_state, (unsigned)s_last_pct, s_last_error,
+                     ota_client_active_bank_letter());
+
+    return (n < 0 || (size_t)n >= len) ? -1 : n;
+}

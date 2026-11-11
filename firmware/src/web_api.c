@@ -21,6 +21,10 @@
 #include "feed_history.h"
 #include "feed_limit.h"
 #include "problem.h"
+#include "mqtt_json.h"
+#include "battery_monitor.h"
+#include "mqtt_schedule.h"
+#include "ota_client.h"
 #include "task_watch.h"
 #include "dispense.h"
 #include "feed_config.h"
@@ -315,6 +319,34 @@ static int web_api_append_telemetry_fields(char *buf, size_t len, int off)
         if (off < 0) {
             return -1;
         }
+        {
+            static char ota[96];
+
+            off = web_api_append(buf, len, off, ",\"lang\":\"%s\"", web_admin_lang());
+            if (off < 0) {
+                return -1;
+            }
+            if (ota_client_format_status(ota, sizeof(ota)) > 0) {
+                off = web_api_append(buf, len, off, ",\"ota\":%s", ota);
+                if (off < 0) {
+                    return -1;
+                }
+            }
+            if (battery_monitor_last_mv() > 0u) {
+                off = web_api_append(buf, len, off, ",\"battery_mv\":%u",
+                                     (unsigned)battery_monitor_last_mv());
+                if (off < 0) {
+                    return -1;
+                }
+            }
+            if (hopper_input_last_raw() >= 0) {
+                off = web_api_append(buf, len, off, ",\"hopper_ir\":\"%s\"",
+                                     hopper_input_last_raw() ? "blocked" : "clear");
+                if (off < 0) {
+                    return -1;
+                }
+            }
+        }
         if (mqtt_feed_limit_format(lim, sizeof(lim)) > 0) {
             off = web_api_append(buf, len, off, ",\"limit\":%s", lim);
             if (off < 0) {
@@ -462,6 +494,9 @@ static const struct {
     { "/api/dispense_amount", WEB_API_POST_DISPENSE_AMOUNT },
     { "/api/problem_clear", WEB_API_POST_PROBLEM_CLEAR },
     { "/api/feed_limit", WEB_API_POST_FEED_LIMIT },
+    { "/api/schedule/feed_next", WEB_API_POST_FEED_NEXT },
+    { "/api/ota_install", WEB_API_POST_OTA_INSTALL },
+    { "/api/lang", WEB_API_POST_LANG },
     { "/api/ota_base", WEB_API_POST_OTA_BASE },
     { "/api/unlock", WEB_API_POST_UNLOCK },
 };
@@ -668,6 +703,34 @@ static int web_api_dispatch_post(web_api_route_t route,
     bool is_admin = true;
 
     if (route == WEB_API_POST_UNLOCK) {
+        return web_api_write_ok(resp, resp_len);
+    }
+    if (route == WEB_API_POST_FEED_NEXT) {
+        schedule_feed_next_t r;
+
+        if (!app_lock_take(3000u)) {
+            return web_api_write_error(resp, resp_len, "busy");
+        }
+        r = schedule_feed_next();
+        if (r == SCHEDULE_FEED_NEXT_OK) {
+            mqtt_schedule_request_publish();
+        }
+        app_lock_give();
+        return r == SCHEDULE_FEED_NEXT_OK ? web_api_write_ok(resp, resp_len)
+                                          : web_api_write_error(resp, resp_len,
+                                                                schedule_feed_next_reason(r));
+    }
+    if (route == WEB_API_POST_OTA_INSTALL) {
+        ota_client_request_install();
+        return web_api_write_ok(resp, resp_len);
+    }
+    if (route == WEB_API_POST_LANG) {
+        char lang[4];
+
+        if (body == NULL || !mqtt_json_find_string(body, body_len, "lang", lang, sizeof(lang)) ||
+            !web_admin_set_lang(lang)) {
+            return web_api_write_error(resp, resp_len, "rejected");
+        }
         return web_api_write_ok(resp, resp_len);
     }
 

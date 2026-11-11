@@ -160,6 +160,10 @@ function statusPayload(state) {
     body.display = state.display || { mode: 'weight', brightness: 4, battery_off_s: 60, mains_off_s: 0 };
     body.network = { ssid: 'HomeNet', mqtt_host: '192.168.1.10', mqtt_port: 1883, mqtt_user: 'feeder', ntp: state.ntp || 'pool.ntp.org', password: !!state.web_pw };
     body.rssi = -58;
+    body.lang = state.lang || '';
+    body.ota = { state: 'idle', pct: 0, error: '', bank: 'A' };
+    body.battery_mv = 6193;
+    body.hopper_ir = 'clear';
     body.problem = state.problem_cleared ? { active: false, codes: [], text: '' } : { active: true, codes: ['E1'], text: 'Feed failed (stuck)' };
     body.limit = { daily_max_g: state.daily_max_g || 0, today_g: 45, not_eaten_h: state.not_eaten_h || 0 };
     body.health = { feeds_ok: 12, feeds_failed: 2, jams: 3, mqtt_lost: 1, boots: 4, stalls: 0, uptime_s: 7260, reset: 'software' };
@@ -317,6 +321,16 @@ export function createMockApiHandler(getState, setState) {
             if (body.battery_off_s !== undefined) d.battery_off_s = body.battery_off_s;
             if (body.mains_off_s !== undefined) d.mains_off_s = body.mains_off_s;
             setState({ ...state, display: d });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/lang') {
+            setState({ ...state, lang: body.lang });
+            return json(res, 200, { ok: true });
+        }
+        if (path === '/api/schedule/feed_next') {
+            return json(res, 200, { ok: false, error: 'no_meal_today' });
+        }
+        if (path === '/api/ota_install') {
             return json(res, 200, { ok: true });
         }
         if (path === '/api/problem_clear') {

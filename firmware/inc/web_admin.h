@@ -22,6 +22,9 @@ typedef enum {
 } web_admin_action_t;
 
 bool web_admin_password_set(void);
+/* Page language: "fr", "en" or "" (unset). */
+const char *web_admin_lang(void);
+bool web_admin_set_lang(const char *lang);
 /* True when s[0..n) is the web password (or none is set). */
 bool web_admin_password_matches(const char *s, size_t n);
 /* POST bodies start with "key=<password>\n" when a password is set. Strips

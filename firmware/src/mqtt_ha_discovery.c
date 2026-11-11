@@ -1074,6 +1074,10 @@ MQTT_HA_GENERIC(mqtt_ha_format_problem_clear_config,
     "Clear problem", "problem_clear", NULL, "cmd/problem_clear",
     "\"payload_press\":\"{}\",\"icon\":\"mdi:alert-remove-outline\"")
 
+MQTT_HA_GENERIC(mqtt_ha_format_feed_next_config,
+    "Feed next meal", "feed_next", NULL, "cmd/schedule/feed_next",
+    "\"payload_press\":\"{}\",\"icon\":\"mdi:clock-fast\"")
+
 MQTT_HA_GENERIC(mqtt_ha_format_daily_limit_config,
     "Daily limit", "daily_limit", "feed/limit", "cmd/feed_limit",
     "\"value_template\":\"{{ value_json.daily_max_g }}\","
@@ -1285,6 +1289,11 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .component = "button",
         .object_id = "problem_clear",
         .format_config = mqtt_ha_format_problem_clear_config,
+    },
+    {
+        .component = "button",
+        .object_id = "feed_next",
+        .format_config = mqtt_ha_format_feed_next_config,
     },
     {
         .component = "number",
