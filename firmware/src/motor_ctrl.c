@@ -18,6 +18,7 @@
 #include "app_log.h"
 #include "gpio_expander_port.h"
 #include "motor_ctrl.h"
+#include "task_watch.h"
 
 #include <string.h>
 #include "motor_driver.h"
@@ -1013,6 +1014,7 @@ static void motor_ctrl_task(void *param)
     (void)param;
 
     for (;;) {
+        task_watch_beat(TASK_WATCH_MOTOR);
         if (xQueueReceive(s_cmd_q, &cmd, pdMS_TO_TICKS(MOTOR_CTRL_LOOP_SLICE_MS)) ==
             pdPASS) {
             motor_ctrl_handle_cmd(&cmd);

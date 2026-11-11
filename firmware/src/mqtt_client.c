@@ -31,6 +31,7 @@
 #include "mqtt_dispense_amount.h"
 #include "mqtt_wifi_rssi.h"
 #include "mqtt_problem.h"
+#include "task_watch.h"
 #include "feed_limit.h"
 #include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
@@ -495,10 +496,18 @@ static void mqtt_client_do_disconnect(const mqtt_port_t *mqtt)
     mqtt_client_connect_worker_reset();
 }
 
+bool mqtt_client_is_armed(void)
+{
+    return s_connect_armed;
+}
+
 uint32_t mqtt_client_step(void)
 {
     const mqtt_port_t *mqtt = mqtt_port_get();
     uint32_t delay_ms = 500;
+
+    task_watch_beat(TASK_WATCH_MQTT);
+    (void)task_watch_check(TASK_WATCH_APP, (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
 
     if (s_disconnect_pending) {
         s_disconnect_pending = false;

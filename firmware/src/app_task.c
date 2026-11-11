@@ -9,6 +9,8 @@
 #include "timers.h"
 
 #include "app.h"
+#include "feed_history.h"
+#include "task_watch.h"
 #include "app_event.h"
 #include "app_event_port.h"
 #include "aw9523_irq_adapter.h"
@@ -120,6 +122,7 @@ static void app_task_fn(void *param)
     for (;;) {
         /* power-state-machine.md § Watchdog: one feed per loop iteration. */
         wdt_adapter_feed();
+        task_watch_beat(TASK_WATCH_APP);
 
         if (!app_event_receive(&ev, APP_DISPLAY_TICK_MS)) {
             app_dispatch_display_tick(
@@ -136,6 +139,7 @@ void app_start(void)
     app_lock_init();
     app_event_port_init();
     wdt_adapter_log_reset_reason();
+    feed_counter_inc(FEED_COUNTER_BOOTS);
     time_sync_init();
     tz_rule_init();
     schedule_init();

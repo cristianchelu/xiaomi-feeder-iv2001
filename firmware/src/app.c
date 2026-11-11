@@ -8,6 +8,9 @@
 
 #include "app_log.h"
 #include "app.h"
+#include "problem.h"
+#include "mqtt_port.h"
+#include "app_health.h"
 #include "app_event.h"
 #include "app_event_port.h"
 #include "app_mqtt_dispatch.h"
@@ -866,6 +869,17 @@ void app_dispatch(const app_event_t *ev)
         mqtt_wifi_rssi_poll(ev->u.display_tick.now_ms, false);
         app_heap_log_poll(ev->u.display_tick.now_ms);
         dispense_progress_poll();
+        {
+            const mqtt_port_t *mqtt = mqtt_port_get();
+            app_health_inputs_t hin;
+
+            hin.mqtt_up = mqtt != NULL && mqtt->is_connected != NULL && mqtt->is_connected();
+            hin.mqtt_armed = mqtt_client_is_armed();
+            hin.panel_free = !dispense_is_active() && !feeder_runtime_ota_active() &&
+                             !s_idle_blank && !s_panel_off && !s_asleep &&
+                             !display_child_lock_indicator_feedback_active();
+            app_health_tick(ev->u.display_tick.now_ms, &hin);
+        }
         break;
 
     case EVT_BUTTON_IRQ:
@@ -997,6 +1011,9 @@ void app_process_received_event(const app_event_t *ev)
 
 void app_test_reset(void)
 {
+    problem_test_reset();
+    app_health_test_reset();
+    (void)display_presentation_set_overlay(NULL);
     s_asleep = false;
     s_wifi_up = true;
     s_dispense_seen = false;

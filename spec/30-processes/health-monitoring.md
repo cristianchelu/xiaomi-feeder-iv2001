@@ -72,7 +72,7 @@ web) or their own clear rule.
 | E2 | Hopper empty | live | Hopper level `empty` | — |
 | E3 | Bowl missing at feed | latched | A job starts while the scale reports the bowl missing (the job still runs) | — |
 | E4 | Connection lost | latched | MQTT session down for more than `[tune]` 5 min while armed | — |
-| E5 | Time not synced | live | Wall clock not set (schedule cannot run) | — |
+| E5 | Time not synced | live | Wall clock not set (schedule cannot run), from `[tune]` 2 min after boot | — |
 | E6 | Daily limit reached | latched | A job is refused or shortened by the daily limit | local midnight |
 | E7 | Not eaten | latched | See [Not-eaten alert](#not-eaten-alert) | consumption detected |
 | E9 | Task stalled | latched | See [Task watch](#task-watch) | — |

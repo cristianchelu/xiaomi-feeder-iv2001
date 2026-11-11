@@ -165,6 +165,7 @@ APP_FILES      += $(APP_PATH_SRC)/problem.c
 APP_FILES      += $(APP_PATH_SRC)/feed_limit.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_problem.c
 APP_FILES      += $(APP_PATH_SRC)/task_watch.c
+APP_FILES      += $(APP_PATH_SRC)/app_health.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_power.c
 APP_FILES      += $(APP_PATH_SRC)/display_settings.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_overfill.c

@@ -75,6 +75,8 @@ bool display_presentation_ota_active(void);
 port_err_t display_presentation_power_on(void);
 port_err_t display_presentation_power_off(void);
 port_err_t display_presentation_set_blanked(bool blanked);
+/* Replace the three digit grids (raw segments) and hide the unit; NULL ends it. */
+port_err_t display_presentation_set_overlay(const uint8_t segs[3]);
 port_err_t display_presentation_refresh(void);
 uint32_t display_presentation_tick(uint32_t now_ms);
 
