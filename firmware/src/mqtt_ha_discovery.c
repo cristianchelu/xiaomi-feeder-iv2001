@@ -891,6 +891,7 @@ typedef struct {
     const char *state_suffix;   /* NULL = no state_topic */
     const char *cmd_suffix;     /* NULL = no command_topic */
     const char *extra;          /* JSON members, no braces, no trailing comma */
+    bool attributes;            /* json_attributes_topic = state topic */
 } mqtt_ha_generic_t;
 
 static int mqtt_ha_format_generic(char *buf,
@@ -914,7 +915,14 @@ static int mqtt_ha_format_generic(char *buf,
                 != PORT_OK) {
             return -1;
         }
-        (void)snprintf(state_member, sizeof(state_member), "\"state_topic\":\"%s\",", state_topic);
+        if (g->attributes) {
+            (void)snprintf(state_member, sizeof(state_member),
+                           "\"state_topic\":\"%s\",\"json_attributes_topic\":\"%s\",",
+                           state_topic, state_topic);
+        } else {
+            (void)snprintf(state_member, sizeof(state_member), "\"state_topic\":\"%s\",",
+                           state_topic);
+        }
     }
     if (g->cmd_suffix != NULL) {
         if (mqtt_topic_format(cmd_topic, sizeof(cmd_topic), device_id, g->cmd_suffix) != PORT_OK) {
@@ -1054,6 +1062,33 @@ MQTT_HA_GENERIC(mqtt_ha_format_dispense_amount_config,
     "\"command_template\":\"{\\\"g\\\": {{ value | int }}}\","
     "\"min\":5,\"max\":150,\"step\":1,\"unit_of_measurement\":\"g\","
     "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:weight-gram\"")
+
+/* Health monitoring (health-monitoring.md § Problem state, § Daily limit). */
+MQTT_HA_GENERIC(mqtt_ha_format_problem_config,
+    "Problem", "problem", "problem", NULL,
+    "\"device_class\":\"problem\","
+    "\"value_template\":\"{{ 'ON' if value_json.active else 'OFF' }}\"",
+    true)
+
+MQTT_HA_GENERIC(mqtt_ha_format_problem_clear_config,
+    "Clear problem", "problem_clear", NULL, "cmd/problem_clear",
+    "\"payload_press\":\"{}\",\"icon\":\"mdi:alert-remove-outline\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_daily_limit_config,
+    "Daily limit", "daily_limit", "feed/limit", "cmd/feed_limit",
+    "\"value_template\":\"{{ value_json.daily_max_g }}\","
+    "\"command_template\":\"{\\\"daily_max_g\\\": {{ value | int }}}\","
+    "\"min\":0,\"max\":2000,\"step\":10,\"unit_of_measurement\":\"g\","
+    "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:food-off-outline\","
+    "\"entity_category\":\"config\"")
+
+MQTT_HA_GENERIC(mqtt_ha_format_not_eaten_config,
+    "Not eaten alert", "not_eaten_h", "feed/limit", "cmd/feed_limit",
+    "\"value_template\":\"{{ value_json.not_eaten_h }}\","
+    "\"command_template\":\"{\\\"not_eaten_h\\\": {{ value | int }}}\","
+    "\"min\":0,\"max\":24,\"step\":1,\"unit_of_measurement\":\"h\","
+    "\"mode\":\"box\",\"optimistic\":false,\"icon\":\"mdi:bowl-mix-outline\","
+    "\"entity_category\":\"config\"")
 
 /* Retired entity: an empty retained config removes it from Home Assistant. */
 static int mqtt_ha_format_retired(char *buf, size_t len, const char *device_id)
@@ -1240,6 +1275,26 @@ static const mqtt_ha_entity_t s_ha_entities[] = {
         .component = "sensor",
         .object_id = "wifi_rssi",
         .format_config = mqtt_ha_format_wifi_rssi_config,
+    },
+    {
+        .component = "binary_sensor",
+        .object_id = "problem",
+        .format_config = mqtt_ha_format_problem_config,
+    },
+    {
+        .component = "button",
+        .object_id = "problem_clear",
+        .format_config = mqtt_ha_format_problem_clear_config,
+    },
+    {
+        .component = "number",
+        .object_id = "daily_limit",
+        .format_config = mqtt_ha_format_daily_limit_config,
+    },
+    {
+        .component = "number",
+        .object_id = "not_eaten_h",
+        .format_config = mqtt_ha_format_not_eaten_config,
     },
     {
         .component = "sensor",

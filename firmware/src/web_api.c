@@ -18,6 +18,9 @@
 #include "mqtt_dispense_amount.h"
 #include "mqtt_dispense_progress.h"
 #include "ota_base.h"
+#include "feed_history.h"
+#include "feed_limit.h"
+#include "problem.h"
 #include "dispense.h"
 #include "feed_config.h"
 #include "eaten_today.h"
@@ -82,6 +85,10 @@ static mqtt_route_kind_t web_api_post_route_to_mqtt(web_api_route_t route)
         return MQTT_ROUTE_CMD_PORTION_CAL;
     case WEB_API_POST_DISPENSE_AMOUNT:
         return MQTT_ROUTE_CMD_DISPENSE_AMOUNT;
+    case WEB_API_POST_PROBLEM_CLEAR:
+        return MQTT_ROUTE_CMD_PROBLEM_CLEAR;
+    case WEB_API_POST_FEED_LIMIT:
+        return MQTT_ROUTE_CMD_FEED_LIMIT;
     case WEB_API_POST_OTA_BASE:
         return MQTT_ROUTE_CMD_OTA_BASE;
     default:
@@ -415,6 +422,8 @@ static const struct {
     { "/api/factory_reset", WEB_API_POST_FACTORY_RESET },
     { "/api/import", WEB_API_POST_IMPORT },
     { "/api/dispense_amount", WEB_API_POST_DISPENSE_AMOUNT },
+    { "/api/problem_clear", WEB_API_POST_PROBLEM_CLEAR },
+    { "/api/feed_limit", WEB_API_POST_FEED_LIMIT },
     { "/api/ota_base", WEB_API_POST_OTA_BASE },
     { "/api/unlock", WEB_API_POST_UNLOCK },
 };
@@ -455,6 +464,9 @@ web_api_route_t web_api_classify(const char *method, const char *path)
         }
         if (strcmp(path, "/api/log") == 0) {
             return WEB_API_GET_LOG;
+        }
+        if (strcmp(path, "/api/history") == 0) {
+            return WEB_API_GET_HISTORY;
         }
         if (strcmp(path, "/api/export") == 0) {
             return WEB_API_GET_EXPORT;
@@ -570,6 +582,9 @@ int web_api_handle_get(web_api_route_t route, char *buf, size_t len)
         }
         return (int)off;
     }
+
+    case WEB_API_GET_HISTORY:
+        return feed_history_format_json(buf, len);
 
     case WEB_API_GET_EXPORT:
         return web_admin_export(buf, len);

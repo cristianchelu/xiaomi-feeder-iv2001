@@ -551,3 +551,27 @@ void test_mqtt_ha_format_eaten_reset_button(void)
     assert_common(buf, "eaten_reset");
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/eaten_reset\""));
 }
+
+void test_mqtt_ha_format_problem_entities(void)
+{
+    char buf[MQTT_OUTBOX_MAX_PAYLOAD];
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_problem_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "problem");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"state_topic\":\"petfeeder/ddeeff/problem\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"json_attributes_topic\":\"petfeeder/ddeeff/problem\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"device_class\":\"problem\""));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_problem_clear_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "problem_clear");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/problem_clear\""));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_daily_limit_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "daily_limit");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"command_topic\":\"petfeeder/ddeeff/cmd/feed_limit\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":2000"));
+
+    TEST_ASSERT_GREATER_THAN(0, mqtt_ha_format_not_eaten_config(buf, sizeof(buf), TEST_DEVICE_ID));
+    assert_common(buf, "not_eaten_h");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"max\":24"));
+}

@@ -23,6 +23,8 @@
 #include "mqtt_display.h"
 #include "mqtt_eaten_today.h"
 #include "mqtt_dispense_amount.h"
+#include "mqtt_problem.h"
+#include "feed_limit.h"
 #include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
 #include "mqtt_power.h"
@@ -69,6 +71,8 @@ void app_mqtt_on_connected(void)
     mqtt_portion_connect_snapshot();
     mqtt_dispense_amount_connect_snapshot();
     mqtt_dispense_progress_connect_snapshot();
+    mqtt_problem_connect_snapshot();
+    mqtt_feed_limit_connect_snapshot();
     mqtt_eaten_today_connect_snapshot();
     mqtt_hopper_ir_connect_snapshot(hopper_input_last_raw());
 }
@@ -109,6 +113,8 @@ void app_mqtt_dispatch(const char *topic,
     case MQTT_ROUTE_CMD_POWER:
     case MQTT_ROUTE_CMD_PORTION_CAL:
     case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
+    case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
+    case MQTT_ROUTE_CMD_FEED_LIMIT:
     case MQTT_ROUTE_CMD_SCHEDULE_SET:
     case MQTT_ROUTE_CMD_SCHEDULE_DELETE:
     case MQTT_ROUTE_CMD_SCHEDULE_TOGGLE:

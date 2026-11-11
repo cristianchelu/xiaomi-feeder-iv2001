@@ -30,6 +30,8 @@
 #include "mqtt_eaten_today.h"
 #include "mqtt_dispense_amount.h"
 #include "mqtt_wifi_rssi.h"
+#include "mqtt_problem.h"
+#include "feed_limit.h"
 #include "mqtt_dispense_progress.h"
 #include "mqtt_portion.h"
 #include "mqtt_power.h"
@@ -400,6 +402,8 @@ static port_err_t mqtt_client_do_connect(void)
     mqtt_portion_set_device_id(s_device_id);
     mqtt_dispense_amount_set_device_id(s_device_id);
     mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_problem_set_device_id(s_device_id);
+    mqtt_feed_limit_set_device_id(s_device_id);
     mqtt_dispense_progress_set_device_id(s_device_id);
     mqtt_timezone_set_device_id(s_device_id);
 
@@ -676,6 +680,8 @@ void mqtt_client_test_set_device_id(const char *device_id)
     mqtt_portion_set_device_id(s_device_id);
     mqtt_dispense_amount_set_device_id(s_device_id);
     mqtt_wifi_rssi_set_device_id(s_device_id);
+    mqtt_problem_set_device_id(s_device_id);
+    mqtt_feed_limit_set_device_id(s_device_id);
     mqtt_dispense_progress_set_device_id(s_device_id);
 }
 

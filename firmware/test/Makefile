@@ -62,6 +62,8 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/feed_history.c \
              ../src/problem.c \
              ../src/feed_limit.c \
+             ../src/mqtt_problem.c \
+             ../src/task_watch.c \
              ../src/mqtt_power.c \
              ../src/display_settings.c \
              ../src/mqtt_backoff.c \

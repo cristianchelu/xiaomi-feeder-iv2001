@@ -90,6 +90,12 @@ mqtt_route_kind_t mqtt_route_classify(const char *topic, const char *device_id)
     if (topic_matches_cmd(topic, device_id, "dispense_amount")) {
         return MQTT_ROUTE_CMD_DISPENSE_AMOUNT;
     }
+    if (topic_matches_cmd(topic, device_id, "problem_clear")) {
+        return MQTT_ROUTE_CMD_PROBLEM_CLEAR;
+    }
+    if (topic_matches_cmd(topic, device_id, "feed_limit")) {
+        return MQTT_ROUTE_CMD_FEED_LIMIT;
+    }
     if (topic_matches_cmd(topic, device_id, "portion_cal")) {
         return MQTT_ROUTE_CMD_PORTION_CAL;
     }
@@ -145,6 +151,10 @@ const char *mqtt_route_label(mqtt_route_kind_t route)
         return "portion_cal";
     case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
         return "dispense_amount";
+    case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
+        return "problem_clear";
+    case MQTT_ROUTE_CMD_FEED_LIMIT:
+        return "feed_limit";
     case MQTT_ROUTE_CMD_POWER:
         return "power";
     case MQTT_ROUTE_CMD_OTA_BASE:

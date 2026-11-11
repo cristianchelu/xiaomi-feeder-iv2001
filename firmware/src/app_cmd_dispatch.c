@@ -19,6 +19,8 @@
 #include "mqtt_feed_overfill.h"
 #include "mqtt_json.h"
 #include "mqtt_dispense_amount.h"
+#include "mqtt_problem.h"
+#include "feed_limit.h"
 #include "mqtt_portion.h"
 #include "mqtt_power.h"
 #include "ota_base.h"
@@ -129,6 +131,12 @@ port_err_t app_cmd_dispatch(mqtt_route_kind_t route,
 
     case MQTT_ROUTE_CMD_DISPENSE_AMOUNT:
         return mqtt_dispense_amount_handle(payload, len);
+
+    case MQTT_ROUTE_CMD_PROBLEM_CLEAR:
+        return mqtt_problem_handle_clear();
+
+    case MQTT_ROUTE_CMD_FEED_LIMIT:
+        return mqtt_feed_limit_handle(payload, len);
 
     case MQTT_ROUTE_CMD_OTA_BASE:
         return ota_base_handle(payload, len);
