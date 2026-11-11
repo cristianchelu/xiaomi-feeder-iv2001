@@ -234,9 +234,6 @@ uint32_t feed_history_grams_on_day(uint32_t day)
     uint32_t sum = 0u;
     unsigned i;
 
-    if (day == 0u) {
-        return 0u;
-    }
     hist_load();
     for (i = 0u; i < FEED_HISTORY_DEPTH; i++) {
         if (s_valid[i] && s_recs[i].day == day && s_recs[i].got > 0) {

@@ -68,7 +68,7 @@ web) or their own clear rule.
 
 | Code | Meaning | Kind | Raised when | Also cleared when |
 |------|---------|------|-------------|-------------------|
-| E1 | Feed failed | latched | A job ends `stuck`, `aborted` or `empty_hopper`; or the motor counted ≥ 1 hole, the bowl was present before and after, and the measured delta is below `[tune]` 1 g ("nothing fell") | the next job ends `ok` |
+| E1 | Feed failed | latched | A job ends `stuck`, `aborted` or `empty_hopper`; or a job ends `ok`/`underfill` measured (bowl present before and after) with a delta below `[tune]` 1 g ("nothing fell") | the next job ends `ok` with food delivered |
 | E2 | Hopper empty | live | Hopper level `empty` | — |
 | E3 | Bowl missing at feed | latched | A job starts while the scale reports the bowl missing (the job still runs) | — |
 | E4 | Connection lost | latched | MQTT session down for more than `[tune]` 5 min while armed | — |
@@ -106,13 +106,15 @@ screen-off) the panel stays off.
 
 NVDM `feed/daily_max_g` (0 = off, 10–2000, default 0). The feeder sums the
 grams delivered today (history `got` of records whose `day` is today's local
-date). Before a job starts:
+date; while the clock is unknown, records with `day` 0). Before a job starts:
 
 - delivered today ≥ limit → the job is refused: history record `res=limit`,
-  `got=0`, E6, a schedule slot goes to state `skipped_limit`, MQTT/web callers
-  get `busy`-style refusal `limit`.
-- otherwise the target is reduced to the remaining allowance (whole portions,
-  at least 1); when reduced, E6 is raised and the job runs.
+  `got=0`, E6, and a schedule slot goes to state `skipped_limit`. A command
+  (MQTT/web/button) is accepted and then refused at start: the refusal shows in
+  the history and the Problem state.
+- otherwise, when the target exceeds the remaining allowance, it is reduced to
+  `max(1, floor(remaining / portion size))` portions, E6 is raised and the job
+  runs.
 
 Settable with `cmd/feed_limit {"daily_max_g":N}`; state retained on
 `.../feed/limit` `{"daily_max_g":N,"today_g":G}`. HA `number` *Daily limit*

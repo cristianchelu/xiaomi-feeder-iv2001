@@ -117,7 +117,8 @@ static void schedule_refresh_entry_state(schedule_entry_t *entry,
     if (entry->rt.state == SCHEDULE_STATE_DISPENSING ||
         entry->rt.state == SCHEDULE_STATE_DISPENSED ||
         entry->rt.state == SCHEDULE_STATE_FAILED ||
-        entry->rt.state == SCHEDULE_STATE_SKIPPED_FULL) {
+        entry->rt.state == SCHEDULE_STATE_SKIPPED_FULL ||
+        entry->rt.state == SCHEDULE_STATE_SKIPPED_LIMIT) {
         return;
     }
 
@@ -358,7 +359,8 @@ static void schedule_mark_missed_before(uint16_t now_min, uint8_t wday_mon0)
             entry->rt.state != SCHEDULE_STATE_DISPENSING &&
             entry->rt.state != SCHEDULE_STATE_DISPENSED &&
             entry->rt.state != SCHEDULE_STATE_FAILED &&
-            entry->rt.state != SCHEDULE_STATE_SKIPPED_FULL) {
+            entry->rt.state != SCHEDULE_STATE_SKIPPED_FULL &&
+            entry->rt.state != SCHEDULE_STATE_SKIPPED_LIMIT) {
             entry->rt.state = SCHEDULE_STATE_SKIPPED;
         }
     }
@@ -404,6 +406,10 @@ static void schedule_try_fire_current(const time_local_t *now)
             entry->rt.fired_today = true;
             entry->rt.state = SCHEDULE_STATE_SKIPPED_FULL;
             schedule_notify_changed();
+        } else if (result == SCHEDULE_FIRE_SKIPPED_LIMIT) {
+            entry->rt.fired_today = true;
+            entry->rt.state = SCHEDULE_STATE_SKIPPED_LIMIT;
+            schedule_notify_changed();
         }
     }
 }
@@ -417,6 +423,8 @@ const char *schedule_state_wire(schedule_state_t state)
         return "skipped";
     case SCHEDULE_STATE_SKIPPED_FULL:
         return "skipped_full";
+    case SCHEDULE_STATE_SKIPPED_LIMIT:
+        return "skipped_limit";
     case SCHEDULE_STATE_DISPENSING:
         return "dispensing";
     case SCHEDULE_STATE_DISPENSED:

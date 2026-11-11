@@ -28,12 +28,16 @@ typedef enum {
     PORTION_CAL_NONE = 0,   /* default 10 g, never calibrated */
     PORTION_CAL_OK,
     PORTION_CAL_FAILED,     /* last run could not be weighed / was implausible */
+    PORTION_CAL_LEARNED,    /* refined from weighed feeds */
 } portion_cal_status_t;
 
 /* Result of a calibration run: delivered mass over the portions turned.
  * Sets the estimate directly (no averaging with the old value). */
 bool portion_estimate_calibrate(weight_dg_t delivered_dg, uint8_t portions);
 void portion_estimate_calibration_failed(void);
+/* A weighed feed: delivered mass over the portions turned. Moves the estimate
+ * by 1/8 of the error (dispense-cycle.md § Portion size). False = ignored. */
+bool portion_estimate_learn(weight_dg_t delivered_dg, uint8_t portions);
 /* Back to the 10 g default. */
 void portion_estimate_reset(void);
 portion_cal_status_t portion_estimate_status(void);

@@ -83,6 +83,8 @@ dispense_submit_result_t dispense_submit_portion_cal(dispense_source_t source);
 /* Publish live progress while the motor turns (call from the app tick). */
 void dispense_progress_poll(void);
 bool dispense_is_active(void);
+/* Daily limit refusal outside a job start (schedule fire): history + E6. */
+void dispense_record_refused(dispense_source_t src, uint16_t want_g);
 void dispense_start_from_request(const app_dispense_request_t *req);
 bool dispense_on_burst_done(void);
 bool dispense_on_motor_fault(void);

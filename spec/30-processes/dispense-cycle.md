@@ -207,7 +207,8 @@ grams-per-portion estimate (default 100 dg, clamped 3–20 g). 10 g is only the
 starting average: the estimate follows the kibble actually delivered.
 
 - **Learning from feeds.** After every measured job (open-loop or compensated,
-  not a calibration run) that ends `ok` or `underfill`, with the bowl present
+  not a calibration run) that ends `ok` (an underfill is likely an emptying
+  hopper, not the auger's real portion), with the bowl present
   before and after, at least 1 portion turned, and a per-portion sample
   (`delta / portions`) inside 2–30 g: `estimate += (sample − estimate) /
   [tune] 8` (about the last 8 feeds), clamped 3–20 g. Samples outside the range

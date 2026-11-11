@@ -24,6 +24,8 @@ static const char *mqtt_portion_status_name(portion_cal_status_t st)
         return "ok";
     case PORTION_CAL_FAILED:
         return "failed";
+    case PORTION_CAL_LEARNED:
+        return "learned";
     default:
         return "default";
     }
