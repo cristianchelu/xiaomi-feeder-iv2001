@@ -248,7 +248,21 @@ static port_err_t mqtt_adapter_publish(const char *topic,
 
     rc = MQTTPublish(&s_client, topic, &message);
     if (rc != 0) {
-        APP_LOG_E("mqtt", "publish failed topic=%s", topic);
+        /* At most one report per minute: failures must not flood the log. */
+        static TickType_t s_fail_report_tick;
+        static unsigned s_fail_count;
+        static bool s_fail_reported;
+        TickType_t now = xTaskGetTickCount();
+
+        s_fail_count++;
+        if (!s_fail_reported ||
+            (TickType_t)(now - s_fail_report_tick) >= pdMS_TO_TICKS(60000u)) {
+            APP_LOG_E("mqtt", "publish failed topic=%s (%u since last report)",
+                      topic, s_fail_count);
+            s_fail_report_tick = now;
+            s_fail_reported = true;
+            s_fail_count = 0u;
+        }
     } else {
         mqtt_adapter_yield_locked(50);
     }

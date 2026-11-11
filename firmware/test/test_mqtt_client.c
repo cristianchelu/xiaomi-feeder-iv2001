@@ -476,3 +476,42 @@ void test_suspend_for_ota_disconnects_without_reconnect(void)
 
     mqtt_client_resume_after_ota();
 }
+
+/* Device log: "publish failed topic=…/wifi_rssi, schedule/state, schedule/next"
+ * every 250 ms for an hour; the session stayed "connected" and never
+ * reconnected. Consecutive publish failures must drop and redo the session. */
+void test_publish_failures_force_reconnect(void)
+{
+    const fake_mqtt_port_state_t *mqtt;
+    unsigned i;
+
+    fake_time_reset();
+    fake_mqtt_port_reset();
+    seed_broker_config();
+    mqtt_client_test_bootstrap();
+    setup_wifi_up();
+    TEST_ASSERT_TRUE(mqtt_client_request_connect());
+    mqtt_client_step();
+    app_step();
+    mqtt = fake_mqtt_port_state();
+    TEST_ASSERT_EQUAL_UINT(1, mqtt->connect_calls);
+
+    fake_mqtt_port_set_fail_publish(true);
+    mqtt_log_capture_begin();
+    for (i = 0u; i < 20u && mqtt->disconnect_calls == 0u; i++) {
+        fake_time_advance_ms(260u);
+        mqtt_client_step();
+    }
+    mqtt_log_capture_end();
+    TEST_ASSERT_EQUAL_UINT(1, mqtt->disconnect_calls);
+    TEST_ASSERT_NOT_NULL(strstr(s_log_capture, "link lost"));
+
+    fake_mqtt_port_set_fail_publish(false);
+    for (i = 0u; i < 100u && mqtt->connect_calls < 2u; i++) {
+        fake_time_advance_ms(200u);
+        mqtt_client_step();
+        app_step();
+    }
+    TEST_ASSERT_EQUAL_UINT(2, mqtt->connect_calls);
+    TEST_ASSERT_TRUE(mqtt->connected);
+}

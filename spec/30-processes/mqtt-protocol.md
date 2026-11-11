@@ -598,6 +598,15 @@ Exponential backoff on disconnect:
 - Cap at `[tune]` 60 s.
 - Reset to initial delay on successful connect.
 
+**Dead session.** The TCP link can die while the client library still reports
+the session as connected (every publish then fails, nothing reconnects).
+`[tune]` 3 consecutive failed publishes (outbox, schedule, any post-connect
+TX) declare the session lost: log `[mqtt] link lost (<n> publishes failed):
+reconnecting` once, disconnect, and reconnect with the backoff above. Any
+successful publish resets the count. The adapter logs a failed publish at most
+once per `[tune]` 60 s (`[mqtt] publish failed topic=<t> (<n> since last
+report)`) so failures cannot flood the log ring.
+
 ## Rate limiting
 
 | Context | Max publish rate | Source |

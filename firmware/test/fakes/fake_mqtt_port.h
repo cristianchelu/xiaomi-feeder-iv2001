@@ -26,6 +26,7 @@ typedef struct fake_mqtt_port_state {
 
 void fake_mqtt_port_reset(void);
 void fake_mqtt_port_set_fail_next_connect(bool fail);
+void fake_mqtt_port_set_fail_publish(bool fail);
 const mqtt_port_t *fake_mqtt_port_get(void);
 const fake_mqtt_port_state_t *fake_mqtt_port_state(void);
 

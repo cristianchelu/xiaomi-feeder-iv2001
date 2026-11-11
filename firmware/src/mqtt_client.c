@@ -76,6 +76,52 @@ static volatile bool s_suspended;
 static bool s_log_connect_failures;
 static mqtt_backoff_t s_backoff;
 static TickType_t s_reconnect_at;
+
+/* Dead-session detection (mqtt-protocol.md § Reconnect strategy). */
+#define MQTT_PUBLISH_FAIL_LIMIT 3u
+static const mqtt_port_t *s_tracked_real;
+static mqtt_port_t s_tracked_port;
+static unsigned s_publish_fail_streak;
+
+static port_err_t mqtt_client_publish_tracked(const char *topic,
+                                              const void *payload,
+                                              size_t len,
+                                              uint8_t qos,
+                                              bool retain)
+{
+    port_err_t err = s_tracked_real->publish(topic, payload, len, qos, retain);
+
+    if (err == PORT_OK) {
+        s_publish_fail_streak = 0u;
+    } else if (err == PORT_ERR_IO) {
+        s_publish_fail_streak++;
+    }
+    return err;
+}
+
+/* The port with publish failures counted, for post-connect drains. */
+static const mqtt_port_t *mqtt_client_tracked(const mqtt_port_t *mqtt)
+{
+    s_tracked_real = mqtt;
+    s_tracked_port = *mqtt;
+    s_tracked_port.publish = mqtt_client_publish_tracked;
+    return &s_tracked_port;
+}
+
+/* True when the session was dropped for repeated publish failures. */
+static bool mqtt_client_check_dead_session(const mqtt_port_t *mqtt)
+{
+    if (s_publish_fail_streak < MQTT_PUBLISH_FAIL_LIMIT) {
+        return false;
+    }
+    APP_LOG_E("mqtt", "link lost (%u publishes failed): reconnecting",
+              (unsigned)s_publish_fail_streak);
+    s_publish_fail_streak = 0u;
+    mqtt->disconnect();
+    mqtt_backoff_on_failure(&s_backoff);
+    s_reconnect_at = xTaskGetTickCount() + pdMS_TO_TICKS(mqtt_backoff_current_ms(&s_backoff));
+    return true;
+}
 static char s_device_id[MQTT_DEVICE_ID_MAX_LEN + 1];
 
 static mqtt_session_phase_t s_session_phase = MQTT_SESSION_OFF;
@@ -334,6 +380,7 @@ static port_err_t mqtt_client_do_connect(void)
     mqtt_adapter_yield(200);
 
     mqtt_backoff_on_success(&s_backoff);
+    s_publish_fail_streak = 0u;
     ota_client_set_device_id(s_device_id);
     mqtt_state_set_device_id(s_device_id);
     mqtt_bowl_weight_set_device_id(s_device_id);
@@ -474,9 +521,10 @@ uint32_t mqtt_client_step(void)
 
     if (!s_connect_pending && !s_connect_worker_running && mqtt->is_connected()) {
         mqtt_adapter_yield(50);
-        (void)mqtt_outbox_drain_one(mqtt);
-        (void)mqtt_schedule_drain(mqtt);
+        (void)mqtt_outbox_drain_one(mqtt_client_tracked(mqtt));
+        (void)mqtt_schedule_drain(mqtt_client_tracked(mqtt));
         mqtt_adapter_yield(250);
+        (void)mqtt_client_check_dead_session(mqtt);
         delay_ms = 250;
         goto done;
     }
@@ -497,9 +545,10 @@ uint32_t mqtt_client_step(void)
         s_connect_pending = false;
         s_connect_busy = false;
         mqtt_adapter_yield(50);
-        (void)mqtt_outbox_drain_one(mqtt);
-        (void)mqtt_schedule_drain(mqtt);
+        (void)mqtt_outbox_drain_one(mqtt_client_tracked(mqtt));
+        (void)mqtt_schedule_drain(mqtt_client_tracked(mqtt));
         mqtt_adapter_yield(250);
+        (void)mqtt_client_check_dead_session(mqtt);
         delay_ms = 250;
         goto done;
     }
