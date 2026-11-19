@@ -1,10 +1,14 @@
-# @oddware/xiaomi.feeder.iv2001
+# xiaomi-feeder-iv2001
 
 Open-source replacement firmware for the **Xiaomi Smart Pet Food Feeder 2**
 (retail XMWSQ02, cloud model `xiaomi.feeder.iv2001`).
 
 Local-only MQTT control for Home Assistant, Homey, or any MQTT broker, plus an
 optional LAN web admin UI. No cloud, no MIoT, no phone-home.
+
+> **This firmware feeds animals and can brick the device.** Read
+> [SAFETY.md](SAFETY.md) before flashing, and keep a backup way to feed your
+> pets while you try it.
 
 ## Early, but usable with Home Assistant
 
@@ -117,7 +121,7 @@ reporting, conservation) and [`controls.md`](spec/20-stories/controls.md)
 
 ## Quick start
 
-From this directory:
+From the repository root:
 
 ```bash
 ./tools/bootstrap.sh
@@ -196,8 +200,12 @@ MQTT-triggered A/B updates from a dev machine. See
 [`tools/ota/README.md`](tools/ota/README.md).
 
 ```bash
-./tools/ota/mqtt-ota.sh --device-id 768722 --skip-build
+./tools/ota/mqtt-ota.sh --device-id <ID> --skip-build
 ```
+
+`<ID>` is the feeder's MQTT device ID: the last six hex digits of its Wi-Fi
+MAC unless `mqtt/device_id` is set (see
+[`config-store.md`](spec/30-processes/config-store.md)).
 
 ## Repository layout
 
@@ -213,6 +221,13 @@ external/       Gitignored — Airoha IoT SDK and Wine flash tool
 Committed tree: `firmware/`, `spec/`, `tools/`, Unity test sources. The SDK is
 not vendored.
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first:
+design and architecture changes start with an issue, behaviour is specified
+in [`spec/`](spec/) before it is coded, and nothing may come from the stock
+firmware (clean-room rule).
+
 ## Safety
 
 See [SAFETY.md](SAFETY.md). UART0 recovery on GPIO21/22.
@@ -225,4 +240,5 @@ MediaTek binaries are redistributed.
 
 ## License
 
-See repository root LICENSE. Third-party notices in [NOTICE](NOTICE).
+[GNU Affero General Public License v3.0](LICENSE). Third-party notices in
+[NOTICE](NOTICE).
