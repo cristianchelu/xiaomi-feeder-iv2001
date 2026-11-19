@@ -50,7 +50,7 @@ with the IV2001 2 MB flash bank layout.
 | `mqtt_client` | `project/mt7682_hdk/apps/mqtt_client/` | MQTT patterns |
 | `wifi_demo` | `project/mt7682_hdk/apps/wifi_demo/` | WiFi STA / CLI NVDM |
 
-The application `Makefile` compiles oddware sources plus **paths into** these
+The application `Makefile` compiles the project's own sources plus **paths into** these
 examples (e.g. `sys_init.c`, `startup_mt7682.s`). Example sources are not
 copied into git.
 

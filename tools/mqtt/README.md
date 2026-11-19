@@ -18,7 +18,7 @@ Requires `mosquitto_pub` and `mosquitto_sub`.
 
 ## Food bowl error slice
 
-Run from `xiaomi.feeder.iv2001/`:
+Run from the repository root:
 
 ```bash
 ./tools/mqtt/mqtt-bench.sh session online

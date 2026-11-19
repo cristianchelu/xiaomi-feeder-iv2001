@@ -214,7 +214,7 @@ Read `spec/40-architecture/build-integration.md` and
    Hook patch: `firmware/patches/mqtt_sys_init_display_boot.patch`.
 6. **SDK patches are reset-synced, not sticky.** The LinkIt tree under
    `external/` is a **separate git repo**. `git stash` / branch checkout in
-   oddware does not revert SDK edits. Never apply patches by hand or edit
+   this repo does not revert SDK edits. Never apply patches by hand or edit
    tracked SDK files — only add/remove `firmware/patches/*.patch` (and
    `firmware/patches/series`) and sync. Install `./tools/install-git-hooks.sh`
    once so checkout/merge re-syncs when the tree drifts. See
@@ -276,7 +276,7 @@ Broker must be reachable from both the dev machine and the feeder.
 
 ### Iteration cheatsheet
 
-From `xiaomi.feeder.iv2001/`:
+From the repository root:
 
 ```bash
 make test-host

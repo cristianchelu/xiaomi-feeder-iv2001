@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
-# Install oddware git hooks that re-sync SDK patches after checkout/merge.
+# Install git hooks that re-sync SDK patches after checkout/merge.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FEEDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ODDWARE_ROOT="$(git -C "$FEEDER_ROOT" rev-parse --show-toplevel)"
-HOOKS_DIR="$ODDWARE_ROOT/.git/hooks"
+REPO_ROOT="$(git -C "$SCRIPT_DIR/.." rev-parse --show-toplevel)"
+HOOKS_DIR="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path hooks)"
 
 install_hook() {
     local name="$1"
     local hook_path="$HOOKS_DIR/$name"
-    cat > "$hook_path" <<EOF
+    cat > "$hook_path" <<'EOF'
 #!/usr/bin/env bash
-# Auto-installed by xiaomi.feeder.iv2001/tools/install-git-hooks.sh
+# Auto-installed by tools/install-git-hooks.sh
 set -euo pipefail
-FEEDER_ROOT="\$(git rev-parse --show-toplevel)/xiaomi.feeder.iv2001"
-if [ -x "\$FEEDER_ROOT/tools/sync-sdk-patches.sh" ]; then
-    "\$FEEDER_ROOT/tools/sync-sdk-patches.sh" --if-needed || true
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+if [ -x "$REPO_ROOT/tools/sync-sdk-patches.sh" ]; then
+    "$REPO_ROOT/tools/sync-sdk-patches.sh" --if-needed || true
 fi
 EOF
     chmod +x "$hook_path"

@@ -4,7 +4,7 @@
 #   ./tools/bootstrap.sh              # host tests + fetch SDK + build-env
 #   ./tools/bootstrap.sh --host-only    # host tests only (no SDK clone)
 #
-# Run from anywhere inside xiaomi.feeder.iv2001/.
+# Run from anywhere inside the repository.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

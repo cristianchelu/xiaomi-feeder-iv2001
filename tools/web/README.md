@@ -62,7 +62,7 @@ flash bytes.
 
 ```bash
 make -C tools/web preview-web
-# or: make preview-web   (from xiaomi.feeder.iv2001/)
+# or: make preview-web   (from the repository root)
 ```
 
 Opens an **unminified** bundled page at `http://127.0.0.1:8765/` with a mock

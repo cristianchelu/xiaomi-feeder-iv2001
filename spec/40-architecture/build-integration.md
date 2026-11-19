@@ -4,8 +4,8 @@
 
 1. **SDK stays out of git.** `external/` is gitignored. The Airoha IoT SDK is
    cloned locally by `tools/fetch-sdk.sh`. Never commit SDK files, prebuilt
-   libraries, or vendored example app sources. Patches and oddware firmware
-   only.
+   libraries, or vendored example app sources. Only this project's firmware
+   sources and SDK patches are committed.
 2. **IV2001 board config is committed.** `BOARD_CONFIG=iv2001` with pinmux in
    `firmware/inc/ept_gpio_drv.h` and `firmware/src/ept_gpio_var.c`. Do not
    rely on `mt7682_hdk` EVK pinmux — it conflicts with feeder peripherals.
@@ -25,7 +25,7 @@ project/mt7682_hdk/apps/<name>/GCC/Makefile
 
 Fetched to: `external/linkit-sdk-v4.7.1/` (gitignored).
 
-Oddware firmware lives at `xiaomi.feeder.iv2001/firmware/`. `build-env.sh`
+Application firmware lives at `firmware/`. `build-env.sh`
 creates a real directory (not a symlink — `build.sh` does not follow symlinked
 apps):
 
@@ -48,7 +48,7 @@ external/.../project/mt7682_hdk/apps/petfeeder/
 
 ## Onboarding
 
-From `xiaomi.feeder.iv2001/`:
+From the repository root:
 
 ```
 ./tools/bootstrap.sh           # host tests + SDK fetch + build-env
@@ -94,7 +94,7 @@ firmware/
 
 Patches live in `firmware/patches/*.patch` and modify the **gitignored**
 LinkIt SDK checkout under `external/`. That tree is a **separate git
-repository** — `git stash`, `git checkout`, and branch switches in oddware
+repository** — `git stash`, `git checkout`, and branch switches in this repo
 do **not** revert SDK edits on their own.
 
 `tools/sync-sdk-patches.sh` keeps the SDK deterministic:
