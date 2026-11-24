@@ -1,0 +1,72 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for anything listed under "Start a design discussion before you write code"
+        in [CONTRIBUTING.md](https://github.com/cristianchelu/xiaomi-feeder-iv2001/blob/main/CONTRIBUTING.md). Agree on the design
+        here first; code comes after.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What does the user (or a developer) need that the feeder does not do today? Describe the need, not the solution.
+      placeholder: "When the hopper runs low overnight, I only find out in the morning…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed spec change
+      description: |
+        Which spec files would change, and roughly what would they say?
+        Write it the way the spec would: what the device does, MQTT fields, CLI strings, timeouts.
+      placeholder: |
+        spec/20-stories/monitoring.md: the user is alerted when food is low…
+        spec/30-processes/mqtt-protocol.md: new `hopper_low` field on `state`…
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: What does it touch?
+      options:
+        - label: Architecture (tasks, ports, flash layout, bootloader, build, SDK patches)
+        - label: MQTT topics or Home Assistant entities
+        - label: Web UI or its HTTP API
+        - label: UART CLI
+        - label: Stored config (NVDM keys)
+        - label: Security or authentication
+        - label: Motor, dispensing, power, battery or sleep
+        - label: New third-party code or dependency
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve it, and why you prefer this one.
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Rough size
+      options:
+        - Small (under ~200 lines)
+        - Medium (a few hundred lines)
+        - Large (should be split into several PRs)
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: implementing
+    attributes:
+      label: Do you plan to implement it?
+      options:
+        - "Yes, once the design is agreed"
+        - "Maybe, with help"
+        - "No, just proposing"
+    validations:
+      required: true

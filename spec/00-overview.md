@@ -23,7 +23,7 @@ Key hardware (detail in `10-hardware/`):
 2. **Better than stock** — the factory firmware is unreliable and poorly
    designed. We aim for correct dispense accuracy, proper jam handling,
    and robust scheduling without the proprietary cloud stack.
-3. **Open source** — AGPL-3.0 (see [LICENSE](../LICENSE)), free of proprietary
+3. **Open source** — AGPL-3.0-only (see [LICENSE](../LICENSE)), free of proprietary
    firmware artifacts. Implementation derives exclusively from these specs
    (see [AGENTS.md](../AGENTS.md)).
 4. **Safe** — motor/ADC supervision, stall detection, brick-recovery path.

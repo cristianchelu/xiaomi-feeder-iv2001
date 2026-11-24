@@ -1,0 +1,51 @@
+name: Hardware finding
+description: A measurement or datasheet fact about the feeder's board that the spec is missing or gets wrong.
+title: "[hw] "
+labels: ["hardware"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Facts in `spec/10-hardware/` come from datasheets or from measuring the
+        board. See the provenance tags in [spec/README.md](https://github.com/cristianchelu/xiaomi-feeder-iv2001/blob/main/spec/README.md).
+
+  - type: input
+    id: part
+    attributes:
+      label: Component or signal
+      placeholder: "SGM42507 EN/FAULT, IR emitter on GPIO…, CS1270 UART"
+    validations:
+      required: true
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: Finding
+      description: What you found, with values and units.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      options:
+        - "Datasheet [ds:]"
+        - "My own measurement [probe]"
+        - "Product page, manual or FCC filing [product]"
+    validations:
+      required: true
+
+  - type: textarea
+    id: method
+    attributes:
+      label: How you found it
+      description: Datasheet name and section, or the instrument and setup you measured with. Attach scope or logic analyser captures if you have them.
+    validations:
+      required: true
+
+  - type: input
+    id: spec
+    attributes:
+      label: Spec file affected
+      placeholder: "spec/10-hardware/pinmap.md"

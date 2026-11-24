@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Propose a feature or design change
+    url: https://github.com/cristianchelu/xiaomi-feeder-iv2001/discussions/new?category=design
+    about: New features, behaviour changes and architecture start as a design discussion, not an issue.
+  - name: Ask a question
+    url: https://github.com/cristianchelu/xiaomi-feeder-iv2001/discussions/new?category=q-a
+    about: Setup, flashing or usage questions.
+  - name: Contributing guide
+    url: https://github.com/cristianchelu/xiaomi-feeder-iv2001/blob/main/CONTRIBUTING.md
+    about: Read this before opening a pull request.

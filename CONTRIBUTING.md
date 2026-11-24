@@ -8,31 +8,36 @@ spec, the tests and, where it matters, the bench.
 Please read this whole page before opening a pull request. It is short, and it
 can save you a lot of wasted work.
 
-## Open an issue before you write code
+This is a hobby project with one maintainer. Reviews can take a while; that
+is not a sign your contribution is unwelcome.
 
-**Start with an issue, not a pull request, for anything that changes how the
-system is designed.** That includes:
+## Start a design discussion before you write code
 
-- anything under [`spec/40-architecture/`](spec/40-architecture/) (task model,
-  ports, flash layout, partitions, bootloader, build system, SDK patches);
-- a new subsystem, module, task or port;
-- user-visible interfaces: MQTT topics and payload fields, Home Assistant
-  entities, the web UI's HTTP API, UART CLI commands, NVDM keys;
-- security and authentication (web UI, MQTT, OTA);
-- power, battery, sleep, motor or dispense behaviour, and anything else in
-  [SAFETY.md](SAFETY.md);
-- new third-party code or dependencies;
-- user-facing design choices (display states, button gestures, languages).
+**New features, changes to how the feeder behaves and architecture changes
+start as a discussion** in the
+[Design category](https://github.com/cristianchelu/xiaomi-feeder-iv2001/discussions/categories/design)
+of GitHub Discussions. Describe the problem first, then the change you have
+in mind as the spec text you would add or edit, plus any alternatives you
+considered. Wait for agreement before building on it. A design that is
+turned down after 5,000 lines costs you far more than one turned down after
+a paragraph.
 
-Describe the problem first, then the change you have in mind, as the spec text
-you would add or edit, plus any alternatives you considered. Wait for agreement
-before building on it. A design that is turned down after 5,000 lines costs you
-far more than one turned down after a paragraph.
+**Fixes can go straight to a pull request** when the spec already describes
+the correct behaviour and the code gets it wrong. So can typos, documentation
+and tooling fixes. If a fix turns out to need a spec change nobody has
+discussed, or grows past a few hundred lines, stop and start a design
+discussion.
 
-**Small, self-contained fixes can go straight to a pull request**: typos,
-documentation, a clear bug with a failing test, a tooling fix. As a rule of
-thumb, if your change goes past a few hundred lines, or you notice you need to
-change a spec in a way nobody has discussed, stop and open an issue.
+Bugs and hardware findings are issues; questions go in
+[Q&A](https://github.com/cristianchelu/xiaomi-feeder-iv2001/discussions/categories/q-a).
+
+### Hardware
+
+This firmware targets one board: the XMWSQ02 / IV2001, as described in
+[`spec/10-hardware/`](spec/10-hardware/). Other products are out of scope.
+If your unit differs from the spec (a different flash chip, another board
+revision, a part that does not match), open a hardware finding with what you
+see before changing any code.
 
 ## Clean-room rule
 
@@ -53,11 +58,12 @@ and its design cannot.
   working for you, have looked at the stock firmware for an area, split the
   work in two:
   1. Write the spec for that area, detailed enough that someone could
-     implement it from the spec and the hardware docs alone, and get it
-     reviewed as a spec PR.
+     implement it from the spec and the hardware docs alone, and commit it.
   2. Implement it in a fresh agent session (or have someone else do it),
      whose only context is this repository: no dumps, research notes or
-     chat history from the session that studied the firmware.
+     chat history from the session that wrote the spec.
+
+  Both halves can go in one pull request, with the spec commit first.
 
 **Never put any of this in the repository**, in code, specs, comments,
 tests or PR text:
@@ -77,11 +83,21 @@ Matching stock behaviour is a [non-goal](spec/00-overview.md#non-goals), so
 own. Argue from what the user needs or what the hardware requires.
 
 Every fact in a spec carries a [provenance tag](spec/README.md#provenance-legend):
-a datasheet (`[ds:PART §N]`), your own measurement on hardware you own
-(`[probe]`), output seen on the wire (`[bootlog]`), the retail product page,
-manual or FCC filing (`[product]`), or our own choice (`[design]`).
-Prefer a datasheet or your own measurement to anything learned from the
-stock firmware: if a number can be measured on the bench, measure it.
+
+| Tag | Use it for |
+|-----|------------|
+| `[ds:PART §N]` | A datasheet, with the section |
+| `[probe]` | Something you measured on hardware you own |
+| `[probe-needed]` | A fact nobody has measured yet |
+| `[bootlog]` | Output seen on the wire, such as UART logs |
+| `[product]` | The retail product page, manual or FCC filing |
+| `[design]` | Our own engineering choice, argued in the design discussion or PR |
+| `[tune]` | A starting value to be refined on the bench |
+
+`[probe]` means you actually measured it. Until someone has, tag it
+`[probe-needed]`. Thresholds, retry counts and other values you cannot see
+on a wire are design choices: tag them `[design]` or `[tune]` and say why
+you picked them.
 
 The compiled firmware contains no Xiaomi / Mi / MIoT strings except the
 Home Assistant discovery `device.manufacturer` and `device.model` fields,
@@ -149,7 +165,7 @@ gzipped in flash, so size matters. Use native CSS nesting and the existing
 - **One behaviour or feature per pull request.** Several small PRs get
   reviewed faster than one large one, and a problem in one part does not hold
   up the rest.
-- Link the issue it implements, if there is one.
+- Link the design discussion or issue it implements, if there is one.
 - Put the spec change first: either its own commit, or the first commit of
   the PR.
 - Say which spec files you touched and which tests cover the change.
@@ -159,36 +175,25 @@ gzipped in flash, so size matters. Use native CSS nesting and the existing
   anything touching the motor, weighing, power, OTA or boot, include a UART
   log or OTA log excerpt. "Not tested on hardware" is an honest and acceptable
   answer; claiming a bench test you did not run is not.
-- Commit messages explain *why* the change is made; the diff shows what.
+- Commit subjects start with the area they touch, then a short summary:
+  `ota: keep the reported bank when resetting status`. Common areas are
+  `ota`, `web`, `boot`, `sdk`, `tools`, `docs` and `spec`. The body
+  explains *why* the change is made; the diff shows what.
+- There is no formatter config: match the style of the code around you.
 - Keep unrelated cleanups, reformatting and renames out of feature PRs.
 
 ### AI-assisted contributions
 
 Using AI tools is fine. You are still the author: you must have read and
-understood the whole diff, you own the design discussion in the issue, and
+understood the whole diff, you own the design discussion, and
 every bench result in the PR must come from your own hardware. Large
-generated PRs that skip the issue step are likely to be closed with a request
-to start over from an issue.
+generated PRs that skip the design discussion are likely to be closed with a
+request to start over from a discussion.
 
 ## Reporting bugs
 
-Please include:
-
-- the firmware commit (or release) and how you flashed it (UART or OTA);
-- what you did, what you expected, and what happened;
-- a UART log (`./tools/uart-console.sh`) and/or the relevant MQTT messages
-  under `petfeeder/<device_id>/`, if you have them;
-- whether the feeder was on mains or battery.
-
-If a bug can make the feeder over-dispense, stop dispensing or jam the motor,
-say so in the title.
-
-## Security issues
-
-Do not open a public issue for a security problem (for example, a way to
-dispense food, change settings or push an OTA image from the LAN without
-authorisation). Report it privately through GitHub's
-[security advisory form](../../security/advisories/new) instead.
+Use the bug report form. It asks for the firmware commit, how you flashed
+it, the power source and your logs, and whether the bug affects feeding.
 
 ## Safety
 
@@ -199,6 +204,7 @@ in place. While testing, keep a backup way to feed your animals.
 ## License
 
 By contributing, you agree that your contribution is released under the
-project's license, the [GNU Affero General Public License v3.0](LICENSE).
+project's license, the [GNU Affero General Public License v3.0 only](LICENSE)
+(`AGPL-3.0-only`).
 Only contribute work you have the right to release under that license.
-Third-party code needs an issue first and an entry in [NOTICE](NOTICE).
+Third-party code needs a design discussion first and an entry in [NOTICE](NOTICE).

@@ -224,7 +224,7 @@ not vendored.
 ## Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first:
-design and architecture changes start with an issue, behaviour is specified
+design and architecture changes start as a design discussion, behaviour is specified
 in [`spec/`](spec/) before it is coded, and nothing may come from the stock
 firmware (clean-room rule).
 
@@ -240,5 +240,6 @@ MediaTek binaries are redistributed.
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE). Third-party notices in
+[GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`).
+Third-party notices in
 [NOTICE](NOTICE).

@@ -1,0 +1,63 @@
+name: Bug report
+description: Something the firmware does wrong.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: feeding
+    attributes:
+      label: Does it affect feeding?
+      description: Pick the worst thing you have seen.
+      options:
+        - "No"
+        - "Feeds too much"
+        - "Feeds too little or not at all"
+        - "Motor jams or keeps running"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: Commit hash or release tag.
+      placeholder: "f6c3c5c"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: flash
+    attributes:
+      label: How was it installed?
+      options:
+        - UART flash
+        - OTA
+    validations:
+      required: true
+
+  - type: dropdown
+    id: power
+    attributes:
+      label: Power source when it happened
+      options:
+        - Mains
+        - Battery
+        - Not sure
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Steps to reproduce if you have them.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        UART output (`./tools/uart-console.sh`) and/or MQTT messages under
+        `petfeeder/<device_id>/`. Remove Wi-Fi and broker passwords first.
+      render: text
