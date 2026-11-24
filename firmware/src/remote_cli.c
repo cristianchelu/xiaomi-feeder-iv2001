@@ -3,6 +3,9 @@
  */
 
 #include "remote_cli.h"
+#include "remote_auth.h"
+
+#define REMOTE_CLI_AUTH_FAIL_DELAY_MS 2000u
 
 #include <string.h>
 
@@ -552,8 +555,47 @@ static bool remote_cli_begin_session(int client_fd)
     remote_cli_telnet_reset();
 
     app_cli_session_init(&s_remote_cli, remote_cli_sock_get, remote_cli_sock_put);
-    app_log_set_sink(remote_cli_log_sink, NULL);
+    if (!remote_auth_required()) {
+        app_log_set_sink(remote_cli_log_sink, NULL);
+    }
     return true;
+}
+
+static void remote_cli_send_text(const char *t)
+{
+    while (*t != '\0') {
+        (void)remote_cli_sock_put((unsigned char)*t++);
+    }
+}
+
+/* Password gate before the prompt (uart-console.md § Security). */
+static bool remote_cli_authenticate(void)
+{
+    remote_auth_t auth;
+    remote_auth_result_t r = REMOTE_AUTH_PENDING;
+
+    if (!remote_auth_required()) {
+        return true;
+    }
+    remote_auth_begin(&auth);
+    remote_cli_send_text("password: ");
+    while (r == REMOTE_AUTH_PENDING && !s_session_end && s_client_fd >= 0 &&
+           !s_suspended_for_ota && !console_mux_force_local_pending()) {
+        r = remote_auth_feed(&auth, remote_cli_sock_get());
+    }
+    memset(&auth, 0, sizeof(auth));
+    if (r == REMOTE_AUTH_OK) {
+        remote_cli_send_text("\r\n");
+        app_log_set_sink(remote_cli_log_sink, NULL);
+        return true;
+    }
+    if (r == REMOTE_AUTH_DENIED && !s_session_end) {
+        remote_cli_send_text("\r\ndenied\r\n");
+        app_log_info(RCLI_TAG, "remote console password denied");
+        vTaskDelay(pdMS_TO_TICKS(REMOTE_CLI_AUTH_FAIL_DELAY_MS));
+    }
+    s_end_reason = "auth";
+    return false;
 }
 
 static void remote_cli_run_session(int initial_fd)
@@ -582,6 +624,9 @@ static void remote_cli_run_session(int initial_fd)
         next_fd = -1;
 
         forced = false;
+        if (!remote_cli_authenticate()) {
+            s_session_end = true;
+        }
         while (s_client_fd >= 0 && console_mux_remote_active() && !s_session_end &&
                !s_suspended_for_ota) {
             if (console_mux_take_force_local()) {

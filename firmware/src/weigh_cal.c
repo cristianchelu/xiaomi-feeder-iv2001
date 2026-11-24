@@ -146,7 +146,7 @@ port_err_t weigh_cal_save_span(const config_port_t *cfg,
         return PORT_ERR_INVALID_ARG;
     }
 
-    if (span_raw == model->zero_raw) {
+    if (abs((int)(span_raw - model->zero_raw)) < WEIGH_CAL_SPAN_MIN_DELTA_RAW) {
         return PORT_ERR_INVALID_ARG;
     }
 

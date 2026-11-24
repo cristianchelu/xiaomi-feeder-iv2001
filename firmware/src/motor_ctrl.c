@@ -18,6 +18,9 @@
 #include "app_log.h"
 #include "gpio_expander_port.h"
 #include "motor_ctrl.h"
+#include "task_watch.h"
+
+#include <string.h>
 #include "motor_driver.h"
 #include "motor_index_adapter.h"
 #include "motor_index_port.h"
@@ -57,6 +60,7 @@ typedef enum {
     MOTOR_JAM_ADC_SUSTAINED,
     MOTOR_JAM_INDEX_TIMEOUT,
     MOTOR_JAM_SESSION_TIMEOUT,
+    MOTOR_JAM_STALL,
 } motor_jam_reason_t;
 
 typedef enum {
@@ -75,8 +79,23 @@ static QueueHandle_t s_cmd_q;
 static TaskHandle_t s_task;
 static motor_phase_t s_phase = MOTOR_PHASE_IDLE;
 static motor_cmd_t s_active_cmd;
-static uint8_t s_pulses;
+static volatile uint8_t s_pulses;
 static bool s_prev_beam_open;
+/* When the beam last closed: a hole only counts after a real closed stretch. */
+static TickType_t s_beam_closed_tick;
+/* Last counted pulse (or motor start): index timeout is per gap, not only 0 pulses. */
+static TickType_t s_last_pulse_tick;
+/* Forcing-without-turning timer (load above the stall level, burst only). */
+static TickType_t s_stall_start_tick;
+static bool s_stall_active;
+/* Anti-jam resume continues the same burst: pulses already delivered count. */
+static bool s_resume_keep_pulses;
+/* Field trace: once a second while running, beam/poll/current summary. */
+static uint16_t s_trace_ok;
+static uint16_t s_trace_busy;
+static uint16_t s_trace_err;
+static TickType_t s_trace_tick;
+static bool s_beam_closed_valid;
 static TickType_t s_en_start_tick;
 static TickType_t s_phase_end_tick;
 static uint32_t s_sustained_over_ms;
@@ -102,6 +121,56 @@ static bool motor_ctrl_tick_elapsed(TickType_t since, uint32_t ms)
     return (motor_ctrl_tick_now() - since) >= pdMS_TO_TICKS(ms);
 }
 
+static motor_run_stats_t s_stats;
+static TickType_t s_stats_start_tick;
+
+static void motor_ctrl_stats_begin(void)
+{
+    memset(&s_stats, 0, sizeof(s_stats));
+    s_stats.why = "-";
+    s_stats.jam = "-";
+    s_stats_start_tick = xTaskGetTickCount();
+}
+
+static const char *motor_ctrl_jam_short(motor_jam_reason_t reason)
+{
+    switch (reason) {
+    case MOTOR_JAM_STALL:
+        return "stall";
+    case MOTOR_JAM_INDEX_TIMEOUT:
+        return "index";
+    case MOTOR_JAM_SESSION_TIMEOUT:
+        return "session";
+    case MOTOR_JAM_ADC_ISR:
+    case MOTOR_JAM_ADC_INSTANT:
+    case MOTOR_JAM_ADC_SUSTAINED:
+        return "adc";
+    default:
+        return "-";
+    }
+}
+
+static void motor_ctrl_stats_end(const char *why)
+{
+    s_stats.pulses = s_pulses;
+    s_stats.antijam = s_antijam_retries;
+    s_stats.why = why;
+    s_stats.dur_ms = (uint32_t)((xTaskGetTickCount() - s_stats_start_tick) * portTICK_PERIOD_MS);
+}
+
+void motor_ctrl_last_run(motor_run_stats_t *out)
+{
+    if (out != NULL) {
+        *out = s_stats;
+        if (out->why == NULL) {
+            out->why = "-";
+        }
+        if (out->jam == NULL) {
+            out->jam = "-";
+        }
+    }
+}
+
 static const char *motor_ctrl_jam_reason_label(motor_jam_reason_t reason)
 {
     switch (reason) {
@@ -115,6 +184,8 @@ static const char *motor_ctrl_jam_reason_label(motor_jam_reason_t reason)
         return "index timeout";
     case MOTOR_JAM_SESSION_TIMEOUT:
         return "session timeout";
+    case MOTOR_JAM_STALL:
+        return "stall";
     default:
         return "unknown";
     }
@@ -128,6 +199,7 @@ static const char *motor_ctrl_cmd_label(void)
 static void motor_ctrl_log_jam(motor_jam_reason_t reason)
 {
     s_last_jam_reason = reason;
+    s_stats.jam = motor_ctrl_jam_short(reason);
 
     switch (reason) {
     case MOTOR_JAM_ADC_ISR:
@@ -145,10 +217,14 @@ static void motor_ctrl_log_jam(motor_jam_reason_t reason)
                      (unsigned long)s_jam_sustained_ms,
                      MOTOR_JAM_SUSTAINED_MA);
         break;
+    case MOTOR_JAM_STALL:
+        app_log_info("motor", "jam: stall %u mA for %u ms without turning (>= %u mA)",
+                     (unsigned)s_jam_ma, (unsigned)MOTOR_STALL_MS, (unsigned)MOTOR_STALL_MA);
+        break;
     case MOTOR_JAM_INDEX_TIMEOUT:
         app_log_info("motor",
-                     "jam: index timeout (0 pulses in %u ms, burst)",
-                     (unsigned)s_active_cmd.timeout_ms);
+                     "jam: index timeout (no hole in %u ms, %u pulse(s), burst)",
+                     (unsigned)s_active_cmd.timeout_ms, (unsigned)s_pulses);
         break;
     case MOTOR_JAM_SESSION_TIMEOUT:
         app_log_info("motor", "jam: session timeout (%u ms)",
@@ -161,6 +237,18 @@ static void motor_ctrl_log_jam(motor_jam_reason_t reason)
 
 static void motor_ctrl_finish_fault(motor_fault_reason_t reason)
 {
+    static const char *const why[] = {
+        [MOTOR_FAULT_ANTIJAM_EXHAUSTED] = "antijam",
+        [MOTOR_FAULT_SESSION_TIMEOUT] = "session",
+        [MOTOR_FAULT_IO] = "io",
+        [MOTOR_FAULT_DRIVER_STOP] = "driver",
+        [MOTOR_FAULT_DRIVER_START] = "driver",
+        [MOTOR_FAULT_INDEX_LED] = "led",
+    };
+
+    motor_ctrl_stats_end(((size_t)reason < sizeof(why) / sizeof(why[0]) && why[reason] != NULL)
+                             ? why[reason]
+                             : "driver");
     switch (reason) {
     case MOTOR_FAULT_ANTIJAM_EXHAUSTED:
         app_log_info("motor",
@@ -199,6 +287,22 @@ static bool motor_ctrl_session_timed_out(TickType_t now)
 
     if (s_phase == MOTOR_PHASE_IDLE) {
         return false;
+    }
+
+    /* A burst may legitimately need one index period per pulse (~6.4 s
+     * measured); stalls are caught per gap by the index timeout. */
+    /* The anti-jam phases of a burst share the burst limit: a late stall
+     * must get its retries, not a session timeout at the first reverse. */
+    if ((s_phase == MOTOR_PHASE_RUN_BURST || s_phase == MOTOR_PHASE_ANTIJAM_REV ||
+         s_phase == MOTOR_PHASE_ANTIJAM_WIGGLE_FWD ||
+         s_phase == MOTOR_PHASE_ANTIJAM_WIGGLE_REV) &&
+        s_active_cmd.kind != MOTOR_CMD_PARK && s_active_cmd.timeout_ms > 0u) {
+        uint32_t limit = (uint32_t)s_active_cmd.pulse_target * s_active_cmd.timeout_ms + 2000u;
+
+        if (limit < MOTOR_RUN_MS_MAX) {
+            limit = MOTOR_RUN_MS_MAX;
+        }
+        return motor_ctrl_tick_elapsed(s_en_start_tick, limit);
     }
 
     return motor_ctrl_tick_elapsed(s_en_start_tick, MOTOR_RUN_MS_MAX);
@@ -289,11 +393,15 @@ static void motor_ctrl_session_teardown(void)
 
 static void motor_ctrl_finish_burst_done(void)
 {
+    app_log_info("motor", "burst done: %u pulse(s) in %lu ms",
+                 (unsigned)s_pulses,
+                 (unsigned long)((motor_ctrl_tick_now() - s_en_start_tick) * portTICK_PERIOD_MS));
     if (!motor_ctrl_force_stop()) {
         motor_ctrl_finish_fault(MOTOR_FAULT_DRIVER_STOP);
         return;
     }
 
+    motor_ctrl_stats_end("-");
     motor_ctrl_session_teardown();
     motor_ctrl_post_app_event(EVT_BURST_DONE);
 }
@@ -363,10 +471,37 @@ static void motor_ctrl_schedule_index_sample(TickType_t now)
     }
 }
 
-static void motor_ctrl_apply_beam_sample(bool beam_open)
+static void motor_ctrl_apply_beam_sample(bool beam_open, TickType_t now)
 {
+    if (beam_open != s_prev_beam_open) {
+        app_log_info("motor", "beam %s +%lu ms",
+                     beam_open ? "open" : "closed",
+                     (unsigned long)((now - s_en_start_tick) * portTICK_PERIOD_MS));
+    }
+
+    if (!beam_open && s_prev_beam_open) {
+        s_beam_closed_tick = now;
+        s_beam_closed_valid = true;
+    }
+
+    /* Count a hole only after the beam stayed closed for a real stretch
+     * between holes. The auger parks at the hole edge, and the start-up jolt
+     * makes the beam flicker closed→open: that used to be counted as a whole
+     * portion, so a 1-portion burst (10 g, the dispense button) stopped after a
+     * twitch and delivered nothing. */
     if (beam_open && !s_prev_beam_open) {
-        s_pulses++;
+        if (s_beam_closed_valid &&
+            (now - s_beam_closed_tick) >= pdMS_TO_TICKS(MOTOR_INDEX_MIN_CLOSED_MS)) {
+            s_pulses++;
+            s_last_pulse_tick = now;
+            app_log_info("motor", "pulse %u", (unsigned)s_pulses);
+        } else {
+            app_log_info("motor", "edge ignored (closed %lu ms)",
+                         s_beam_closed_valid
+                             ? (unsigned long)((now - s_beam_closed_tick) * portTICK_PERIOD_MS)
+                             : 0ul);
+        }
+        s_beam_closed_valid = false;
     }
 
     s_prev_beam_open = beam_open;
@@ -399,7 +534,7 @@ static void motor_ctrl_try_index_sample(TickType_t now)
     }
 
     motor_ctrl_note_io_success();
-    motor_ctrl_apply_beam_sample(beam_open);
+    motor_ctrl_apply_beam_sample(beam_open, now);
 
     if (s_phase == MOTOR_PHASE_RUN_BURST &&
         s_pulses >= s_active_cmd.pulse_target) {
@@ -444,9 +579,28 @@ static motor_jam_reason_t motor_ctrl_detect_jam(TickType_t now)
 
     if (motor_ctrl_adc_sample(&ma)) {
         s_jam_ma = ma;
+        if (ma > s_stats.max_ma) {
+            s_stats.max_ma = ma;
+        }
 
         if (ma > MOTOR_JAM_INSTANT_MA) {
             return MOTOR_JAM_ADC_INSTANT;
+        }
+
+        /* Field trace: a stalled auger draws ~280 mA without moving; normal
+         * rotation is 70-150 mA. Back off after 2 s instead of waiting for the
+         * 8 s index timeout. */
+        if (s_phase == MOTOR_PHASE_RUN_BURST && ma >= MOTOR_STALL_MA &&
+            ma <= MOTOR_JAM_SUSTAINED_MA) {
+            if (!s_stall_active) {
+                s_stall_active = true;
+                s_stall_start_tick = motor_ctrl_tick_now();
+            } else if (motor_ctrl_tick_elapsed(s_stall_start_tick, MOTOR_STALL_MS)) {
+                s_stall_active = false;
+                return MOTOR_JAM_STALL;
+            }
+        } else {
+            s_stall_active = false;
         }
 
         if (ma > MOTOR_JAM_SUSTAINED_MA) {
@@ -460,9 +614,12 @@ static motor_jam_reason_t motor_ctrl_detect_jam(TickType_t now)
         }
     }
 
-    if (s_phase == MOTOR_PHASE_RUN_BURST && s_pulses == 0u &&
+    /* No new hole within the timeout since the last pulse (or start): the
+     * auger stalled. Checking only "0 pulses" let a stall after the first
+     * pulse run until the session limit with nothing delivered. */
+    if (s_phase == MOTOR_PHASE_RUN_BURST &&
         s_active_cmd.timeout_ms > 0u &&
-        motor_ctrl_tick_elapsed(s_en_start_tick, s_active_cmd.timeout_ms)) {
+        motor_ctrl_tick_elapsed(s_last_pulse_tick, s_active_cmd.timeout_ms)) {
         return MOTOR_JAM_INDEX_TIMEOUT;
     }
 
@@ -496,14 +653,28 @@ static port_err_t motor_ctrl_begin_run(bool park)
     port_err_t err;
 
     motor_ctrl_driver_ensure();
-    s_pulses = 0u;
-    s_prev_beam_open = false;
+    if (!s_resume_keep_pulses) {
+        s_pulses = 0u;
+    }
+    s_resume_keep_pulses = false;
+    s_stall_active = false;
+    /* The auger parks with the index hole in the beam (beam open). Assume that
+     * until a read says otherwise, so a failed initial read never turns the
+     * parked hole into a counted edge (a 1-portion burst stopped at once). */
+    s_prev_beam_open = true;
+    s_beam_closed_valid = false;
+    s_beam_closed_tick = 0u;
+    s_trace_ok = 0u;
+    s_trace_busy = 0u;
+    s_trace_err = 0u;
+    s_trace_tick = motor_ctrl_tick_now();
     s_sustained_over_ms = 0u;
     s_instant_jam = false;
     s_io_fail_streak = 0u;
     s_last_beam_poll_tick = 0u;
     s_index_sample_after_tick = 0u;
     s_en_start_tick = motor_ctrl_tick_now();
+    s_last_pulse_tick = s_en_start_tick;
 
     {
         const motor_index_port_t *idx = motor_index_port_get();
@@ -515,10 +686,34 @@ static port_err_t motor_ctrl_begin_run(bool park)
         }
 
         if (idx->poll != NULL) {
-            bool beam_open = false;
+            bool beam_open = true;
+            bool known = false;
+            uint8_t tries;
 
-            if (idx->poll(&beam_open) == PORT_OK) {
+            /* Baseline read: let the IR LED settle, retry a busy expander,
+             * and only then fall back to the parked assumption above. */
+            motor_hal_delay_ms(MOTOR_INDEX_LED_SETTLE_MS);
+            for (tries = 0u; tries < MOTOR_INDEX_BASELINE_TRIES && !known; tries++) {
+                if (idx->poll(&beam_open) == PORT_OK) {
+                    known = true;
+                } else {
+                    motor_hal_delay_ms(MOTOR_INDEX_BASELINE_RETRY_MS);
+                }
+            }
+            app_log_info("motor", "%s start: baseline %s (target %u)",
+                         park ? "park" : "burst",
+                         known ? (beam_open ? "open" : "closed") : "unread",
+                         (unsigned)(park ? s_active_cmd.max_pulses : s_active_cmd.pulse_target));
+            if (known) {
                 s_prev_beam_open = beam_open;
+                if (!beam_open) {
+                    /* Closed at start: time it from now. The auger may have
+                     * sprung back just out of the hole it stopped in. */
+                    s_beam_closed_tick = motor_ctrl_tick_now();
+                    s_beam_closed_valid = true;
+                }
+            } else {
+                app_log_info("motor", "index baseline unread: assuming parked (beam open)");
             }
         }
     }
@@ -568,6 +763,9 @@ static void motor_ctrl_poll_bench(TickType_t now)
 
 static void motor_ctrl_retry_active_cmd(void)
 {
+    /* Same job after an anti-jam reverse: holes already counted stay counted,
+     * otherwise every jam added extra portions. */
+    s_resume_keep_pulses = true;
     if (s_active_cmd.kind == MOTOR_CMD_PARK) {
         (void)motor_ctrl_begin_run(true);
     } else {
@@ -620,6 +818,25 @@ static void motor_ctrl_after_antijam_step(TickType_t now)
     motor_ctrl_begin_antijam(s_last_jam_reason);
 }
 
+static void motor_ctrl_trace(TickType_t now, bool beam_open)
+{
+    uint16_t ma = 0u;
+
+    if ((now - s_trace_tick) < pdMS_TO_TICKS(1000u)) {
+        return;
+    }
+    s_trace_tick = now;
+    (void)motor_ctrl_adc_sample(&ma);
+    app_log_debug("motor", "run +%lu ms beam %s polls ok %u busy %u err %u load %u mA",
+                 (unsigned long)((now - s_en_start_tick) * portTICK_PERIOD_MS),
+                 beam_open ? "open" : "closed",
+                 (unsigned)s_trace_ok, (unsigned)s_trace_busy, (unsigned)s_trace_err,
+                 (unsigned)ma);
+    s_trace_ok = 0u;
+    s_trace_busy = 0u;
+    s_trace_err = 0u;
+}
+
 static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
 {
     bool beam_open;
@@ -634,16 +851,26 @@ static void motor_ctrl_poll_session_beam(TickType_t now, uint32_t interval_ms)
 
     err = motor_ctrl_poll_beam_open(&beam_open);
     if (err == PORT_ERR_BUSY) {
+        s_trace_busy++;
+        s_stats.poll_busy++;
+        motor_ctrl_trace(now, s_prev_beam_open);
         return;
     }
 
     if (err != PORT_OK) {
+        s_trace_err++;
+        s_stats.poll_err++;
+        motor_ctrl_trace(now, s_prev_beam_open);
         motor_ctrl_note_io_failure();
         return;
     }
 
+    s_trace_ok++;
+    s_stats.poll_ok++;
+    motor_ctrl_trace(now, beam_open);
+
     motor_ctrl_note_io_success();
-    motor_ctrl_apply_beam_sample(beam_open);
+    motor_ctrl_apply_beam_sample(beam_open, now);
 
     if (s_phase == MOTOR_PHASE_IDLE) {
         return;
@@ -758,6 +985,7 @@ static void motor_ctrl_handle_cmd(const motor_cmd_t *cmd)
 
     s_active_cmd = *cmd;
     s_antijam_retries = 0u;
+    motor_ctrl_stats_begin();
 
     if (cmd->kind == MOTOR_CMD_PARK) {
         const motor_index_port_t *idx = motor_index_port_get();
@@ -786,6 +1014,7 @@ static void motor_ctrl_task(void *param)
     (void)param;
 
     for (;;) {
+        task_watch_beat(TASK_WATCH_MOTOR);
         if (xQueueReceive(s_cmd_q, &cmd, pdMS_TO_TICKS(MOTOR_CTRL_LOOP_SLICE_MS)) ==
             pdPASS) {
             motor_ctrl_handle_cmd(&cmd);
@@ -980,4 +1209,9 @@ void motor_ctrl_test_poll(void)
             motor_ctrl_poll_antijam(now);
         }
     }
+}
+
+uint8_t motor_ctrl_pulses(void)
+{
+    return s_pulses;
 }

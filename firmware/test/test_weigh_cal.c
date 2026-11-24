@@ -160,3 +160,15 @@ void test_weigh_cal_clear(void)
     TEST_ASSERT_EQUAL(PORT_OK, weigh_cal_load(cfg, &loaded));
     TEST_ASSERT_FALSE(weigh_cal_is_complete(&loaded));
 }
+
+void test_weigh_cal_save_span_rejects_missing_bowl(void)
+{
+    const config_port_t *cfg = fake_config_port_get();
+    weigh_cal_model_t model;
+
+    fake_config_port_reset();
+    TEST_ASSERT_EQUAL(PORT_OK, weigh_cal_save_zero(cfg, 1000, &model));
+    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG,
+                      weigh_cal_save_span(cfg, WEIGH_BOWL_MASS_G, 1010, &model));
+    TEST_ASSERT_FALSE(weigh_cal_is_complete(&model));
+}

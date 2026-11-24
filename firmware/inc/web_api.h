@@ -11,6 +11,9 @@
 typedef enum {
     WEB_API_ROUTE_UNKNOWN = 0,
     WEB_API_GET_STATUS,
+    WEB_API_GET_LOG,
+    WEB_API_GET_EXPORT,
+    WEB_API_GET_HISTORY,
     WEB_API_GET_SCHEDULE_STATE,
     WEB_API_GET_SCHEDULE_NEXT,
     WEB_API_GET_CONFIG,
@@ -27,9 +30,38 @@ typedef enum {
     WEB_API_POST_FEED_MODE,
     WEB_API_POST_FEED_OVERFILL,
     WEB_API_POST_CONFIG,
+    WEB_API_POST_DISPLAY,
+    WEB_API_POST_CALIBRATE,
+    WEB_API_POST_EATEN_RESET,
+    WEB_API_POST_REBOOT,
+    WEB_API_POST_CHILD_LOCK,
+    WEB_API_POST_POWER,
+    WEB_API_POST_PORTION_CAL,
+    WEB_API_POST_NETWORK,
+    WEB_API_POST_PASSWORD,
+    WEB_API_POST_REPROVISION,
+    WEB_API_POST_FACTORY_RESET,
+    WEB_API_POST_IMPORT,
+    WEB_API_POST_DISPENSE_AMOUNT,
+    WEB_API_POST_PROBLEM_CLEAR,
+    WEB_API_POST_FEED_LIMIT,
+    WEB_API_POST_FEED_NEXT,
+    WEB_API_POST_OTA_INSTALL,
+    WEB_API_POST_LANG,
+    WEB_API_POST_OTA_BASE,
+    WEB_API_POST_UNLOCK,
 } web_api_route_t;
 
+#define WEB_API_AUTH_FAIL_DELAY_MS 1000u
+
 web_api_route_t web_api_classify(const char *method, const char *path);
+/* Full request entry (HTTP server): password gate for reads and writes. */
+int web_api_handle_request(const char *method,
+                           const char *path,
+                           const char *body,
+                           size_t body_len,
+                           char *resp,
+                           size_t resp_len);
 int web_api_handle_get(web_api_route_t route, char *buf, size_t len);
 int web_api_handle_post(web_api_route_t route,
                         const char *body,

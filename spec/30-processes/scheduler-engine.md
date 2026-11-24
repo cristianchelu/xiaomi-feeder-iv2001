@@ -85,6 +85,7 @@ future-today.
 | `pending` | Applies today, not skipped, not yet dispensed this cycle |
 | `to_be_skipped` | `skip_today=true` and dispense time is still in the future |
 | `skipped` | `skip_today=true` and time passed; OR due minute missed; OR `today_enabled=false` for a future today entry |
+| `skipped_limit` | Daily limit already reached at fire time — no dispense ([health-monitoring.md](health-monitoring.md) § Daily limit) |
 | `skipped_full` | Overfill protection enabled, bowl mass known, and `bowl_g >= overfill_threshold_g` at fire time — no dispense job submitted |
 | `dispensing` | Gram job submitted for this slot and dispense supervisor active |
 | `dispensed` | Terminal dispense event with `event_type=success` or `underfill` |
@@ -135,6 +136,28 @@ state is not persisted: after reboot, past-due slots reconcile to generic
 `skipped` per the rules below.
 - If a due slot never fires during its minute (busy queue, time invalid),
   the first poll of the next minute sets `state=skipped`.
+
+## Feed next meal
+
+`cmd/schedule/feed_next` (empty payload; HA button *Feed next meal*; web
+**Schedule → Feed next meal**) serves the next meal now: the earliest slot of
+today whose state is `pending` and whose time is still ahead. It goes through
+the same fire path as the clock (same grams, source `schedule`), so the slot
+becomes `dispensing` → `dispensed`/`failed` and is not served again at its
+time.
+
+Refusals (nothing dispensed, slot unchanged, logged
+`[schedule] feed next refused: <reason>`):
+
+| Reason | When |
+|--------|------|
+| `no_meal_today` | No pending slot left today (or the clock is unknown) |
+| `limit` | The daily limit is already reached ([health-monitoring.md](health-monitoring.md) § Daily limit) |
+| `bowl_full` | Overfill protection is on and the bowl is at or above the threshold |
+| `busy` | A dispense is running |
+
+The checks for `limit` and `bowl_full` have no side effects (no history record,
+no problem raised). The web call returns `{"ok":false,"error":"<reason>"}`.
 
 ## "Fired today" tracking
 

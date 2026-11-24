@@ -1,7 +1,7 @@
 .PHONY: test-web preview-web
 
 test-web:
-	node --test test_logic.mjs test_mock_api.mjs
+	node --test test_logic.mjs test_logic_admin.mjs test_logic_health.mjs test_logic_i18n.mjs test_mock_api.mjs
 
 preview-web:
 	@bytes=$$(./build.sh 2>&1 | sed -n 's/.*(\([0-9]*\) bytes gzipped.*/\1/p'); \

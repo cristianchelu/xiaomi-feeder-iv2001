@@ -119,15 +119,17 @@ void test_feed_config_overfill_threshold_clamps_on_load(void)
     TEST_ASSERT_EQUAL(PORT_OK,
                       cfg->write(CONFIG_GROUP_FEED,
                                  CONFIG_KEY_OVERFILL_THRESHOLD_G,
-                                 "101"));
-    TEST_ASSERT_EQUAL_UINT8(100u, feed_config_overfill_threshold_g_get());
+                                 "501"));
+    TEST_ASSERT_EQUAL_UINT16(500u, feed_config_overfill_threshold_g_get());
 }
 
 void test_feed_config_overfill_threshold_rejects_out_of_range_set(void)
 {
     fake_config_port_reset();
     TEST_ASSERT_FALSE(feed_config_overfill_threshold_g_set(29u));
-    TEST_ASSERT_FALSE(feed_config_overfill_threshold_g_set(101u));
+    TEST_ASSERT_FALSE(feed_config_overfill_threshold_g_set(501u));
+    TEST_ASSERT_TRUE(feed_config_overfill_threshold_g_set(300u));
+    TEST_ASSERT_EQUAL_UINT16(300u, feed_config_overfill_threshold_g_get());
     TEST_ASSERT_TRUE(feed_config_overfill_threshold_g_set(30u));
     TEST_ASSERT_TRUE(feed_config_overfill_threshold_g_set(100u));
 }

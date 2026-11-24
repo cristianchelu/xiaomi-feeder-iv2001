@@ -198,3 +198,30 @@ Open-loop and compensated jobs use the same outcome rules. Compensation adds
 
 Completion is reported via `.../dispense/event` only — no retained
 `dispense/status` or in-progress `dispense/progress` topics.
+
+## Portion size
+
+The mass per index hole depends on the kibble (reference unit: ~8.5 g per hole
+measured, vs the historic 10 g constant). NVDM `feed/portion_dg` holds the
+grams-per-portion estimate (default 100 dg, clamped 3–20 g). 10 g is only the
+starting average: the estimate follows the kibble actually delivered.
+
+- **Learning from feeds.** After every measured job (open-loop or compensated,
+  not a calibration run) that ends `ok` (an underfill is likely an emptying
+  hopper, not the auger's real portion), with the bowl present
+  before and after, at least 1 portion turned, and a per-portion sample
+  (`delta / portions`) inside 2–30 g: `estimate += (sample − estimate) /
+  [tune] 8` (about the last 8 feeds), clamped 3–20 g. Samples outside the range
+  (pet eating during the settle, bowl knocked) are ignored. NVDM is written only
+  when the stored value differs by ≥ `[tune]` 2 dg. Log: `[dispense] portion
+  learned <sample> dg -> estimate <dg> dg`. Status `learned`.
+
+- **Calibration (on request).** `cmd/portion_cal {}` (HA *Calibrate portion*, web *Calibrate portion*) runs a
+  3-portion open-loop job, weighs once after the settle and sets
+  `estimate = delivered / portions` (one weighing over 3 holes: ±0.3 g per
+  portion at the scale's 1 g resolution). Implausible or unweighed runs leave
+  the value unchanged with status `failed`.
+- `{"action":"reset"}` restores 10 g.
+- Gram targets use the **nearest** whole number of portions (at least 1);
+  compensated top-ups and open-loop estimates use the same value.
+- Result: retained `.../portion` (`status`: `default`, `ok` calibrated, `learned` refined from meals, `failed`, `running`), HA sensor *Portion size*, web page.

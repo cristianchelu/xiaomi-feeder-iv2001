@@ -8,6 +8,7 @@
 
 #include "app_log.h"
 #include "wdt_adapter.h"
+#include "task_watch.h"
 
 #define WDT_TIMEOUT_S 30u  /* [tune] HAL maximum */
 
@@ -37,6 +38,7 @@ void wdt_adapter_log_reset_reason(void)
     } else if (s_reset_status == HAL_WDT_SOFTWARE_RESET) {
         reason = "software";
     }
+    boot_info_set_reset_reason(reason);
     APP_LOG_I("app", "reset reason: %s%s", reason, s_armed ? "" : " (watchdog NOT armed)");
 }
 

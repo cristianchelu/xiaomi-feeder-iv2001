@@ -36,6 +36,19 @@ before running. Existing env values are not overwritten.
 Bench logs land in `tools/ota/logs/<run-id>/` (gitignored). Set
 `OTA_LOG_KEEP=0` to delete successful runs on exit.
 
+## Simplest way: `push.py` (no mosquitto, no manual JSON)
+
+```bash
+python3 tools/ota/push.py --broker <mqtt-host> --user <u> --password <p> \
+    --device-id 768722 --firmware-dir firmware/flash
+```
+
+It reads the retained `ota/status` to learn which bank is running, serves the
+*other* image from this machine, publishes `cmd/ota` with the SHA-512 and
+prints progress until the device reboots into the new bank. Standard library
+only. The device refuses the update while a dispense is running
+(`error: busy_dispense`).
+
 ## Commands
 
 ```bash

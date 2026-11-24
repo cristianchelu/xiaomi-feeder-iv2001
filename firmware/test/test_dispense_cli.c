@@ -31,6 +31,7 @@ static void dispense_cli_test_reset_all(void)
     motor_port_host_reset();
     fake_motor_port_reset();
     fake_app_event_q_reset();
+    fake_config_port_reset();   /* no learned portion size from earlier tests */
     dispense_test_reset();
     dispense_cli_test_reset();
     motor_cli_test_reset_timed();

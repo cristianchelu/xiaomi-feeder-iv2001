@@ -13,6 +13,10 @@
 #endif
 
 void app_log_init(void);
+/* Copy the recent-log ring (oldest first, NUL-terminated); returns length. */
+size_t app_log_ring_copy(char *out, size_t len);
+/* Tail of the previous boot's log kept across a software reboot ("" if none). */
+size_t app_log_prev_copy(char *out, size_t len);
 void app_log_debug(const char *tag, const char *fmt, ...);
 void app_log_info(const char *tag, const char *fmt, ...);
 void app_log_warn(const char *tag, const char *fmt, ...);
@@ -28,6 +32,8 @@ void app_log_clear_sink(void);
 #ifdef HOST_TEST
 void app_log_test_reset(void);
 const char *app_log_test_last_line(void);
+void app_log_test_soft_reboot(void);
+void app_log_test_corrupt_retained(void);
 const char *app_log_test_line_from_end(unsigned n);
 #endif
 

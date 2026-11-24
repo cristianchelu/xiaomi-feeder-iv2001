@@ -1066,8 +1066,13 @@ the device reboots. See [ota-flow.md](ota-flow.md) § Pre-download memory reclai
 
 ### Security
 
-No login or knock for v1. Compile-time off in production is the threat-model
-mitigation. Remote CLI exposes the same surface as the UART bench console.
+When a web password is set ([web-ui.md](web-ui.md) § Security) a new remote
+session first sends `password: ` and reads one line (telnet bytes filtered as
+usual, CR/LF ends the line, ≤ 32 characters). Until the line matches, the
+session gets no prompt and no log mirror. A wrong line sends `denied`, waits
+`[tune]` 2 s and closes the session; the correct one gives the normal `$`
+prompt and attaches the log mirror. Without a web password the console is
+open (bench use). UART0 never asks for a password (physical access).
 
 ## `time` commands
 

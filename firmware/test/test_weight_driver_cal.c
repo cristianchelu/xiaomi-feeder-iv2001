@@ -325,3 +325,31 @@ void test_weight_driver_read_rejects_stuck_warming(void)
 
     TEST_ASSERT_EQUAL(PORT_ERR_IO, weight_read_dg(&s_state, &dg));
 }
+
+void test_weight_driver_zero_refused_when_bowl_still_installed(void)
+{
+    driver_reset();
+    set_weight_rsp(1000);
+    TEST_ASSERT_EQUAL(PORT_OK, weight_calibrate_zero(&s_state));
+    set_weight_rsp(1500);
+    TEST_ASSERT_EQUAL(PORT_OK, weight_calibrate_span(&s_state));
+
+    /* Re-zero while the bowl (1500) is still on the scale: refused, cal kept. */
+    set_weight_rsp(1500);
+    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, weight_calibrate_zero(&s_state));
+    TEST_ASSERT_EQUAL(WEIGHT_CAL_SUCCESS, weight_driver_cal_status(&s_state));
+
+    /* Bowl removed: accepted. */
+    set_weight_rsp(1003);
+    TEST_ASSERT_EQUAL(PORT_OK, weight_calibrate_zero(&s_state));
+}
+
+void test_weight_driver_span_refused_without_bowl(void)
+{
+    driver_reset();
+    set_weight_rsp(1000);
+    TEST_ASSERT_EQUAL(PORT_OK, weight_calibrate_zero(&s_state));
+    set_weight_rsp(1004);
+    TEST_ASSERT_EQUAL(PORT_ERR_INVALID_ARG, weight_calibrate_span(&s_state));
+    TEST_ASSERT_EQUAL(WEIGHT_CAL_CAPTURING_SPAN, weight_driver_cal_status(&s_state));
+}

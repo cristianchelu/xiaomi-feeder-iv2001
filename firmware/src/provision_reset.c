@@ -7,8 +7,8 @@
 bool provision_erase_app_groups(const config_port_t *cfg)
 {
     static const char *groups[] = {
-        "wifi", "mqtt", "feed", "display", "schedule",
-        "time", "calib", "power", "system", NULL,
+        "wifi", "mqtt", "feed", "display", "eaten", "schedule",
+        "time", "calib", "power", "system", "hist", NULL,
     };
     size_t i;
 

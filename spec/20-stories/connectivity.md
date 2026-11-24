@@ -56,6 +56,7 @@ The feeder publishes the following retained state topics:
 - **Next scheduled feed** — time and gram amount.
 - **Config** — current device settings.
 - **Display** — current mode and brightness.
+- **Child lock** — whether physical buttons are locked (`ON` / `OFF` on `.../child_lock`).
 
 ## Command topics (user → device)
 
@@ -65,6 +66,7 @@ The feeder subscribes to commands for:
 - **Schedule** — create, update, delete slots; toggle global/today enable; skip for today.
 - **Calibrate** — zero or span the weight sensor.
 - **Display** — set mode and brightness.
+- **Child lock** — lock or unlock the physical buttons.
 - **Config** — update user-facing settings.
 - **Reboot** — restart the device.
 

@@ -58,6 +58,16 @@ attempts to clear the jam by reversing and retrying. If recovery fails
 after multiple attempts the dispense is aborted and a `stuck` fault is
 reported.
 
+## Daily limit
+
+The user can cap the grams dispensed per day (all sources). A meal that would
+exceed the cap is shortened or refused and a problem is raised.
+
+## Portion size
+
+10 g per portion is a starting average: each weighed meal refines it, and a
+calibration run sets it directly.
+
 ## Constraints
 
 - Only one dispense runs at a time; additional requests are rejected as busy

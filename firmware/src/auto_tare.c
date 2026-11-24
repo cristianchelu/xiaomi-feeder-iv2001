@@ -139,10 +139,13 @@ void auto_tare_idle_sample(weight_dg_t raw_dg, bool sample_valid)
         return;
     }
 
+    /* Compensate only sub-threshold per-sample creep, cumulatively. A larger
+     * step (food eaten, kibble added) is real mass and passes through. */
     if (s_prev_raw_valid && auto_tare_sample_quiet(raw_dg)) {
-        s_drift_offset_dg = s_stable_dg - raw_dg;
+        s_drift_offset_dg -= raw_dg - s_prev_raw_dg;
     }
 
+    s_stable_dg = raw_dg + s_drift_offset_dg;
     auto_tare_track_raw(raw_dg);
 }
 

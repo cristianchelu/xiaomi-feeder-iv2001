@@ -16,6 +16,7 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../state` | `{"bowl_error": false}` — device condition (faults / health); see [Device condition](#device-condition) | 1 |
 | `.../bowl_weight` | `42.3` — plain string, one decimal (0.1 g); empty string when unknown; see [Bowl weight](#bowl-weight) | 1 |
 | `.../hopper` | `normal` \| `low` \| `empty` (plain text) | 1 |
+| `.../hopper_ir` | `blocked` \| `clear` (plain text) — raw IR beam; see [Hopper](#hopper) | 1 |
 | `.../battery` | `75` — plain integer 0–100; `unknown` when absent; see [Battery](#battery) | 1 |
 | `.../battery_voltage` | `5200` — plain integer pack mV; see [Battery pack voltage](#battery-pack-voltage) | 1 |
 | `.../mains` | `ON` or `OFF` — barrel connected; see [Mains](#mains) | 1 |
@@ -24,8 +25,15 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 | `.../config` | Config snapshot JSON — see [Config snapshot](#config-snapshot) | 1 |
 | `.../feed/mode` | `open_loop` or `compensated` (plain text) — see [Feed mode](#feed-mode) | 1 |
 | `.../feed/overfill` | `{"enabled":false,"threshold_g":50}` — see [Overfill protection](#overfill-protection) | 1 |
+| `.../child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../timezone` | Device timezone plain text — see [Device timezone](#device-timezone) | 1 |
-| `.../display` | `{"mode": "weight", "brightness": 4}` | 1 |
+| `.../display` | `{"mode": "weight", "brightness": 4, "battery_off_s": 60, "mains_off_s": 0}` | 1 |
+| `.../feed/dispense_amount` | `{"g":25}` — Dispense-button amount, `0` = one portion; see [Dispense amount](#dispense-amount) | 1 |
+| `.../dispense/progress` | `{"state":"running","portions":2,"of":5,"g":"17.3"}` — see [Dispense progress](#dispense-progress) | 0 |
+| `.../wifi_rssi` | `-58` — plain integer dBm; checked every `[tune]` 60 s, published every `[tune]` 10 min or on a change ≥ `[tune]` 5 dB | 0 |
+| `.../problem` | Problem state — see [health-monitoring.md](health-monitoring.md) § Problem state | 1 |
+| `.../feed/limit` | `{"daily_max_g":0,"today_g":45,"not_eaten_h":0}` — daily limit and not-eaten alert | 1 |
+| `.../eaten_today` | `85.3` — plain string, one decimal (0.1 g); see [Eaten today](#eaten-today) | 1 |
 | `.../ota/status` | `{"state": "idle", "pct": 0, "error": "", "bank": "A"}` — see [OTA status](#ota-status) | 1 |
 
 ## Event topics (published by device, not retained)
@@ -34,30 +42,51 @@ Base: `petfeeder/<device_id>/` where `<device_id>` is user-configurable
 |-------|---------|-----|--------|
 | `.../dispense/event` | Dispense completion JSON — see [Dispense event](#dispense-event) | 1 | false |
 
-Dropped from the protocol: retained `.../dispense/status` and
-`.../dispense/progress`. Completion is reported only via the fire-and-forget
-dispense event. Other retained state topics (`state`, `bowl_weight`, etc.) are
-unchanged.
+Completion (grams, outcome) is reported only via the fire-and-forget dispense
+event; the retained `.../dispense/progress` topic is a best-effort live view.
 
 ## Command topics (subscribed by device, not retained)
 
 | Topic | Payload | QoS |
 |-------|---------|-----|
-| `.../cmd/dispense` | `{"g": 30}` | 1 |
+| `.../cmd/dispense` | `{"g": 30}`; an empty payload dispenses the [Dispense amount](#dispense-amount) (one portion when unset) | 1 |
 | `.../cmd/dispense/cancel` | `{}` | 1 |
 | `.../cmd/schedule/set` | `{"hour":8,"min":0,"repeat_days":[0,1,2,3,4,5,6],"g":30,"enabled":true}` | 1 |
 | `.../cmd/schedule/delete` | `{"hour":8,"min":0}` | 1 |
 | `.../cmd/schedule/toggle` | `{"hour":8,"min":0}` | 1 |
 | `.../cmd/schedule/skip` | `{"hour":8,"min":0,"skip":true}` | 1 |
+| `.../cmd/schedule/feed_next` | (empty) — serve the next meal now ([scheduler-engine.md](scheduler-engine.md) § Feed next meal) | 1 |
 | `.../cmd/schedule/enable` | `{"enabled":true}` | 1 |
 | `.../cmd/schedule/today` | `{"enabled":true}` | 1 |
-| `.../cmd/calibrate` | `{"action": "zero"}` or `{"action": "span"}` | 1 |
+| `.../cmd/calibrate` | `{"action": "zero"}` or `{"action": "span"}` — see [Calibrate command](#calibrate-command) | 1 |
 | `.../cmd/display` | `{"mode": "weight", "brightness": 4}` | 1 |
 | `.../cmd/feed/mode` | `open_loop` or `compensated` (plain text) — see [Feed mode](#feed-mode) | 1 |
 | `.../cmd/feed/overfill` | `{"enabled":true}` and/or `{"threshold_g":40}` — see [Overfill protection](#overfill-protection) | 1 |
+| `.../cmd/child_lock` | `ON` or `OFF` (plain text) — see [Child lock](#child-lock) | 1 |
 | `.../cmd/config` | `{"tz_rule":"...", "tz_label":"..."}` — **legacy** time slice only; see [Config snapshot](#config-snapshot) | 1 |
-| `.../cmd/reboot` | `{}` | 1 |
-| `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional | 1 |
+| `.../cmd/reboot` | `{}` — restart the device ([Reboot command](#reboot-command)) | 1 |
+| `.../cmd/ota` | `{"url": "http://...", "sha512": "<128 hex chars>"}` — `sha512` optional; or `{"install":true}` ([One-button install](ota-flow.md#one-button-install)) | 1 |
+| `.../cmd/ota_base` | Plain-text `http(s)://host[:port]/dir` firmware folder; stored in NVDM `system/ota_base`, retained on `.../ota/base` | 1 |
+| `.../cmd/eaten_reset` | `{}` — zero today's eaten total | 1 |
+| `.../cmd/portion_cal` | `{}` — turn 3 portions open-loop, weigh once, set grams per portion; `{"action":"reset"}` → 10 g. Result retained on `.../portion` `{"g":"8.5","status":"ok"\|"failed"\|"default"}` | 1 |
+| `.../cmd/power` | `{"battery_wifi":"on"\|"off"\|"scheduled_only"}`; retained on `.../power` | 1 |
+| `.../cmd/problem_clear` | (empty) — clears latched problems | 1 |
+| `.../cmd/feed_limit` | `{"daily_max_g":N}` and/or `{"not_eaten_h":N}` | 1 |
+| `.../cmd/dispense_amount` | `{"g": 25}` (5–150; `0` = one portion) — see [Dispense amount](#dispense-amount) | 1 |
+
+### Reboot command
+
+`cmd/reboot` restarts the whole device. Payload is ignored (`{}`).
+
+| Condition | Result |
+|-----------|--------|
+| Dispense active | Rejected (`PORT_ERR_BUSY`), no reboot |
+| OTA active | Rejected (`PORT_ERR_BUSY`), no reboot |
+| Otherwise | Accepted; reboot happens `[tune]` 500 ms after the next display tick (lets the outbox flush and logs drain) |
+
+A second `cmd/reboot` while one is pending is accepted and does not extend
+the deadline. Configuration is untouched (this is not a factory reset).
+Not exposed on the web API (MQTT only, see [web-ui.md](web-ui.md)).
 
 ## Last Will and Testament (LWT)
 
@@ -80,8 +109,34 @@ publish discovery configs to:
 (retained, QoS 1). Post-connect discovery publishes go through
 [mqtt_outbox](#publish-path) — only `mqtt_io` drains the queue.
 
+### Discovery pacing
+
+The entity table can hold more configs than the outbox has slots, and the
+connect snapshots share the same ring. Discovery is therefore enqueued in
+the background, not as one burst:
+
+- On `EVT_MQTT_CONNECTED` the `app` task arms discovery with the device id;
+  nothing is enqueued yet.
+- On every `EVT_DISPLAY_TICK` while armed and the outbox is accepting, `app`
+  enqueues the next entity of the table (table order) if the outbox holds
+  fewer than `[tune]` 12 pending items. At most one entity is enqueued per
+  tick.
+- After the last entity the module disarms. A new `EVT_MQTT_CONNECTED`
+  re-arms from the first entity.
+- When the outbox stops accepting (disconnect, OTA suspend) discovery
+  disarms; the next connect re-arms it.
+- A failed enqueue (payload formatting or full ring) retries the same entity
+  on the next tick.
+
+State and command-reply publishes enqueued by `app` keep at least
+`[tune]` 12 free slots (ring depth 24 minus the pacing threshold) while
+discovery is running.
+
 Each discovery message includes a `device` block with `identifiers`,
-`name`, `manufacturer`, `model` for unified HA device grouping.
+`name`, `manufacturer`, `model`, `sw_version` (firmware `git describe`) and,
+once the station has an IP address, `configuration_url` `http://<ip>` (the
+feeder web page, shown as "Visit" on the HA device page) for unified HA device
+grouping.
 `manufacturer` and `model` identify the **physical hardware** (retail
 product), not the firmware author — see [validation slice](#home-assistant-validation-slice).
 
@@ -93,9 +148,13 @@ be auto-added to dashboards.
 
 | Category | Entities |
 |----------|----------|
-| (primary) | `dispense`, `bowl_weight`, `bowl_error`, `battery`, `mains`, `hopper_level`, `dispense_completed` |
-| `diagnostic` | `battery_voltage`, `device_timezone` |
-| `config` | `feeding_schedule`, `weight_compensation`, `overfill_protection`, `overfill_threshold_g` |
+| (primary controls) | `dispense`, `problem_clear`, `dispense_amount`, `feeding_schedule`, `child_lock` |
+| (primary sensors) | `problem`, `bowl_weight`, `eaten_today`, `bowl_error`, `battery`, `mains`, `hopper_level`, `portion_size`, `dispense_progress`, `dispense_completed` |
+| `config` | feeding, overfill, screen, scale, portion, battery Wi-Fi and firmware settings |
+| `diagnostic` | `battery_voltage`, `device_timezone`, `wifi_rssi`, `hopper_ir`, `ota_state`, `firmware_bank` |
+
+`dispense_custom` is retired: the device publishes an empty retained config
+for it so Home Assistant removes the entity.
 
 Read-only sensors use `diagnostic`, not `config` — Home Assistant rejects
 passive sensors with `entity_category: config`. Writable components (switch,
@@ -106,7 +165,7 @@ discovered, republishing discovery alone does not move existing entities —
 clear the config topic (empty retained payload) and republish, or use
 `tools/mqtt/mqtt-bench.sh ha rediscover` / `ha rediscover-categories`.
 
-### Full entity table (planned)
+### Full entity table
 
 | Component | object_id | HA device_class | entity_category | Notes |
 |-----------|-----------|-----------------|-----------------|-------|
@@ -117,14 +176,35 @@ clear the config topic (empty retained payload) and republish, or use
 | binary_sensor | mains | `power` | — | Mains connected — `ON`/`OFF` on `.../mains` |
 | button | dispense | — | — | Triggers default portion |
 | event | dispense_completed | — | — | Fires on each dispense job completion |
-| number | dispense_custom | — | `config` | Range: 5–150 g |
-| switch | feeding_schedule | — | `config` | On = global schedule enabled |
+| number | dispense_amount | — | — | "Dispense amount", 5–150 g, `box` mode; stored amount used by the Dispense button (`.../feed/dispense_amount`) |
+| sensor | dispense_progress | — | — | "Dispense status": `2/5 (17.3 g)` while running, else `idle` / `weighing` |
+| switch | feeding_schedule | — | — | On = global schedule enabled |
 | switch | weight_compensation | — | `config` | On = compensated dispense mode |
 | switch | overfill_protection | — | `config` | On = skip scheduled feeds when bowl ≥ threshold |
-| number | overfill_threshold_g | — | `config` | Range: 30–100 g |
-| switch | child_lock | — | `config` | On/off |
-| select | display_mode | — | `config` | Options: weight, eaten_today, off |
-| number | display_brightness | — | `config` | Range: 1–4 |
+| number | overfill_threshold_g | — | `config` | Range: 30–500 g |
+| switch | child_lock | — | — | On/off |
+| select | display_mode | — | `config` | Options: weight, eaten_today |
+| number | display_brightness | — | `config` | Range: 0–4 (0 = panel off) |
+| number | display_battery_off | — | `config` | "Screen off delay (battery)", seconds 0–600 (0 = never) |
+| number | display_mains_off | — | `config` | "Screen off delay (mains)", seconds 0–3600 (0 = never) |
+| button | reboot | `restart` | `config` | `cmd/reboot` |
+| button | calibrate_zero | — | `config` | `cmd/calibrate {"action":"zero"}` — bowl removed |
+| button | calibrate_span | — | `config` | `cmd/calibrate {"action":"span"}` — empty provided 350 g bowl installed |
+| button | eaten_reset | — | `config` | `cmd/eaten_reset` |
+| sensor | portion_size | — | — | Grams per portion (`.../portion`, `value_json.g`) |
+| button | portion_cal | — | `config` | `cmd/portion_cal {}` |
+| select | battery_wifi | — | `config` | Options: on, off, scheduled_only (`power/battery_wifi`) |
+| text | ota_base | — | `config` | Firmware folder URL (≤ 120 chars) |
+| button | ota_install | `update` | `config` | `cmd/ota {"install":true}` |
+| sensor | hopper_ir | `enum` | `diagnostic` | Raw IR beam: `blocked` \| `clear`; `enabled_by_default`: false |
+| sensor | wifi_rssi | `signal_strength` | `diagnostic` | "Wi-Fi signal", unit dBm |
+| binary_sensor | problem | `problem` | — | "Problem"; attributes from `.../problem` |
+| button | problem_clear | — | — | "Clear problem" → `cmd/problem_clear` |
+| button | feed_next | — | — | "Feed next meal" → `cmd/schedule/feed_next` |
+| number | daily_limit | — | `config` | "Daily limit", g, 0–2000 step 10 (0 = off) |
+| number | not_eaten_h | — | `config` | "Not eaten alert", h, 0–24 (0 = off) |
+| sensor | ota_state | — | `diagnostic` | `value_json.state` of `.../ota/status` (idle, downloading, …, error) |
+| sensor | firmware_bank | — | `diagnostic` | `value_json.bank` of `.../ota/status` (`A` or `B`) |
 | sensor | battery_voltage | `voltage` | `diagnostic` | Unit: mV; `enabled_by_default`: false |
 | sensor | device_timezone | — | `diagnostic` | POSIX or label string |
 
@@ -349,6 +429,26 @@ Bench payload: `tools/mqtt/payloads/ha-overfill_protection.json`.
 
 Bench payload: `tools/mqtt/payloads/ha-overfill_threshold_g.json`.
 
+**Child lock** switch (validation slice):
+
+| Field | Value |
+|-------|-------|
+| Discovery topic | `homeassistant/switch/petfeeder_<device_id>/child_lock/config` |
+| `name` | `Child lock` |
+| `state_topic` | `petfeeder/<device_id>/child_lock` |
+| `state_on` | `ON` |
+| `state_off` | `OFF` |
+| `command_topic` | `petfeeder/<device_id>/cmd/child_lock` |
+| `payload_on` | `ON` |
+| `payload_off` | `OFF` |
+| `availability_topic` | `petfeeder/<device_id>/connection` |
+| `payload_available` | `online` |
+| `payload_not_available` | `offline` |
+| `unique_id` | `petfeeder_<device_id>_child_lock` |
+| `entity_category` | `config` |
+
+Bench payload: `tools/mqtt/payloads/ha-child_lock.json`.
+
 `cmd/dispense` accepts `{}` (one default portion) or `{"g": <5–150>}` for
 gram-targeted dispense. Invalid JSON or out-of-range `g` is rejected at info
 with no dispense. UART logs use tag `dispense` — see
@@ -382,7 +482,7 @@ Bench and runtime behavior (UART details in
 | Boot | `mqtt_io` task starts; if `mqtt/host` is stored, connect when Wi-Fi STA has DHCP (no `mqtt connect` needed). Otherwise remain idle until armed |
 | `mqtt connect` (or provisioning success) | Arm client; connect when Wi-Fi STA has DHCP |
 | `mqtt disconnect` | Disarm for this boot; no reconnect until `mqtt connect` or reboot |
-| Successful CONNECT | Subscribe `cmd/#`; publish retained `online` on `.../connection`; LWT installed; `EVT_MQTT_CONNECTED` enqueues retained `.../state`, `.../ota/status`, and HA discovery (drained by `mqtt_io`) |
+| Successful CONNECT | Subscribe `cmd/#`; publish retained `online` on `.../connection`; LWT installed; `EVT_MQTT_CONNECTED` enqueues retained `.../state`, `.../ota/status` and the other snapshots, and arms paced HA discovery ([Discovery pacing](#discovery-pacing); drained by `mqtt_io`) |
 | Connected idle | `mqtt_io` drains [mqtt_outbox](#publish-path) then `MQTTYield`; inbound commands are heap-copied to `app_event_q` and routed on `app` (see [Inbound commands](#inbound-commands)) |
 | Session loss while armed | Exponential backoff reconnect (see below) |
 
@@ -408,7 +508,7 @@ readings keep the last good sample on `PORT_ERR_BUSY`.
 |------|------|----------|
 | Arm + session sync | `mqtt_io` or `app` producer | `mqtt_client_request_connect()` sets pending flags and posts connecting phase |
 | Handshake | `mqtt_cn` worker | `ConnectNetwork`, `MQTTConnect`, subscribe `cmd/#`, publish retained `connection`=`online`; `mqtt_adapter_yield` before worker exit |
-| Post-connect enqueue | `app` on `EVT_MQTT_CONNECTED` | Enqueue retained `.../state`, `.../ota/status`, HA discovery — no `mqtt_port->publish` from `app` |
+| Post-connect enqueue | `app` on `EVT_MQTT_CONNECTED` | Enqueue retained `.../state`, `.../ota/status` and the other snapshots, arm paced HA discovery — no `mqtt_port->publish` from `app` |
 | Poll | `mqtt_io` | `[tune]` 50 ms step delay while worker runs; on completion apply backoff or post `EVT_MQTT_CONNECTED` |
 | Disarm | `mqtt_client_stop()` | Clears worker state; disconnect if session was up |
 
@@ -470,7 +570,7 @@ Post-connect MQTT publishes use a ring-buffered **mqtt_outbox** owned by
 
 | Parameter | Value |
 |-----------|-------|
-| Ring depth | `[tune]` 16 slots |
+| Ring depth | `[tune]` 24 slots |
 | Max payload per slot | `[tune]` 1024 B (HA discovery; feeding schedule switch at max `device_id` length) |
 | Min interval between successful drains | `[tune]` 100 ms |
 
@@ -507,6 +607,18 @@ Exponential backoff on disconnect:
 - Multiply by 2 on each failure.
 - Cap at `[tune]` 60 s.
 - Reset to initial delay on successful connect.
+
+**Broker wait.** A QoS 1 publish waits at most `[tune]` 4 s for the broker's
+acknowledgement.
+
+**Dead session.** The TCP link can die while the client library still reports
+the session as connected (every publish then fails, nothing reconnects).
+`[tune]` 3 consecutive failed publishes (outbox, schedule, any post-connect
+TX) declare the session lost: log `[mqtt] link lost (<n> publishes failed):
+reconnecting` once, disconnect, and reconnect with the backoff above. Any
+successful publish resets the count. The adapter logs a failed publish at most
+once per `[tune]` 60 s (`[mqtt] publish failed topic=<t> (<n> since last
+report)`) so failures cannot flood the log ring.
 
 ## Rate limiting
 
@@ -587,7 +699,7 @@ NVDM `feed/overfill_enabled` and `feed/overfill_threshold_g` (see
 | Field | Type | Range |
 |-------|------|-------|
 | `enabled` | bool | — |
-| `threshold_g` | uint8 | 30–100 |
+| `threshold_g` | uint16 | 30–500 (out of range rejected, never truncated) |
 
 Command topic `.../cmd/feed/overfill` accepts a JSON object with either or
 both fields (partial update). Invalid `threshold_g` is rejected with no NVDM
@@ -600,6 +712,121 @@ is configured.
 Home Assistant discovery publishes a **switch** (`overfill_protection`) bound
 to `enabled` and a **number** (`overfill_threshold_g`) bound to `threshold_g`.
 Both use `entity_category: config` — see [validation slice](#home-assistant-validation-slice).
+
+## Child lock
+
+Topic `.../child_lock` (retained, QoS 1) reports the child-lock state from
+NVDM `feed/child_lock` (see [config-store.md](config-store.md) and
+[button-handling.md](button-handling.md) § Child lock).
+
+| Payload | Meaning |
+|---------|---------|
+| `ON` | Child lock active: every physical button gesture except the reset+dispense unlock combo is ignored |
+| `OFF` | Child lock inactive |
+
+Command topic `.../cmd/child_lock` accepts the same plain-text payloads;
+leading and trailing whitespace is ignored and matching is case-sensitive.
+Any other payload is rejected at info with no NVDM change. A command equal to
+the current state succeeds without an NVDM write or a publish. A successful
+command sets or clears the panel lock icon exactly as the physical combo does.
+
+The lock gates physical buttons only. Dispense commands from MQTT, the LAN web
+UI, UART, and the scheduler are not affected.
+
+Publish state on boot (MQTT connect snapshot) and after every change,
+whether it came from the physical combo or from `cmd/child_lock`.
+
+Home Assistant discovery publishes a **switch** (`child_lock`) with
+`entity_category: config` — see [validation slice](#home-assistant-validation-slice).
+
+## Eaten today
+
+Topic `.../eaten_today` (retained, QoS 1): grams eaten since local midnight
+([eaten-today.md](eaten-today.md)), plain string with one decimal (`0.0`,
+`85.3`). Published on MQTT connect and whenever the value changes (also on the
+midnight reset to `0.0`).
+
+## Calibrate command
+
+`cmd/calibrate` runs the same capture as UART `weigh cal zero|span`
+([weighing.md](weighing.md) § Calibration) and persists the result in NVDM.
+
+| Action | Precondition | Effect |
+|--------|--------------|--------|
+| `zero` | Bowl **removed** | Captures `calib/zero` |
+| `span` | Zero captured, provided 350 g bowl installed (empty) | Captures `calib/span_g` + `calib/span_raw` |
+
+Rules:
+
+- Payload is JSON with a string `action`; anything else (missing, unknown
+  action, non-JSON) is rejected at info with no capture.
+- Rejected with `PORT_ERR_BUSY` while a dispense or an OTA is active.
+- `span` before `zero` is rejected by the driver (`PORT_ERR_INVALID_ARG`).
+- Each capture is the **median of 5** consecutive CS1270 queries; a spread above
+  25 raw counts (hand on the scale, bowl moving) is rejected with `PORT_ERR_BUSY`.
+- `span` is rejected (`PORT_ERR_INVALID_ARG`) when it differs from `zero` by fewer
+  than 50 raw counts (bowl not installed, or zero was taken with the bowl on).
+- `zero` is rejected (`PORT_ERR_INVALID_ARG`) when a complete calibration exists
+  and the new reading is above half the bowl step (bowl still installed).
+- After any successful capture the app drops the cached bowl sample, restarts
+  the auto-tare anchor, invalidates the eaten-today baseline and resamples
+  immediately, so the panel shows `0g` and no calibration step counts as eaten.
+- A capture error from the scale (rail off, no stable sample) is logged at
+  info (`calibrate <action> failed`) and leaves NVDM unchanged.
+- Success logs `calibrate zero ok` / `calibrate span ok`. The calibration
+  state surfaces through the existing `bowl_error` and `bowl_weight` topics
+  on the next weigh tick; no dedicated state topic.
+- Not exposed on the web API (MQTT and UART only).
+
+## Display
+
+Topic `.../display` (retained, QoS 1) reports the persisted display settings
+from NVDM `display/mode` and `display/brightness` (see
+[config-store.md](config-store.md) and
+[display-presentation.md](display-presentation.md) § Display modes):
+
+```json
+{"mode":"weight","brightness":4,"battery_off_s":60,"mains_off_s":0}
+```
+
+Command topic `.../cmd/display` takes a JSON object with either or both keys:
+
+| Key | Values | Effect |
+|-----|--------|--------|
+| `mode` | `weight` \| `eaten_today` | What the panel shows. `off` is not a mode: set `brightness` 0 |
+| `brightness` | integer 0–4 | TM1637 brightness; **0 = panel off** (rail powered down), 1–4 lit |
+| `battery_off_s` | integer 0–600 | Seconds of inactivity before the panel blanks **on battery**; `0` disables ([display-presentation.md](display-presentation.md) § Idle blank on battery) |
+| `mains_off_s` | integer 0–3600 | Same, **on mains**; default `0` (always on) |
+
+Rules:
+
+- Keys are validated **before** anything is applied: one invalid key rejects
+  the whole command (info log, no NVDM write, no publish).
+- A command that changes nothing succeeds without NVDM write or publish.
+- Unknown keys are ignored. An empty or non-JSON payload is rejected.
+- While the mode is `off` the panel stays dark for everything (child-lock
+  icon, Wi-Fi, dispensing, MQTT indicators) **except** the OTA indicator,
+  which always shows so a running update is visible; the panel blanks again
+  when the OTA indicator stops.
+- Publish the state on MQTT connect (snapshot) and after every change.
+- Also settable from the web page (`POST /api/display`, [web-ui.md](web-ui.md)).
+
+## Dispense amount
+
+NVDM `feed/button_g` holds the amount the Dispense button (HA button, empty
+`cmd/dispense`) delivers: 5–150 g, or absent / `0` for one portion. Set with
+`cmd/dispense_amount {"g":N}` (out-of-range rejected); state retained on
+`.../feed/dispense_amount` `{"g":N}`, published on connect and after a change.
+
+## Dispense progress
+
+`.../dispense/progress` (retained, QoS 0) carries
+`{"state","portions","of","g"}`: `running` while the motor turns (`portions`
+done of `of`, `g` = portions × portion size, one decimal), `weighing` while
+the bowl settles, `idle` otherwise. Published only when the payload changes
+and only while the outbox holds fewer than `[tune]` 8 items (progress never
+competes with state or event messages); polled every display tick. Republished
+on connect.
 
 ## Device timezone
 
@@ -748,6 +975,16 @@ Home Assistant discovers **Battery pack voltage** with `enabled_by_default`:
 `false` — hidden until enabled in the UI.
 
 ## Hopper
+
+### Raw IR beam (`hopper_ir`)
+
+Topic `.../hopper_ir` (retained, QoS 1) mirrors the **last raw IR reading**
+before debounce and the empty latch ([hopper-sensing.md](hopper-sensing.md)):
+`blocked` (food in the beam path) or `clear` (beam unobstructed). Nothing is
+published until the first successful reading. Published on connect (once a
+reading exists) and whenever the raw reading changes — raw readings arrive on
+the sensing schedule (post-dispense, debounce streaks, mains idle every 60 s),
+so this is a diagnostic aid, not a faster level.
 
 Topic `.../hopper` (retained, QoS 1) reports the published three-state hopper
 level (see [hopper-sensing.md](hopper-sensing.md) `hopper_level`).

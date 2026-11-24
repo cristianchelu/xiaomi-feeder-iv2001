@@ -58,6 +58,10 @@ PROJ_NAME       = $(notdir $(abspath $(dir $(PWD))))
 PROJ_PATH       = $(PWD)
 OUTPATH         = $(PWD)/build
 
+# Firmware version string (HA sw_version, web page); build-firmware.sh exports it.
+FW_VERSION ?= dev
+CFLAGS += -DFW_VERSION=\"$(FW_VERSION)\"
+
 ifeq ($(MTK_FOTA_DUAL_IMAGE_ENABLE),y)
 export MTK_FOTA_DUAL_IMAGE_ENABLE
 FOTA_PARTITION_B_BUILD    ?= n
@@ -87,6 +91,7 @@ APP_FILES      += $(APP_PATH_SRC)/button_gesture.c
 APP_FILES      += $(APP_PATH_SRC)/port_err.c
 APP_FILES      += $(APP_PATH_SRC)/app_log.c
 APP_FILES      += $(APP_PATH_SRC)/boot_bank.c
+APP_FILES      += $(APP_PATH_SRC)/reboot_request.c
 APP_FILES      += $(APP_PATH_SRC)/boot_bank_target.c
 APP_FILES      += $(APP_PATH_SRC)/app_cli.c
 APP_FILES      += $(APP_PATH_SRC)/app_cli_active.c
@@ -95,6 +100,7 @@ ifeq ($(REMOTE_CLI_ENABLE),y)
 CFLAGS += -DREMOTE_CLI_ENABLE=1
 APP_FILES      += $(APP_PATH_SRC)/console_uart.c
 APP_FILES      += $(APP_PATH_SRC)/remote_cli.c
+APP_FILES      += $(APP_PATH_SRC)/remote_auth.c
 else
 CFLAGS += -DREMOTE_CLI_ENABLE=0
 endif
@@ -138,6 +144,30 @@ APP_FILES      += $(APP_PATH_SRC)/time_config.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_config.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_json.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_mode.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_child_lock.c
+APP_FILES      += $(APP_PATH_SRC)/display_idle.c
+APP_FILES      += $(APP_PATH_SRC)/eaten_today.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_eaten_today.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_calibrate.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_display.c
+APP_FILES      += $(APP_PATH_SRC)/ota_base.c
+APP_FILES      += $(APP_PATH_SRC)/power_policy.c
+APP_FILES      += $(APP_PATH_SRC)/portion_estimate.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_portion.c
+APP_FILES      += $(APP_PATH_SRC)/app_lock.c
+APP_FILES      += $(APP_PATH_SRC)/ntp_config.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_dispense_amount.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_wifi_rssi.c
+APP_FILES      += $(APP_PATH_SRC)/web_admin.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_dispense_progress.c
+APP_FILES      += $(APP_PATH_SRC)/feed_history.c
+APP_FILES      += $(APP_PATH_SRC)/problem.c
+APP_FILES      += $(APP_PATH_SRC)/feed_limit.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_problem.c
+APP_FILES      += $(APP_PATH_SRC)/task_watch.c
+APP_FILES      += $(APP_PATH_SRC)/app_health.c
+APP_FILES      += $(APP_PATH_SRC)/mqtt_power.c
+APP_FILES      += $(APP_PATH_SRC)/display_settings.c
 APP_FILES      += $(APP_PATH_SRC)/mqtt_feed_overfill.c
 APP_FILES      += $(APP_PATH_SRC)/app_time_cli.c
 APP_FILES      += $(APP_PATH_SRC)/app_feed_cli.c
@@ -235,6 +265,7 @@ APP_FILES      += $(APP_PATH_ADAPT)/provision_cgi.c
 APP_FILES      += $(APP_PATH_ADAPT)/mqtt_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/flash_bank_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/wdt_adapter.c
+APP_FILES      += $(APP_PATH_ADAPT)/system_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/ota_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/i2c_bus_adapter.c
 APP_FILES      += $(APP_PATH_ADAPT)/wfci_bus_adapter.c

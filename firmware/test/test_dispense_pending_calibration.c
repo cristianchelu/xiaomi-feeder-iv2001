@@ -34,12 +34,20 @@ static void pending_cal_setup_mqtt(void)
     mqtt_dispense_event_set_device_id(TEST_DEVICE_ID);
 }
 
+static char s_event_payload[512];
+
 static void pending_cal_drain_mqtt(void)
 {
     const mqtt_port_t *mqtt = fake_mqtt_port_get();
+    unsigned guard = 0u;
 
-    while (mqtt_outbox_pending() > 0) {
-        (void)mqtt_outbox_drain_one(mqtt);
+    s_event_payload[0] = '\0';
+    while (mqtt_outbox_pending() > 0 && guard++ < 64u) {
+        if (mqtt_outbox_drain_one(mqtt) &&
+            strstr(fake_mqtt_port_state()->last_publish_topic, "dispense/event") != NULL) {
+            strcpy(s_event_payload, fake_mqtt_port_state()->last_publish_payload);
+        }
+        fake_time_advance_ms(1000u);
     }
 }
 
@@ -118,8 +126,9 @@ void test_dispense_wash_reinstall_quick_dispense_measures_delta(void)
 
     pending_cal_drain_mqtt();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"event_type\":\"success\""));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"grams\":30"));
+    (void)mqtt;
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"event_type\":\"success\""));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"grams\":30"));
 }
 
 void test_dispense_calibrated_uses_fresh_cache_without_blocking_read(void)

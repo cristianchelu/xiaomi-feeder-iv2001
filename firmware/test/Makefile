@@ -13,6 +13,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/console_mux.c \
              ../src/console_uart.c \
              ../src/remote_cli.c \
+             ../src/remote_auth.c \
              ../src/port_err.c \
              ../src/boot_bank.c \
              ../src/wifi_cred.c \
@@ -42,6 +43,30 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/mqtt_json.c \
              ../src/mqtt_feed_mode.c \
              ../src/mqtt_feed_overfill.c \
+             ../src/mqtt_child_lock.c \
+             ../src/display_idle.c \
+             ../src/eaten_today.c \
+             ../src/mqtt_eaten_today.c \
+             ../src/mqtt_calibrate.c \
+             ../src/mqtt_display.c \
+             ../src/ota_base.c \
+             ../src/power_policy.c \
+             ../src/portion_estimate.c \
+             ../src/mqtt_portion.c \
+             ../src/app_lock.c \
+             ../src/ntp_config.c \
+             ../src/mqtt_dispense_amount.c \
+             ../src/mqtt_wifi_rssi.c \
+             ../src/web_admin.c \
+             ../src/mqtt_dispense_progress.c \
+             ../src/feed_history.c \
+             ../src/problem.c \
+             ../src/feed_limit.c \
+             ../src/mqtt_problem.c \
+             ../src/task_watch.c \
+             ../src/app_health.c \
+             ../src/mqtt_power.c \
+             ../src/display_settings.c \
              ../src/mqtt_backoff.c \
              ../src/mqtt_topics.c \
              ../src/mqtt_route.c \
@@ -58,6 +83,7 @@ HOST_SRCS :=              ../src/app_log.c \
              ../src/schedule_cmd.c \
              ../src/mqtt_schedule.c \
              ../src/app_cmd_dispatch.c \
+             ../src/reboot_request.c \
              ../src/web_api.c \
              ../src/web_ui.c \
              ../src/web_ui_gz.c \
@@ -143,6 +169,7 @@ HOST_SRCS :=              ../src/app_log.c \
              fakes/fake_adc_port.c \
              fakes/fake_config_port.c \
              fakes/fake_time_port.c \
+             fakes/fake_system_port.c \
              fakes/fake_boot_bank.c \
              fakes/fake_mqtt_port.c \
              fakes/fake_ota_port.c \

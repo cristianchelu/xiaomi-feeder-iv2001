@@ -166,11 +166,23 @@ void test_hopper_level_empty_suppresses_low_transition(void)
     TEST_ASSERT_FALSE(hopper_level_pop_transition(&tr));
 }
 
+void test_hopper_level_underfill_with_full_hopper_does_not_latch_empty(void)
+{
+    hopper_level_test_reset();
+    TEST_ASSERT_EQUAL(
+        DISPENSE_OUTCOME_UNDERFILL,
+        hopper_level_on_dispense_finished(DISPENSE_OUTCOME_UNDERFILL, 5, true, 1000u));
+    TEST_ASSERT_EQUAL(HOPPER_LEVEL_STATE_NORMAL, hopper_level_get());
+}
+
 void test_hopper_level_underfill_latches_empty(void)
 {
     hopper_level_state_transition_t tr;
 
     hopper_level_test_reset();
+    set_ir_low(0u);
+    hopper_level_poll();
+    TEST_ASSERT_TRUE(hopper_level_pop_transition(&tr));   /* low */
     TEST_ASSERT_EQUAL(
         DISPENSE_OUTCOME_UNDERFILL,
         hopper_level_on_dispense_finished(DISPENSE_OUTCOME_UNDERFILL, 5, true, 1000u));

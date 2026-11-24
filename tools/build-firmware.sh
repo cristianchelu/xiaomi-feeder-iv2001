@@ -38,6 +38,16 @@ if [ "$web_ui_enable" = "y" ]; then
     "$REPO_ROOT/tools/web/build.sh"
 fi
 
+# Firmware version (HA sw_version, web page): git describe of this repo.
+FW_VERSION="${FW_VERSION:-$(git -C "$REPO_ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}"
+export FW_VERSION
+# The version is a -D flag, which make does not track: rebuild its users when it changes.
+FW_STAMP="$REPO_ROOT/firmware/.fw_version"
+if [ "$(cat "$FW_STAMP" 2>/dev/null)" != "$FW_VERSION" ]; then
+    grep -l "FW_VERSION" "$REPO_ROOT"/firmware/src/*.c | xargs touch
+    echo "$FW_VERSION" > "$FW_STAMP"
+fi
+
 cd "$SDK_ROOT"
 ./build.sh mt7682_hdk petfeeder bl
 

@@ -146,3 +146,21 @@ void test_hopper_input_background_disabled_on_battery(void)
 
     TEST_ASSERT_EQUAL_UINT32(0u, fake_hopper_ir_port_sense_count());
 }
+
+void test_hopper_input_last_raw_tracks_pre_debounce_reading(void)
+{
+    fake_hopper_ir_port_reset();
+    hopper_input_init(hopper_ir_port_get());
+    TEST_ASSERT_EQUAL_INT8(-1, hopper_input_last_raw());
+
+    fake_hopper_ir_port_set_beam_blocked(false);
+    hopper_input_notify_dispense_complete();
+    hopper_input_poll(0u, false);
+    TEST_ASSERT_EQUAL_INT8(0, hopper_input_last_raw());
+    TEST_ASSERT_EQUAL(HOPPER_LEVEL_NORMAL, hopper_input_get_level());
+
+    fake_hopper_ir_port_set_beam_blocked(true);
+    hopper_input_notify_dispense_complete();
+    hopper_input_poll(10u, false);
+    TEST_ASSERT_EQUAL_INT8(1, hopper_input_last_raw());
+}

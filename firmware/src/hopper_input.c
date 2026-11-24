@@ -10,6 +10,7 @@ static hopper_level_t s_level = HOPPER_LEVEL_NORMAL;
 static uint8_t s_clear_streak;
 static uint8_t s_blocked_streak;
 static bool s_debounce_active;
+static int8_t s_last_raw = -1;
 static bool s_force_sample;
 static uint32_t s_next_sample_ms;
 static uint32_t s_last_background_ms = UINT32_MAX;
@@ -123,6 +124,8 @@ static void hopper_input_sample(uint32_t now_ms, bool background)
         return;
     }
 
+    s_last_raw = beam_blocked ? 1 : 0;
+
     if (background) {
         s_last_background_ms = now_ms;
     }
@@ -145,6 +148,7 @@ void hopper_input_reset(void)
     s_force_sample = false;
     s_next_sample_ms = 0u;
     s_last_background_ms = UINT32_MAX;
+    s_last_raw = -1;
     s_transition_head = 0u;
     s_transition_tail = 0u;
 }
@@ -187,4 +191,9 @@ bool hopper_input_pop_transition(hopper_level_transition_t *tr)
     s_transition_head =
         (uint8_t)((s_transition_head + 1u) % HOPPER_INPUT_TRANSITION_QUEUE_DEPTH);
     return true;
+}
+
+int8_t hopper_input_last_raw(void)
+{
+    return s_last_raw;
 }

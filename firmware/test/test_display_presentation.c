@@ -289,3 +289,63 @@ void test_display_presentation_ota_stop_restores_scene(void)
     fake_display_port_last_grids(grids);
     TEST_ASSERT_EQUAL_HEX8(0x5Bu, grids[2]);
 }
+
+void test_display_presentation_blanked_powers_off_and_refresh_stays_dark(void)
+{
+    size_t before;
+    size_t after;
+    const fake_display_op_t *ops;
+
+    presentation_test_setup();
+    (void)display_presentation_set_digits(12u);
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_refresh());
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_set_blanked(true));
+    ops = fake_display_port_ops(&before);
+    TEST_ASSERT_EQUAL(FAKE_DISPLAY_OP_POWER_OFF, ops[before - 1u].kind);
+
+    (void)display_presentation_set_digits(34u);
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_refresh());
+    (void)fake_display_port_ops(&after);
+    TEST_ASSERT_EQUAL_UINT(before, after);
+}
+
+void test_display_presentation_unblank_restores_current_scene(void)
+{
+    uint8_t grids[TM1637_GRID_COUNT];
+
+    presentation_test_setup();
+    (void)display_presentation_set_blanked(true);
+    (void)display_presentation_set_digits(56u);
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_set_blanked(false));
+    TEST_ASSERT_NOT_NULL(fake_display_port_last_grids(grids));
+    TEST_ASSERT_EQUAL_UINT(1u, presentation_count_ops(FAKE_DISPLAY_OP_POWER_ON));
+}
+
+void test_display_presentation_blanked_brightness_stored_without_power_on(void)
+{
+    presentation_test_setup();
+    (void)display_presentation_set_blanked(true);
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_set_brightness(2u));
+    TEST_ASSERT_EQUAL_UINT(0u, presentation_count_ops(FAKE_DISPLAY_OP_POWER_ON));
+    (void)display_presentation_set_blanked(false);
+    TEST_ASSERT_EQUAL_UINT8(2u, fake_display_port_brightness());
+}
+
+void test_display_presentation_blanked_still_shows_ota_indicator(void)
+{
+    size_t n;
+    const fake_display_op_t *ops;
+
+    presentation_test_setup();
+    (void)display_presentation_set_blanked(true);
+    TEST_ASSERT_EQUAL(PORT_OK,
+                      display_presentation_ota_show(DISPLAY_OTA_PHASE_DOWNLOADING, 10u));
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_refresh());
+    ops = fake_display_port_ops(&n);
+    TEST_ASSERT_EQUAL(FAKE_DISPLAY_OP_SHOW_GRIDS, ops[n - 1u].kind);
+
+    (void)display_presentation_ota_stop();
+    TEST_ASSERT_EQUAL(PORT_OK, display_presentation_refresh());
+    ops = fake_display_port_ops(&n);
+    TEST_ASSERT_EQUAL(FAKE_DISPLAY_OP_POWER_OFF, ops[n - 1u].kind);
+}

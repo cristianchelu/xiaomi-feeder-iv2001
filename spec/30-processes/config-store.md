@@ -25,9 +25,23 @@ MT7682 NVDM (Non-Volatile Data Management) — SDK-provided key-value flash stor
 | feed | default_g | uint8 | 10 | Manual button portion grams |
 | feed | child_lock | bool | false | All physical button gestures blocked except unlock combo |
 | feed | overfill_enabled | bool | false | Skip scheduled feeds when bowl mass known and ≥ threshold |
-| feed | overfill_threshold_g | uint8 | 50 | Overfill threshold in grams; clamped 30–100 on load |
+| feed | overfill_threshold_g | uint16 | 50 | Overfill threshold in grams; clamped 30–500 on load |
 | display | mode | enum | weight | Display mode: weight / eaten_today / off |
-| display | brightness | uint8 | 4 | TM1637 brightness (1–4, maps to `0x88`–`0x8B`) |
+| display | battery_off_s | uint16 | 60 | Seconds of inactivity before the panel blanks on battery (0 = never, max 600) |
+| display | mains_off_s | uint16 | 0 | Same on mains (0 = never, max 3600) |
+| feed | button_g | uint16 | absent | Dispense-button grams (5–150); absent = one portion |
+| feed | portion_dg | uint16 | 100 | Grams per portion ×10: learned from weighed feeds, set by calibration |
+| feed | daily_max_g | uint16 | 0 | Daily dispense limit in grams (0 = off) |
+| feed | not_eaten_h | uint8 | 0 | Not-eaten alert delay in hours (0 = off) |
+| hist | f0…f19, next | string | absent | Feed history ring ([health-monitoring.md](health-monitoring.md)) |
+| hist | counters | string | absent | Health counters CSV |
+| time | ntp | string | `pool.ntp.org` | SNTP server host |
+| wifi | ssid_new / pass_new | string | absent | Trial Wi-Fi from the web page; committed on success, erased on failure |
+| system | web_pass | string | absent | Web page password (4–32 chars) |
+| system | ota_base | string | absent | Firmware folder URL |
+| display | brightness | uint8 | 4 | TM1637 brightness (0 = panel off, 1–4 maps to `0x88`–`0x8B`); legacy `display/mode=off` reads as brightness 0 |
+| eaten | day | uint32 | 0 | Local date `YYYYMMDD` the eaten total belongs to |
+| eaten | dg | uint32 | 0 | Eaten-today total in tenth-grams |
 | schedule | enabled | bool | true | Global schedule master switch |
 | schedule | slots | blob (IF1S v1) | empty | Packed slot config (up to 32 slots) — see [scheduler-engine.md](scheduler-engine.md) § NVDM persistence |
 | schedule | runtime | blob (IF1R v1) | — | **Future** — today runtime snapshot; separate key from config |
@@ -84,7 +98,7 @@ moderate write frequency.
 ## Factory reset
 
 1. Erase all NVDM namespaces (wifi, mqtt, feed, display, schedule, time,
-   calib, power, system). A namespace with no keys is already clear —
+   calib, power, system, hist). A namespace with no keys is already clear —
    `erase_group` succeeds without error. Also clear the LinkIt SDK STA
    profile (`STA/Ssid` in NVDM) so a failed provisioning attempt does not
    leave a ghost SSID in the radio stack.

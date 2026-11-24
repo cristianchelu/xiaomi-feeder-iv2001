@@ -9,12 +9,12 @@
 #include "sntp.h"
 #include "epoch_calendar.h"
 #include "time_port.h"
+#include "ntp_config.h"
+#include "app_log.h"
 
 #define TIME_RTC_MIN_YEAR     2020
 #define TIME_SNTP_TIMEOUT_MS  30000u
-#define TIME_SNTP_SERVER      "pool.ntp.org"
-
-static char s_sntp_server[] = TIME_SNTP_SERVER;
+static char s_sntp_server[NTP_CONFIG_MAX_LEN + 1u];
 
 static volatile bool s_sntp_started;
 static volatile bool s_sntp_done;
@@ -73,6 +73,8 @@ static port_err_t time_adapter_request_sync(void)
     s_sntp_ok = false;
     s_sntp_start_tick = xTaskGetTickCount();
     sntp_set_callback(time_adapter_sntp_cb);
+    ntp_config_get(s_sntp_server, sizeof(s_sntp_server));
+    app_log_info("time", "sntp server %s", s_sntp_server);
     sntp_setservername(0, s_sntp_server);
     sntp_init();
     s_sntp_started = true;

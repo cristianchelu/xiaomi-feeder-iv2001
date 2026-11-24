@@ -11,6 +11,8 @@
 #include "port_err.h"
 
 static char s_hopper_topic[96];
+static char s_hopper_ir_topic[96];
+static int8_t s_ir_last_published = -1;
 static bool s_level_known;
 static hopper_level_state_t s_last_level;
 static bool s_last_published_valid;
@@ -65,6 +67,29 @@ void mqtt_hopper_set_device_id(const char *device_id)
             != PORT_OK) {
         s_hopper_topic[0] = '\0';
     }
+    if (mqtt_topic_format(s_hopper_ir_topic, sizeof(s_hopper_ir_topic), device_id, "hopper_ir")
+            != PORT_OK) {
+        s_hopper_ir_topic[0] = '\0';
+    }
+}
+
+void mqtt_hopper_ir_sync(int8_t raw)
+{
+    const char *payload;
+
+    if (raw < 0 || s_hopper_ir_topic[0] == '\0' || raw == s_ir_last_published) {
+        return;
+    }
+    payload = (raw > 0) ? "blocked" : "clear";
+    if (mqtt_outbox_enqueue(s_hopper_ir_topic, payload, strlen(payload), 1, true)) {
+        s_ir_last_published = raw;
+    }
+}
+
+void mqtt_hopper_ir_connect_snapshot(int8_t raw)
+{
+    s_ir_last_published = -1;
+    mqtt_hopper_ir_sync(raw);
 }
 
 void mqtt_hopper_sync(hopper_level_state_t level)
@@ -128,6 +153,8 @@ bool mqtt_hopper_format_wire(char *buf, size_t len)
 void mqtt_hopper_test_reset(void)
 {
     s_hopper_topic[0] = '\0';
+    s_hopper_ir_topic[0] = '\0';
+    s_ir_last_published = -1;
     s_level_known = false;
     s_last_level = HOPPER_LEVEL_STATE_NORMAL;
     s_last_published_valid = false;

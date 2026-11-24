@@ -53,6 +53,8 @@ void test_route_remaining_command_topics(void)
                       mqtt_route_classify("petfeeder/a4cf12/cmd/feed/mode", "a4cf12"));
     TEST_ASSERT_EQUAL(MQTT_ROUTE_CMD_FEED_OVERFILL,
                       mqtt_route_classify("petfeeder/a4cf12/cmd/feed/overfill", "a4cf12"));
+    TEST_ASSERT_EQUAL(MQTT_ROUTE_CMD_CHILD_LOCK,
+                      mqtt_route_classify("petfeeder/a4cf12/cmd/child_lock", "a4cf12"));
     TEST_ASSERT_EQUAL(MQTT_ROUTE_CMD_REBOOT,
                       mqtt_route_classify("petfeeder/a4cf12/cmd/reboot", "a4cf12"));
 }
@@ -62,4 +64,10 @@ void test_route_rejects_null_or_empty_inputs(void)
     TEST_ASSERT_EQUAL(MQTT_ROUTE_UNKNOWN, mqtt_route_classify(NULL, "a4cf12"));
     TEST_ASSERT_EQUAL(MQTT_ROUTE_UNKNOWN, mqtt_route_classify("petfeeder/a4cf12/cmd/ota", NULL));
     TEST_ASSERT_EQUAL(MQTT_ROUTE_UNKNOWN, mqtt_route_classify("petfeeder/a4cf12/cmd/ota", ""));
+}
+
+void test_mqtt_route_eaten_reset(void)
+{
+    TEST_ASSERT_EQUAL(MQTT_ROUTE_CMD_EATEN_RESET,
+                      mqtt_route_classify("petfeeder/a4cf12/cmd/eaten_reset", "a4cf12"));
 }

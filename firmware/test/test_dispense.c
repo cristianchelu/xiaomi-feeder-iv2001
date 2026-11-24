@@ -70,14 +70,31 @@ static void dispense_test_setup_mqtt(void)
     mqtt_client_test_set_device_id("ddeeff");
 }
 
+static char s_event_payload[512];
+
+static void dispense_test_capture_event(void)
+{
+    const fake_mqtt_port_state_t *st = fake_mqtt_port_state();
+
+    if (strstr(st->last_publish_topic, "dispense/event") != NULL) {
+        strcpy(s_event_payload, st->last_publish_payload);
+    }
+}
+
+/* Drains the outbox; s_event_payload keeps the last dispense event. */
 static void dispense_test_drain_mqtt(void)
 {
     const mqtt_port_t *mqtt = fake_mqtt_port_get();
 
+    s_event_payload[0] = '\0';
     while (mqtt_outbox_pending() > 0) {
         if (!mqtt_outbox_drain_one(mqtt)) {
             fake_time_advance_ms(101u);
-            (void)mqtt_outbox_drain_one(mqtt);
+            if (mqtt_outbox_drain_one(mqtt)) {
+                dispense_test_capture_event();
+            }
+        } else {
+            dispense_test_capture_event();
         }
     }
 }
@@ -383,10 +400,10 @@ void test_dispense_compensated_retries_until_tolerance_met(void)
 
     dispense_test_drain_mqtt();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"event_type\":\"success\""));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"grams\":28"));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"mode\":\"compensated\""));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"batch_count\":2"));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"event_type\":\"success\""));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"grams\":28"));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"mode\":\"compensated\""));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"batch_count\":2"));
 }
 
 void test_dispense_compensated_underfill_publishes_event(void)
@@ -414,10 +431,10 @@ void test_dispense_compensated_underfill_publishes_event(void)
 
     dispense_test_drain_mqtt();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"event_type\":\"underfill\""));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"grams\":18"));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"batch_count\":3"));
-    TEST_ASSERT_NULL(strstr(mqtt->last_publish_payload, "deficit_g"));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"event_type\":\"underfill\""));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"grams\":18"));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"batch_count\":3"));
+    TEST_ASSERT_NULL(strstr(s_event_payload, "deficit_g"));
 }
 
 void test_dispense_compensation_retry_motor_busy_aborts(void)
@@ -446,9 +463,9 @@ void test_dispense_compensation_retry_motor_busy_aborts(void)
 
     dispense_test_drain_mqtt();
     mqtt = fake_mqtt_port_state();
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"event_type\":\"aborted\""));
-    TEST_ASSERT_NOT_NULL(strstr(mqtt->last_publish_payload, "\"grams\":10"));
-    TEST_ASSERT_NULL(strstr(mqtt->last_publish_payload, "deficit_g"));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"event_type\":\"aborted\""));
+    TEST_ASSERT_NOT_NULL(strstr(s_event_payload, "\"grams\":10"));
+    TEST_ASSERT_NULL(strstr(s_event_payload, "deficit_g"));
 }
 
 void test_dispense_uart_portions_stays_open_loop_when_compensated(void)

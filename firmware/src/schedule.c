@@ -3,6 +3,7 @@
  */
 
 #include "schedule.h"
+#include "app_log.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -117,7 +118,8 @@ static void schedule_refresh_entry_state(schedule_entry_t *entry,
     if (entry->rt.state == SCHEDULE_STATE_DISPENSING ||
         entry->rt.state == SCHEDULE_STATE_DISPENSED ||
         entry->rt.state == SCHEDULE_STATE_FAILED ||
-        entry->rt.state == SCHEDULE_STATE_SKIPPED_FULL) {
+        entry->rt.state == SCHEDULE_STATE_SKIPPED_FULL ||
+        entry->rt.state == SCHEDULE_STATE_SKIPPED_LIMIT) {
         return;
     }
 
@@ -358,7 +360,8 @@ static void schedule_mark_missed_before(uint16_t now_min, uint8_t wday_mon0)
             entry->rt.state != SCHEDULE_STATE_DISPENSING &&
             entry->rt.state != SCHEDULE_STATE_DISPENSED &&
             entry->rt.state != SCHEDULE_STATE_FAILED &&
-            entry->rt.state != SCHEDULE_STATE_SKIPPED_FULL) {
+            entry->rt.state != SCHEDULE_STATE_SKIPPED_FULL &&
+            entry->rt.state != SCHEDULE_STATE_SKIPPED_LIMIT) {
             entry->rt.state = SCHEDULE_STATE_SKIPPED;
         }
     }
@@ -404,6 +407,10 @@ static void schedule_try_fire_current(const time_local_t *now)
             entry->rt.fired_today = true;
             entry->rt.state = SCHEDULE_STATE_SKIPPED_FULL;
             schedule_notify_changed();
+        } else if (result == SCHEDULE_FIRE_SKIPPED_LIMIT) {
+            entry->rt.fired_today = true;
+            entry->rt.state = SCHEDULE_STATE_SKIPPED_LIMIT;
+            schedule_notify_changed();
         }
     }
 }
@@ -417,6 +424,8 @@ const char *schedule_state_wire(schedule_state_t state)
         return "skipped";
     case SCHEDULE_STATE_SKIPPED_FULL:
         return "skipped_full";
+    case SCHEDULE_STATE_SKIPPED_LIMIT:
+        return "skipped_limit";
     case SCHEDULE_STATE_DISPENSING:
         return "dispensing";
     case SCHEDULE_STATE_DISPENSED:
@@ -589,6 +598,89 @@ bool schedule_set_today_enabled(bool enabled)
     s_today_enabled = enabled;
     schedule_notify_changed();
     return true;
+}
+
+static schedule_precheck_fn s_precheck_fn;
+
+void schedule_set_precheck_fn(schedule_precheck_fn fn)
+{
+    s_precheck_fn = fn;
+}
+
+const char *schedule_feed_next_reason(schedule_feed_next_t r)
+{
+    switch (r) {
+    case SCHEDULE_FEED_NEXT_OK:
+        return "ok";
+    case SCHEDULE_FEED_NEXT_LIMIT:
+        return "limit";
+    case SCHEDULE_FEED_NEXT_BOWL_FULL:
+        return "bowl_full";
+    case SCHEDULE_FEED_NEXT_BUSY:
+        return "busy";
+    default:
+        return "no_meal_today";
+    }
+}
+
+static schedule_feed_next_t schedule_feed_next_refused(schedule_feed_next_t r)
+{
+    app_log_info("schedule", "feed next refused: %s", schedule_feed_next_reason(r));
+    return r;
+}
+
+schedule_feed_next_t schedule_feed_next(void)
+{
+    time_local_t now;
+    uint16_t now_min;
+    schedule_entry_t *best = NULL;
+    schedule_fire_result_t pre = SCHEDULE_FIRE_OK;
+    schedule_fire_result_t result;
+    size_t i;
+
+    if (!time_sync_is_valid() || !time_local_now(&now) || s_fire_fn == NULL ||
+        !s_global_enabled || !s_today_enabled) {
+        return schedule_feed_next_refused(SCHEDULE_FEED_NEXT_NONE);
+    }
+    now_min = schedule_minutes(now.hour, now.min);
+    for (i = 0; i < s_slot_count; i++) {
+        schedule_entry_t *e = &s_slots[i];
+        uint16_t m = schedule_minutes(e->cfg.hour, e->cfg.min);
+
+        if (!e->cfg.enabled || e->rt.fired_today || e->rt.skip_today ||
+            e->rt.state != SCHEDULE_STATE_PENDING || m < now_min ||
+            !schedule_slot_applies_today(&e->cfg, now.wday_mon0)) {
+            continue;
+        }
+        if (best == NULL || m < schedule_minutes(best->cfg.hour, best->cfg.min)) {
+            best = e;
+        }
+    }
+    if (best == NULL) {
+        return schedule_feed_next_refused(SCHEDULE_FEED_NEXT_NONE);
+    }
+    if (s_precheck_fn != NULL) {
+        pre = s_precheck_fn();
+    }
+    if (pre == SCHEDULE_FIRE_SKIPPED_LIMIT) {
+        return schedule_feed_next_refused(SCHEDULE_FEED_NEXT_LIMIT);
+    }
+    if (pre == SCHEDULE_FIRE_SKIPPED_FULL) {
+        return schedule_feed_next_refused(SCHEDULE_FEED_NEXT_BOWL_FULL);
+    }
+    result = s_fire_fn(best->cfg.hour, best->cfg.min, best->cfg.g);
+    if (result != SCHEDULE_FIRE_OK) {
+        return schedule_feed_next_refused(SCHEDULE_FEED_NEXT_BUSY);
+    }
+    best->rt.fired_today = true;
+    best->rt.state = SCHEDULE_STATE_DISPENSING;
+    s_active_valid = true;
+    s_active_hour = best->cfg.hour;
+    s_active_min = best->cfg.min;
+    app_log_info("schedule", "feed next: %02u:%02u served now (%u g)",
+                 (unsigned)best->cfg.hour, (unsigned)best->cfg.min, (unsigned)best->cfg.g);
+    schedule_notify_changed();
+    return SCHEDULE_FEED_NEXT_OK;
 }
 
 void schedule_poll(uint32_t now_ms)

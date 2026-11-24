@@ -620,3 +620,70 @@ void test_schedule_skipped_full_stays_terminal_on_later_poll(void)
     TEST_ASSERT_EQUAL(SCHEDULE_STATE_SKIPPED_FULL, rt.state);
     TEST_ASSERT_TRUE(rt.fired_today);
 }
+
+static schedule_fire_result_t s_precheck_result;
+
+static schedule_fire_result_t test_precheck(void)
+{
+    return s_precheck_result;
+}
+
+static void setup_two_meals(void)
+{
+    schedule_slot_config_t a = { .hour = 9, .min = 0, .days = 127, .g = 20, .enabled = true };
+    schedule_slot_config_t b = { .hour = 18, .min = 30, .days = 127, .g = 40, .enabled = true };
+
+    setup_schedule_synced(SCHEDULE_TEST_EPOCH_THU_08_00_UTC);
+    TEST_ASSERT_TRUE(schedule_set_slot(&b));
+    TEST_ASSERT_TRUE(schedule_set_slot(&a));
+    schedule_poll(1000u);
+    s_precheck_result = SCHEDULE_FIRE_OK;
+    schedule_set_precheck_fn(test_precheck);
+}
+
+/* Feed next meal: serves the earliest pending slot now, once. */
+void test_schedule_feed_next_serves_earliest_pending_slot_once(void)
+{
+    schedule_slot_runtime_t rt;
+    schedule_slot_config_t cfg;
+
+    setup_two_meals();
+    TEST_ASSERT_EQUAL(SCHEDULE_FEED_NEXT_OK, schedule_feed_next());
+    TEST_ASSERT_EQUAL_UINT(1u, s_fire_calls);
+    TEST_ASSERT_EQUAL_UINT(9u, s_fire_hour);
+    TEST_ASSERT_EQUAL_UINT(20u, s_fire_g);
+    TEST_ASSERT_TRUE(schedule_get_slot(0, &cfg, &rt));
+    TEST_ASSERT_EQUAL(SCHEDULE_STATE_DISPENSING, rt.state);
+    TEST_ASSERT_TRUE(rt.fired_today);
+
+    fake_time_port_set_epoch(SCHEDULE_TEST_EPOCH_THU_08_00_UTC + 3600LL);   /* 09:00 */
+    schedule_poll(2000u);
+    TEST_ASSERT_EQUAL_UINT(1u, s_fire_calls);                               /* not twice */
+}
+
+void test_schedule_feed_next_refuses_without_side_effects(void)
+{
+    schedule_slot_runtime_t rt;
+
+    setup_two_meals();
+    s_precheck_result = SCHEDULE_FIRE_SKIPPED_FULL;
+    TEST_ASSERT_EQUAL(SCHEDULE_FEED_NEXT_BOWL_FULL, schedule_feed_next());
+    s_precheck_result = SCHEDULE_FIRE_SKIPPED_LIMIT;
+    TEST_ASSERT_EQUAL(SCHEDULE_FEED_NEXT_LIMIT, schedule_feed_next());
+    s_precheck_result = SCHEDULE_FIRE_OK;
+    s_fire_result = SCHEDULE_FIRE_BUSY;
+    TEST_ASSERT_EQUAL(SCHEDULE_FEED_NEXT_BUSY, schedule_feed_next());
+    TEST_ASSERT_TRUE(schedule_get_slot(0, NULL, &rt));
+    TEST_ASSERT_EQUAL(SCHEDULE_STATE_PENDING, rt.state);
+    TEST_ASSERT_FALSE(rt.fired_today);
+}
+
+void test_schedule_feed_next_none_left_today(void)
+{
+    setup_two_meals();
+    fake_time_port_set_epoch(SCHEDULE_TEST_EPOCH_THU_08_00_UTC + 11LL * 3600LL);  /* 19:00 */
+    schedule_poll(3000u);
+    s_fire_calls = 0u;
+    TEST_ASSERT_EQUAL(SCHEDULE_FEED_NEXT_NONE, schedule_feed_next());
+    TEST_ASSERT_EQUAL_UINT(0u, s_fire_calls);
+}

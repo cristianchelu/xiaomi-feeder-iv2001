@@ -31,12 +31,25 @@
 #define CONFIG_KEY_OVERFILL_ENABLED     "overfill_enabled"
 #define CONFIG_KEY_OVERFILL_THRESHOLD_G "overfill_threshold_g"
 
+#define CONFIG_GROUP_DISPLAY            "display"
+#define CONFIG_KEY_DISPLAY_MODE         "mode"
+#define CONFIG_KEY_DISPLAY_BRIGHTNESS   "brightness"
+#define CONFIG_KEY_DISPLAY_BATTERY_OFF_S "battery_off_s"
+#define CONFIG_KEY_DISPLAY_MAINS_OFF_S   "mains_off_s"
+
+#define CONFIG_GROUP_EATEN              "eaten"
+#define CONFIG_KEY_EATEN_DAY            "day"
+#define CONFIG_KEY_EATEN_DG             "dg"
+#define CONFIG_KEY_EATEN_VER            "ver"
+
 #define CONFIG_GROUP_POWER                 "power"
+#define CONFIG_KEY_POWER_BATTERY_WIFI      "battery_wifi"
 #define CONFIG_KEY_POWER_BATT_SCALE_X1000  "batt_scale_x1000"
 
 #define CONFIG_GROUP_TIME          "time"
 #define CONFIG_KEY_TZ_RULE         "tz_rule"
 #define CONFIG_KEY_TZ_LABEL        "tz_label"
+#define CONFIG_KEY_NTP_SERVER      "ntp"
 
 #define CONFIG_GROUP_SCHEDULE      "schedule"
 #define CONFIG_KEY_SCHEDULE_ENABLED "enabled"

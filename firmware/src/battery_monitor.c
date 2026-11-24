@@ -3,6 +3,7 @@
  */
 
 #include "battery_monitor.h"
+#include "power_source_input.h"
 
 #include <stddef.h>
 
@@ -19,6 +20,8 @@
 
 static uint32_t s_last_sample_ms;
 static bool s_force_sample;
+static uint8_t s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
+static uint16_t s_last_mv;
 static bool s_has_last_sample_ms;
 
 static uint32_t battery_monitor_interval_ms(void)
@@ -90,16 +93,41 @@ bool battery_monitor_poll(uint32_t now_ms)
     s_last_sample_ms = now_ms;
     s_has_last_sample_ms = true;
 
+    /* Field: on mains the pack sense sometimes reads ~24.8 V (pin near ADC
+     * full scale), impossible for 4 AA cells. Drop it, keep the last valid
+     * value, and log for diagnosis. */
+    if (pack_mv > BATTERY_MONITOR_MAX_PLAUSIBLE_MV) {
+        app_log_info("app", "battery read implausible %u mV (mains %s): ignored",
+                     (unsigned)pack_mv,
+                     power_source_input_is_valid()
+                         ? (power_source_input_get() == POWER_SOURCE_MAINS ? "ON" : "OFF")
+                         : "?");
+        return false;
+    }
+
+    s_last_mv = pack_mv;
     mqtt_battery_voltage_sync(pack_mv, force);
 
-    if (pack_mv == 0u) {
+    if (pack_mv < BATTERY_MONITOR_ABSENT_MV) {
+        s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
         mqtt_battery_sync(false, 0u, force);
     } else {
         pct = battery_pct_from_mv(pack_mv, battery_pct_default_chemistry());
+        s_last_pct = pct;
         mqtt_battery_sync(true, pct, force);
     }
 
     return true;
+}
+
+uint16_t battery_monitor_last_mv(void)
+{
+    return s_last_mv;
+}
+
+uint8_t battery_monitor_pct(void)
+{
+    return s_last_pct;
 }
 
 void battery_monitor_force_sample(void)
@@ -109,7 +137,9 @@ void battery_monitor_force_sample(void)
 
 void battery_monitor_test_reset(void)
 {
+    s_last_pct = BATTERY_MONITOR_PCT_UNKNOWN;
     s_last_sample_ms = 0u;
     s_force_sample = false;
     s_has_last_sample_ms = false;
+    s_last_mv = 0u;
 }

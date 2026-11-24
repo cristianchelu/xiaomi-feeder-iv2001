@@ -76,20 +76,30 @@ produces the sorted `repeat_days` array for the POST body.
 | `parseApiResponse(text)` | JSON object or plain string (feed mode GET) |
 | `apiContentType(body)` | `application/json` vs `text/plain` for POST |
 | `mutationMessage(r, okText, failPrefix?)` | User-visible result from `{ok, error?}` |
+| `TIMEZONES` | `{label, rule}` presets for the timezone dropdown (POSIX rules, e.g. Paris `CET-1CEST,M3.5.0,M10.5.0/3`) |
+| `timezoneLabel(rule)` | Preset label for a stored rule, or `Custom` |
+| `formatProgress(p)` | Live dispense line from `progress` (`Dispensing 2/5 · 17.3 g`, `Weighing…`), `null` when idle |
+| `formatRssi(dbm)` | `-55 dBm · good` (≥ −60 good, ≥ −70 fair, else weak), `—` when unknown |
+| `withKey(body, password)` | Prefixes `key=<password>\n` when a web password is stored |
+| `buildNetworkBody(fields)` | `POST /api/network` object with only the non-empty fields (`mqtt_port` as a number) |
+| `buildDisplayBody(fields)` | `POST /api/display` object (`mode`, `brightness`, `battery_off_s`, `mains_off_s`) |
 
-## Page layout (frozen v0)
+## Page layout
 
-Sticky tab bar (**Now** · **Schedule** · **Settings**); one pane visible at a time
-(CSS `:checked` on hidden radios — no framework).
+Sticky tab bar (**Home** · **Schedule** · **Settings** · **System** · **Help**); one pane
+visible at a time (CSS `:checked` on hidden radios — no framework). Each pane is
+a column of titled cards; every card saves its own fields with one button.
 
-### Now tab
+### Home tab
 
 | Block | Source |
 |-------|--------|
 | Next feed | `/api/status` `next` — two-line hero (`formatNextFeedParts`) |
 | Problem alerts | `/api/status` — time not synced, `bowl_error` |
+| Problem banner | `problem` — red card `E1 E3 — <text>` with **Clear** (`POST /api/problem_clear`), hidden when inactive |
+| Live dispense | `progress` (`formatProgress`), shown only while a dispense runs |
 | **Current state** grid | `/api/status` telemetry fields — see below |
-| Feed now | `POST /api/dispense` |
+| Feed now | `POST /api/dispense`; the grams field starts at `dispense_g` (or 10) |
 
 **Current state** rows (`statusStateRows`) expect these `/api/status` fields:
 
@@ -102,13 +112,16 @@ Sticky tab bar (**Now** · **Schedule** · **Settings**); one pane visible at a 
 | Battery | `battery` (optional) | `formatBatteryWire` |
 | Power | `mains` (optional) | `formatMainsWire` |
 
-Poll `/api/status` every 5 s; do not add per-topic GETs in v0.
+Plus **Eaten today** (`eaten_today`) with a Reset button.
+
+Poll `/api/status` every 5 s (every 1 s while `progress.state` is not `idle`).
 
 ### Schedule tab
 
 | Block | Behavior |
 |-------|----------|
 | Master toggles | Schedule / Today |
+| Feed next meal | `POST /api/schedule/feed_next`; refusal shown in words (no meal left today, daily limit, bowl full, busy) |
 | **+ Add feed** | Opens bottom-sheet editor with empty form |
 | Slot cards | `HH:MM · Ng` headline · day letters · **`state` from API**; `.slot-main` at 55% opacity when disabled or `to_be_skipped`; row actions stay full contrast |
 | Day letters | Off days plain text; scheduled days filled accent dot; **today** when off gets bordered badge |
@@ -126,8 +139,57 @@ Poll `/api/status` every 5 s; do not add per-topic GETs in v0.
 
 ### Settings tab
 
-Feed mode, overfill protection (toggle + 30–100 g threshold), and timezone.
-The threshold input is disabled when overfill protection is off.
+| Card | Fields |
+|------|--------|
+| Feeding | Feed mode; HA Dispense-button amount in grams (empty = one portion, placeholder shows the portion size in g) (`POST /api/dispense_amount`); daily limit and not-eaten alert (`POST /api/feed_limit`, `formatHistoryRow`-independent); grams dispensed today; child lock (saved on toggle) |
+| Overfill protection | Toggle + 30–500 g threshold (threshold disabled when off) |
+| Portion | Portion size and calibration status; Calibrate / Reset to 10 g |
+| Screen | Mode, brightness, screen-off delay on battery and on mains (seconds, 0 = never) |
+| Scale | Calibration status; Zero (bowl removed) / Span (empty bowl) |
+| Battery | Wi-Fi on battery |
+
+### System tab
+
+| Card | Fields |
+|------|--------|
+| Time | Feeder time; timezone dropdown (`TIMEZONES` + Custom POSIX rule); NTP server |
+| Network | Wi-Fi SSID / password, MQTT host / port / user / password — current values prefilled except passwords (blank keeps the stored one); Wi-Fi signal (`formatRssi`). Saving any field other than NTP reboots; a failing new Wi-Fi falls back to the previous one |
+| Security | Web password set / change / remove |
+| Backup | Download settings (`GET /api/export`), restore from a file (`POST /api/import`) |
+| Firmware | Version (`fw`), active bank, update state/progress (`ota`), firmware folder URL (`POST /api/ota_base`), **Install firmware update** (`POST /api/ota_install`) |
+| Device | Reboot; Wi-Fi setup again (`/api/reprovision`); Factory reset (`/api/factory_reset`, typed confirmation `RESET`) |
+| Feed history | `GET /api/history` when the tab opens or on Refresh; one line per meal (`formatHistoryRow`: when · source · wanted → got, result badge, holes/time/current and failure notes) |
+| Diagnostics | Health counters (`health`, `formatUptime`); recent log (`GET /api/log`) on demand |
+
+### Edited fields
+
+A field the user has changed is *dirty*: status refreshes never overwrite it
+until its card is saved (then it takes the device value again) or the page is
+reloaded. Untouched fields follow the device.
+
+### Language
+
+All labels exist in English and French. The language is `status.lang`; when
+unset, French if the browser language starts with `fr`, else English. A
+selector in **System → Language** saves it (`POST /api/lang`) for every
+browser.
+
+### Help tab
+
+Static text in the page language: how a meal works (schedule, modes, portion
+learning, overfill, daily limit, not-eaten alert, calibrations), the slot
+states, and every problem code (E1–E9) with what to do.
+
+### Password
+
+Reads use GET while no password is stored and POST with the `key=` line once
+one is. When `/api/status` answers `{"locked":true}` or `unauthorized`, the
+page shows a lock screen over every tab; a password accepted by
+`POST /api/unlock` is stored and the page reloads its data.
+
+When a POST returns `unauthorized`, the page asks for the web password,
+stores it in `localStorage` (wrapped in `try/catch`; memory only when storage
+fails) and retries once. Every POST goes through `withKey`.
 
 ### Chrome
 

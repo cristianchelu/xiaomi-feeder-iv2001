@@ -46,7 +46,7 @@ transitioning IR level from `normal` to `low`.
 
 | Power source | Sampling |
 |--------------|----------|
-| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **60 s** |
+| **Mains** | Post-dispense (immediate) **and** idle background every `[tune]` **10 s**; never while a dispense job is active (the hopper read loans the GPIO expander shared with the motor index detector) |
 | **Battery** | Post-dispense only — no periodic background |
 
 Active debounce intervals (1 s between streak readings while a transition is
@@ -76,12 +76,20 @@ Updated on transition only.
 |-------|---------|
 | `normal` | IR beam blocked (food in path); hopper not latched empty |
 | `low` | IR beam clear (almost empty); hopper not latched empty |
-| `empty` | Material path exhausted: measured zero delivery with IR `low`, or `underfill` after compensated retry exhaustion |
+| `empty` | Material path exhausted: measured zero delivery with IR `low`, or `underfill` after compensated retry exhaustion **with IR `low`** |
 
 `low` is the **almost-empty** IR flag. It does **not** alone mean a dispense
 failed. `empty` is stronger: out-of-food for feeding purposes. A compensated
-`underfill` may latch `empty` even when the last few grams came from chute
-stragglers — the hopper is effectively empty after that job.
+`underfill` latches `empty` only while the IR reads `low`; with the beam
+blocked (food in the path) an underfill is a delivery fault and the level stays
+`normal` (earlier revisions latched `empty` regardless, so one failed dispense
+made every later one report `empty_hopper`).
+
+## Raw reading
+
+`hopper_input_last_raw()` returns the last successful `sense()` result before
+debounce: `-1` none yet, `0` beam clear, `1` beam blocked. Published as
+`.../hopper_ir` ([mqtt-protocol.md](mqtt-protocol.md) § Hopper).
 
 ## Process module (`hopper_input`)
 
@@ -92,7 +100,7 @@ Host-testable debounce over `hopper_ir_port` (same layering as
 |-----|----------|
 | `hopper_input_init(port)` | Bind port; level starts `normal` |
 | `hopper_input_notify_dispense_complete()` | Arm immediate sense on next poll (post-dispense check) |
-| `hopper_input_poll(now_ms, background_enabled)` | Run sense when post-dispense pending, debounce interval elapsed, or (mains only) `[tune]` 60 s background timer |
+| `hopper_input_poll(now_ms, background_enabled)` | Run sense when post-dispense pending, debounce interval elapsed, or (mains only) `[tune]` 10 s background timer |
 | `hopper_input_get_level()` | Debounced `normal` \| `low` |
 | `hopper_input_almost_empty()` | `true` when `get_level() == low` |
 | `hopper_input_pop_transition(...)` | IR level edge since last pop |

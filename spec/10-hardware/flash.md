@@ -2,11 +2,33 @@
 
 ## Flash chip
 
-**Winbond W25Q16DW** — 16 Mbit / **2 MB**.
-JEDEC ID: 0xEF 0x60 0x15. `[probe]` `[bootlog]`
+**2 MB** (16 Mbit) 1.8 V SPI NOR. Two parts have been seen on IV2001 units,
+both with the same geometry and command set:
 
-The SDK flash-combo tables do not include this part by default — a custom
-entry override is required for flash init to succeed. `[bootlog]`
+| Part | JEDEC ID | Evidence |
+|------|----------|----------|
+| Winbond W25Q16DW | `0xEF 0x60 0x15` | `[probe]` `[bootlog]` |
+| GigaDevice GD25LQ16 | `0xC8 0x60 0x15` | `[bootlog]` 2026-11-05, unit whose bootloader hung in flash init |
+
+The SDK flash-combo tables include neither part by default. A bootloader that
+lacks the entry for the fitted chip stops in `custom_setSFI` (infinite loop
+when the ID is not in the table) with no further UART output and no watchdog
+reset, right after `hal_clock_set_pll_dcm_init`. Both IDs therefore need an
+entry (`flash_combo_w25q16dw.patch`, `flash_combo_gd25lq16.patch`). `[bootlog]`
+
+The SDK flash driver also compiles vendor support per manufacturer (`SF_DAL_*`
+in `hal_flash_opt_gen.h`); only Macronix and Winbond are on by default. With
+the combo entry present but `SF_DAL_GIGADEVICE` off, `hal_flash_init()` stops on
+an assertion for manufacturer `0xC8` (UART stops after `hal_flash_init`).
+`flash_dal_gigadevice.patch` enables it. `[bootlog]` 2026-11-05
+
+The flash-controller (SFI) settings for the GigaDevice part are not the
+Winbond ones. Copying the Winbond QPI sequence made the ID read back `FF FF FF`
+after `custom_setSFI` and `CMEM_Index()` returned -1 (hang). The values in
+`flash_combo_gd25lq16.patch` are those of the stock firmware's bootloader table
+entry for JEDEC `C8 60 15` (read from the flash backup): quad SPI direct read
+`0xEB0B5770`, `SFI_MISC_CTL` `0x52F80300`, sample delay `0x1D00001D`, device init
+`50`, `01 02 02`, `05 01`, `77 FF`, no QPI entry. `[bootlog]` 2026-11-05
 
 ## Chip characteristics
 
@@ -62,8 +84,9 @@ bootloader source; we build our own.
 - **No sacred regions.** There is no irreplaceable factory data in flash
 that must be preserved. MAC is in efuse; WiFi regulatory config is
 runtime. A clean chip-erase + full reprogram is a valid workflow.
-- **Flash combo override required.** The W25Q16DW JEDEC ID must be added
-to the SDK's flash-combo table at build time or the flash init will fail.
+- **Flash combo override required.** The JEDEC ID of every supported part
+(table above) must be in the SDK's flash-combo table at build time or the
+flash init will hang.
 - **Recovery:** the MT7682 boot ROM provides a UART0 (GPIO21/22) download
 mode regardless of flash contents. Even a fully erased chip can be
 programmed via the MediaTek IoT Flash Tool. `[bootlog]`

@@ -39,4 +39,6 @@ const wifi_port_t *fake_wifi_port_get(void);
 void fake_wifi_port_set_sta_up(bool connected, bool has_ip);
 void fake_wifi_port_set_wait_ready_result(port_err_t result);
 
+void fake_wifi_port_set_rssi(int8_t dbm);
+
 #endif /* FAKE_WIFI_PORT_H */

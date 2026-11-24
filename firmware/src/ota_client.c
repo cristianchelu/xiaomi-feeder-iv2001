@@ -7,8 +7,11 @@
 
 #include "app_log.h"
 #include "boot_bank_target.h"
+#include "dispense.h"
 
+#include "mqtt_json.h"
 #include "mqtt_outbox.h"
+#include "ota_base.h"
 #include "mqtt_port.h"
 #include "mqtt_route.h"
 #include "mqtt_topics.h"
@@ -179,7 +182,24 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
     memcpy(payload_buf, payload, len);
     payload_buf[len] = '\0';
 
-    err = ota_cmd_parse(payload_buf, len, url, sizeof(url), sha512, &has_sha512);
+    if (mqtt_json_has_key(payload_buf, len, "install")) {
+        /* One-button install: <base>/petfeeder_<inactive bank>.bin. */
+        bool install = false;
+        char inactive = (ota_client_active_bank_letter() == 'A') ? 'b' : 'a';
+
+        if (!mqtt_json_find_bool(payload_buf, len, "install", &install) || !install) {
+            app_log_info("ota", "install ignored (not true)");
+            return;
+        }
+        has_sha512 = false;
+        if (!ota_base_build_url(inactive, url, sizeof(url))) {
+            ota_client_publish_status("error", 0, "no_base_url");
+            return;
+        }
+        err = PORT_OK;
+    } else {
+        err = ota_cmd_parse(payload_buf, len, url, sizeof(url), sha512, &has_sha512);
+    }
     if (err != PORT_OK) {
         app_log_error("ota", "cmd parse failed");
         ota_client_publish_status("error", 0, "invalid_url");
@@ -187,6 +207,12 @@ void ota_client_on_mqtt_message(const char *topic, const void *payload, size_t l
     }
 
     app_log_debug("ota", "parsed url=%s sha512=%s", url, has_sha512 ? "yes" : "no");
+
+    if (dispense_is_active()) {
+        app_log_error("ota", "rejected: dispense in progress");
+        ota_client_publish_status("error", 0, "busy_dispense");
+        return;
+    }
 
     ota_client_publish_status("downloading", 0, "");
 
@@ -214,4 +240,27 @@ void ota_client_on_mqtt_connected(void)
 uint32_t ota_client_poll_ms(void)
 {
     return ota_slot_health_poll_ms();
+}
+
+void ota_client_request_install(void)
+{
+    static const char body[] = "{\"install\":true}";
+    char topic[96];
+
+    if (s_device_id[0] == '\0' ||
+        mqtt_topic_format(topic, sizeof(topic), s_device_id, "cmd/ota") != PORT_OK) {
+        app_log_error("ota", "install from web: device_id unset");
+        return;
+    }
+    app_log_info("ota", "install requested from the web page");
+    ota_client_on_mqtt_message(topic, body, sizeof(body) - 1u);
+}
+
+int ota_client_format_status(char *buf, size_t len)
+{
+    int n = snprintf(buf, len, "{\"state\":\"%s\",\"pct\":%u,\"error\":\"%s\",\"bank\":\"%c\"}",
+                     s_last_state, (unsigned)s_last_pct, s_last_error,
+                     ota_client_active_bank_letter());
+
+    return (n < 0 || (size_t)n >= len) ? -1 : n;
 }
